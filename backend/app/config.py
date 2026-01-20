@@ -4,10 +4,6 @@ from datetime import timedelta
 
 class Config:
     """Base configuration"""
-    FLASK_ENV = os.getenv("FLASK_ENV")
-    if not FLASK_ENV:
-        raise ValueError('FLASK_ENV environment variable not set')
-
     # Database configuration
     DB_USER = os.getenv('MYSQL_USER')
     DB_PASSWORD = os.getenv('MYSQL_PASSWORD')
@@ -44,6 +40,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Development configuration"""
+    FLASK_ENV = "development"
     DEBUG = True
     TESTING = False
     CORS_ORIGINS = ["http://localhost:5173"]
@@ -51,6 +48,7 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     """Testing configuration"""
+    FLASK_ENV = "testing"
     DEBUG = True
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
@@ -58,13 +56,16 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     """Production configuration"""
+    FLASK_ENV = "production"
     DEBUG = False
     TESTING = False
 
 
 def get_config():
     """Get configuration based on environment"""
-    env = os.getenv('FLASK_ENV', 'development')
+    flask_env = os.getenv('FLASK_ENV')
+    if flask_env not in ["development", "testing", "production"]:
+        raise ValueError('FLASK_ENV environment variable not set or invalid')
 
     config_map = {
         'development': DevelopmentConfig,
@@ -72,4 +73,4 @@ def get_config():
         'production': ProductionConfig,
     }
 
-    return config_map.get(env, DevelopmentConfig)
+    return config_map.get(flask_env, DevelopmentConfig)

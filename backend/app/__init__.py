@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
 
 from app.config import get_config
@@ -12,6 +14,11 @@ from app.errors import error_response
 jwt = JWTManager()
 db = SQLAlchemy()
 migrate = Migrate()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 
 def create_app():
@@ -26,6 +33,7 @@ def create_app():
     jwt.init_app(app)
     db.init_app(app)
     migrate.init_app(app, db)
+    limiter.init_app(app)
 
     # Enable CORS only in development
     if app.config.get("FLASK_ENV") == "development":

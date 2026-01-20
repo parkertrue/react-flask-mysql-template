@@ -28,11 +28,11 @@ Make sure the following tools are installed before running the project:
   Used for MySQL and production builds.\
   [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
 
-* **Python 3.11+**\
+* **Python 3.12+**\
     Used for the Flask backend.\
     [https://www.python.org/downloads/](https://www.python.org/downloads/)
 
-* **Node.js 18+ (includes npm)**\
+* **Node.js 20+ (includes npm)**\
   Used for the React frontend (Vite).\
   [https://nodejs.org/](https://nodejs.org/)
 
