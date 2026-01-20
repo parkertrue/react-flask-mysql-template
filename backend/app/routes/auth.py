@@ -9,7 +9,7 @@ from flask_jwt_extended import (
     get_csrf_token
 )
 
-from app import db
+from app import db, limiter
 from app.models import User
 from app.schemas import RegisterRequest, LoginRequest
 from app.errors import error_response
@@ -19,6 +19,7 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
 @auth_bp.route("/register", methods=["POST"])
+@limiter.limit("3 per hour")
 def register():
     payload = RegisterRequest(**request.get_json())
 
@@ -39,6 +40,7 @@ def register():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("5 per minute")
 def login():
     payload = LoginRequest(**request.get_json())
 
@@ -62,6 +64,7 @@ def login():
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@limiter.limit("10 per minute")
 @jwt_required(refresh=True, locations=["cookies"])
 def refresh():
     user_id = int(get_jwt_identity())
@@ -73,7 +76,6 @@ def refresh():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required(refresh=True, locations=["cookies"])
 def logout():
-    print("LOGOUT")
     response = make_response(jsonify({"message": "Logged out"}), 200)
     unset_jwt_cookies(response)
     return response
