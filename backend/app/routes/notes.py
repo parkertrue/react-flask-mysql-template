@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import select
 
 from app import db
 from app.models import Note, User
@@ -14,7 +15,9 @@ notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
 def get_notes():
     """Return all notes belonging to the current user"""
     user_id = int(get_jwt_identity())
-    notes = Note.query.filter_by(user_id=user_id).all()
+
+    stmt = select(Note).where(Note.user_id == user_id)
+    notes = db.session.execute(stmt).scalars().all()
 
     response = [
         NoteResponse.model_validate(note).model_dump()
@@ -29,11 +32,11 @@ def create_note():
     """Create a new note"""
     payload = CreateNoteRequest(**request.get_json())
     user_id = int(get_jwt_identity())
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
 
     new_note = Note(
-        content=payload.content,    # pyright: ignore[reportCallIssue]
-        user_id=user.id             # pyright: ignore[reportCallIssue]
+        content=payload.content,
+        user_id=user.id
     )
     db.session.add(new_note)
     db.session.commit()

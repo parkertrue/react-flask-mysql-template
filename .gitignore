@@ -4,3 +4,4 @@ node_modules/
 .env.dev
 .env.prod
 temp/
+.coverage

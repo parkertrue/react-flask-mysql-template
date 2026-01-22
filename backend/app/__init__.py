@@ -28,15 +28,19 @@ def create_app():
     # Load configuration
     config = get_config()
     app.config.from_object(config)
+    flask_env = app.config.get("FLASK_ENV")
 
     # Initialize extensions
     jwt.init_app(app)
     db.init_app(app)
     migrate.init_app(app, db)
-    limiter.init_app(app)
+
+    # Only enable limiter if not testing
+    if flask_env != "testing":
+        limiter.init_app(app)
 
     # Enable CORS only in development
-    if app.config.get("FLASK_ENV") == "development":
+    if flask_env == "development":
         CORS(app, origins=app.config["CORS_ORIGINS"],
              supports_credentials=True)
 
@@ -79,7 +83,7 @@ def create_app():
         return error_response(
             code="VALIDATION_ERROR",
             message="Invalid input",
-            status=400
+            status=422
         )
 
     # Fallback error handler
