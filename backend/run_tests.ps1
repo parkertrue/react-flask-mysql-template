@@ -1,12 +1,38 @@
 param(
-    [string]$TestType = "all",
+    [string]$TestType,
     [switch]$NoCoverage
 )
+
+function Show-Help {
+    Write-Host "Usage: .\run_tests.ps1 [-TestType <type>] [-NoCoverage]"
+    Write-Host ""
+    Write-Host "Types:"
+    Write-Host "  all           - Run all tests"
+    Write-Host "  unit          - Run unit tests only"
+    Write-Host "  integration   - Run integration tests only"
+    Write-Host "  models        - Run model tests only"
+    Write-Host "  schemas       - Run schema tests only"
+    Write-Host "  routes        - Run route tests only"
+    Write-Host "  auth          - Run authentication tests only"
+    Write-Host "  notes         - Run notes tests only"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\run_tests.ps1 -TestType all                 # All tests with coverage"
+    Write-Host "  .\run_tests.ps1 -TestType unit                # Unit tests with coverage"
+    Write-Host "  .\run_tests.ps1 -TestType all -NoCoverage     # All tests, no coverage"
+}
+
 
 Write-Host "================================" -ForegroundColor Green
 Write-Host "Backend Test Suite Runner" -ForegroundColor Green
 Write-Host "================================" -ForegroundColor Green
 Write-Host ""
+
+# Check if no args
+if ($PSBoundParameters.Count -eq 0) {
+    Show-Help
+    exit 0
+}
 
 # Check if virtual environment is activated
 if (-not $env:VIRTUAL_ENV) {
@@ -25,18 +51,20 @@ if (-not $env:VIRTUAL_ENV) {
     }
 }
 
-# Set test environment variables
-$env:FLASK_ENV = "testing"
-$env:MYSQL_USER = "test"
-$env:MYSQL_PASSWORD = "test"
-$env:MYSQL_HOST = "localhost"
-$env:MYSQL_DATABASE = "test"
-$env:SECRET_KEY = "test-secret-key-for-testing-only"
-
 # Determine coverage flag
 $CoverageArgs = if ($NoCoverage) { @() } else { @("--cov=app", "--cov-report=term-missing") }
 
 switch ($TestType.ToLower()) {
+    "help" {
+        Show-Help
+        exit 0
+    }
+    
+    "all" {
+        Write-Host "Running all tests..." -ForegroundColor Green
+        pytest @CoverageArgs -v
+    }
+
     "unit" {
         Write-Host "Running unit tests only..." -ForegroundColor Green
         pytest tests/unit/ @CoverageArgs -v
@@ -75,46 +103,11 @@ switch ($TestType.ToLower()) {
                tests/unit/test_models/test_notes_model.py `
                tests/unit/test_schemas/test_notes_schema.py -v
     }
-    
-    "fast" {
-        Write-Host "Running fast tests (unit tests, no coverage)..." -ForegroundColor Green
-        pytest tests/unit/ -v
-    }
-    
-    "coverage" {
-        Write-Host "Running all tests with coverage report..." -ForegroundColor Green
-        pytest --cov=app --cov-report=html --cov-report=term-missing -v
-        Write-Host ""
-        Write-Host "HTML coverage report generated at: htmlcov\index.html" -ForegroundColor Green
-    }
-    
-    "all" {
-        Write-Host "Running all tests..." -ForegroundColor Green
-        pytest @CoverageArgs -v
-    }
-    
+
     default {
         Write-Host "Unknown test type: $TestType" -ForegroundColor Red
         Write-Host ""
-        Write-Host "Usage: .\run_tests.ps1 [-TestType <type>] [-NoCoverage]"
-        Write-Host ""
-        Write-Host "Types:"
-        Write-Host "  all           - Run all tests (default)"
-        Write-Host "  unit          - Run unit tests only"
-        Write-Host "  integration   - Run integration tests only"
-        Write-Host "  models        - Run model tests only"
-        Write-Host "  schemas       - Run schema tests only"
-        Write-Host "  routes        - Run route tests only"
-        Write-Host "  auth          - Run authentication tests only"
-        Write-Host "  notes         - Run notes tests only"
-        Write-Host "  fast          - Run unit tests without coverage"
-        Write-Host "  coverage      - Run all tests with HTML coverage report"
-        Write-Host ""
-        Write-Host "Examples:"
-        Write-Host "  .\run_tests.ps1                      # All tests with coverage"
-        Write-Host "  .\run_tests.ps1 -TestType unit       # Unit tests with coverage"
-        Write-Host "  .\run_tests.ps1 -TestType all -NoCoverage  # All tests, no coverage"
-        Write-Host "  .\run_tests.ps1 -TestType fast       # Quick unit tests"
+        Show-Help
         exit 1
     }
 }
