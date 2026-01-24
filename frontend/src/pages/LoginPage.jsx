@@ -34,53 +34,60 @@ export default function LoginPage() {
   }
 
   return (
-    <div>
-      <div>
-        <h2>Login</h2>
+    <div className="login-page">
+      <div className="auth-container">
+        <div className="auth-card">
+          <h2>Login</h2>
 
-        <form onSubmit={handleSubmit}>
-          <div>
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          <div>
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          {error && (
-            <div>
-              {error}
+          <form onSubmit={handleSubmit} className="auth-form" data-testid="login-form">
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                className="form-input"
+              />
             </div>
-          )}
 
-          <button 
-            type="submit"
-            disabled={isLoading}
-          > 
-            {isLoading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+                className="form-input"
+              />
+            </div>
 
-        <p>
-          Don't have an account?{' '}
-          <Link to="/register">
-            Register
-          </Link>
-        </p>
+            {error && (
+              <div className="error-message" data-testid="error-message">
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className="btn btn-primary btn-block"
+            > 
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Don't have an account?{' '}
+            <Link to="/register" className="auth-link">
+              Register
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

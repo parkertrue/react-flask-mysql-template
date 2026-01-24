@@ -17,18 +17,22 @@ export default function NoteForm({ onSubmit, loading }) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
+    <form onSubmit={handleSubmit} className="note-form" data-testid="note-form">
+      <div className="note-form-group">
         <input
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Write a note..."
           disabled={loading}
+          className="note-input"
+          data-testid="note-input"
         />
         <button
           type="submit"
           disabled={loading || !content.trim()}
+          className="btn btn-primary"
+          data-testid="note-submit"
         >
           {loading ? 'Adding...' : 'Add Note'}
         </button>

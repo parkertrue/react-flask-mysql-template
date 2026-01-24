@@ -43,75 +43,86 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div>
-        <div>
-          Registration successful! Redirecting to login...
+      <div className="register-page">
+        <div className="auth-container">
+          <div className="success-message" data-testid="success-message">
+            Registration successful! Redirecting to login...
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div>
-      <div>
-        <h2>Register</h2>
+    <div className="register-page">
+      <div className="auth-container">
+        <div className="auth-card">
+          <h2>Register</h2>
 
-        <form onSubmit={handleSubmit}>
-          <div>
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          <div>
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-              required
-              minLength={8}
-            />
-          </div>
-
-          <div>
-            <label>Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={isLoading}
-              minLength={8}
-              required
-            />
-          </div>
-
-          {error && (
-            <div>
-              {error}
+          <form onSubmit={handleSubmit} className="auth-form" data-testid="register-form">
+            <div className="form-group">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+                className="form-input"
+              />
             </div>
-          )}
 
-          <button 
-            type="submit"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Creating account...' : 'Register'}
-          </button>
-        </form>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+                minLength={8}
+                className="form-input"
+              />
+            </div>
 
-        <p>
-          Already have an account?{' '}
-          <Link to="/login">
-            Login
-          </Link>
-        </p>
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={isLoading}
+                minLength={8}
+                required
+                className="form-input"
+              />
+            </div>
+
+            {error && (
+              <div className="error-message" data-testid="error-message">
+                {error}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className="btn btn-primary btn-block"
+            >
+              {isLoading ? 'Creating account...' : 'Register'}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Already have an account?{' '}
+            <Link to="/login" className="auth-link">
+              Login
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

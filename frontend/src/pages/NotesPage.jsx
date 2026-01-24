@@ -6,18 +6,20 @@ export default function NotesPage() {
   const { notes, loading, error, addNote } = useNotes()
 
   return (
-    <div>
-      <h1>My Notes</h1>
+    <div className="notes-page">
+      <div className="notes-container">
+        <h1>My Notes</h1>
 
-      <NoteForm onSubmit={addNote} loading={loading} />
+        <NoteForm onSubmit={addNote} loading={loading} />
 
-      {error && (
-        <div>
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="error-message" data-testid="error-message">
+            {error}
+          </div>
+        )}
 
-      <NotesList notes={notes} loading={loading} />
+        <NotesList notes={notes} loading={loading} />
+      </div>
     </div>
   )
 }
