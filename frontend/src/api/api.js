@@ -41,8 +41,9 @@ api.interceptors.response.use(
     const errorCode = error.response?.data?.error?.code
     const isTokenExpired = errorCode === 'AUTH_TOKEN_EXPIRED'
     const hasAuthHeader = !!originalRequest.headers?.Authorization
-    const isAuthEndpoint = originalRequest.url.includes('/auth/')
-    const isLogout = originalRequest.url.includes('/auth/logout')
+    const url = originalRequest?.url || ''
+    const isAuthEndpoint = url.includes('/auth/')
+    const isLogout = url.includes('/auth/logout')
 
     // Only refresh when it's truly an expired token
     if (

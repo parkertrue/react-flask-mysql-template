@@ -10,7 +10,7 @@ export default function HomePage() {
     <div className="home-page">
       <div className="home-content">
         <h1>Welcome to Flask + React + MySQL Template App</h1>
-        <p>A simple note-taking application with dev and prod configurations.</p>
+        <p>A simple note-taking application with prod, dev, and testing configurations.</p>
         <div className="api-status">
           <p>
             API Status: <span data-testid="api-status">{status}</span>
