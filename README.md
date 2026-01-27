@@ -200,7 +200,7 @@ These are the commands you’ll run **every time you start working**.
 docker compose --env-file .env.dev -f docker-compose.dev.yml up
 ```
 
-MySQL will be available on the host at the port defined in `.env.dev`.
+MySQL will be available on port 3306.
 
 ---
 

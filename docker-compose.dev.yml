@@ -16,9 +16,27 @@ services:
     networks:
       - app-network
     ports:
-      - "${MYSQL_PORT}:3306"
+      - "3306:3306"
     mem_limit: 512m
-    cpus: 0.5 
+    cpus: 0.5
+
+  redis:
+    container_name: redis_dev
+    image: redis:8.4-alpine
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - app-network
+    ports:
+      - "6379:6379"
+    mem_limit: 128m
+    cpus: 0.25
 
 networks:
   app-network:

@@ -14,7 +14,7 @@ source .env.dev
 set +a
 
 # Wait for MySQL to be ready
-echo "Waiting for database at $MYSQL_HOST:$MYSQL_PORT..."
+echo "Waiting for database at $MYSQL_HOST:3306..."
 
 python3 <<EOF
 import os
@@ -22,7 +22,6 @@ import time
 import pymysql
 
 host = os.getenv("MYSQL_HOST")
-port = int(os.getenv("MYSQL_PORT"))
 user = os.getenv("MYSQL_USER")
 password = os.getenv("MYSQL_PASSWORD")
 database = os.getenv("MYSQL_DATABASE")
@@ -31,7 +30,7 @@ while True:
     try:
         conn = pymysql.connect(
             host=host,
-            port=port,
+            port=3306,
             user=user,
             password=password,
             database=database,
