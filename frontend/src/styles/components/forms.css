@@ -25,3 +25,13 @@
   background-color: #f5f5f5;
   cursor: not-allowed;
 }
+
+.field-error {
+  color: var(--error-color, #dc2626);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.form-input.error {
+  border-color: var(--error-color, #dc2626);
+}

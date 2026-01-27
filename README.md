@@ -100,7 +100,7 @@ docker compose --env-file .env.prod build
 docker compose --env-file .env.prod up
 ```
 
-Add `--build` only if images changed:
+Add `--build` if images or dependencies changed:
 
 ```bash
 docker compose --env-file .env.prod up --build
@@ -158,7 +158,7 @@ docker compose --env-file .env.dev -f docker-compose.dev.yml build
 
 ### 2️: Backend Virtual Environment
 
-From the `backend/` directory:
+From `backend/`:
 
 #### Windows
 
@@ -180,7 +180,7 @@ pip install -r requirements.txt
 
 ### 3️: Frontend Dependencies
 
-From the `frontend/` directory:
+From `frontend/`:
 
 ```bash
 npm install
@@ -300,11 +300,7 @@ Run tests in an isolated environment.
 
 ## Backend Testing
 
-Navigate to the `backend/` directory.
-
-### Quick Start
-
-Run all unit and integration tests.
+From `backend/`:
 
 #### Linux / macOS
 
@@ -318,9 +314,11 @@ Run all unit and integration tests.
 .\run_tests.ps1 all
 ```
 
+Runs all unit and integration tests.
+
 ### Testing Options
 
-To learn about running specific types of tests, print the help menu.
+To learn about running specific types of tests, print the help menu:
 
 #### Linux / macOS
 
@@ -333,6 +331,30 @@ To learn about running specific types of tests, print the help menu.
 ```powershell
 .\run_tests.ps1 help
 ```
+
+---
+
+## Frontend Testing
+
+From `frontend/`:
+
+```bash
+npm run test:run
+```
+
+Runs all tests once (ideal for CI).
+
+```bash
+npm run test
+```
+
+Runs tests in watch mode (auto re-runs on changes).
+
+```bash
+npm run test:coverage
+```
+
+Runs tests once and generates a coverage report (`coverage/` folder).
 
 ---
 

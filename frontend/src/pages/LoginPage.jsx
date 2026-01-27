@@ -3,13 +3,19 @@ import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { loginUser } from '../api/services/authService'
 import { getErrorMessage } from '../api/errors'
+import { 
+  validateEmail, 
+  validatePassword, 
+  PASSWORD_MAX_LENGTH, 
+  EMAIL_MAX_LENGTH 
+} from '../utils/validation'
 
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
 
   // Redirect if already logged in
@@ -19,7 +25,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError('')
+    
+    // Validate inputs
+    const emailErrors = validateEmail(email)
+    const passwordErrors = validatePassword(password)
+    
+    if (emailErrors.length > 0 || passwordErrors.length > 0) {
+      setErrors({
+        email: emailErrors[0],
+        password: passwordErrors[0]
+      })
+      return
+    }
+
+    setErrors({})
     setIsLoading(true)
 
     try {
@@ -27,7 +46,7 @@ export default function LoginPage() {
       login(data.access_token, data.refresh_csrf, email)
       navigate('/notes')
     } catch (err) {
-      setError(getErrorMessage(err))
+      setErrors({ general: getErrorMessage(err) })
     } finally {
       setIsLoading(false)
     }
@@ -46,11 +65,24 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (errors.email) {
+                    setErrors(prev => ({ ...prev, email: undefined }))
+                  }
+                }}
                 disabled={isLoading}
                 required
-                className="form-input"
+                className={`form-input ${errors.email ? 'error' : ''}`}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+                maxLength={EMAIL_MAX_LENGTH}
               />
+              {errors.email && (
+                <div className="field-error" id="email-error" data-testid="email-error">
+                  {errors.email}
+                </div>
+              )}
             </div>
 
             <div className="form-group">
@@ -59,16 +91,29 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  if (errors.password) {
+                    setErrors(prev => ({ ...prev, password: undefined }))
+                  }
+                }}
                 disabled={isLoading}
                 required
-                className="form-input"
+                className={`form-input ${errors.password ? 'error' : ''}`}
+                aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                maxLength={PASSWORD_MAX_LENGTH}
               />
+              {errors.password && (
+                <div className="field-error" id="password-error" data-testid="password-error">
+                  {errors.password}
+                </div>
+              )}
             </div>
 
-            {error && (
+            {errors.general && (
               <div className="error-message" data-testid="error-message">
-                {error}
+                {errors.general}
               </div>
             )}
 

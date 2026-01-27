@@ -24,6 +24,20 @@
   background-color: #f5f5f5;
 }
 
+.char-counter {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+  text-align: right;
+  margin-top: 0.25rem;
+}
+
+.note-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
 /* Notes List */
 .notes-list {
   display: flex;
@@ -42,6 +56,10 @@
 
 .note-content {
   flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .note-id {

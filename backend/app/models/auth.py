@@ -10,7 +10,7 @@ class User(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(
-        db.String(255),
+        db.String(128),
         unique=True,
         nullable=False,
         index=True

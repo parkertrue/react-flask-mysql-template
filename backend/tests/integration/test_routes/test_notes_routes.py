@@ -198,8 +198,8 @@ class TestCreateNote:
         assert response.status_code == 422
 
     def test_create_note_content_too_long(self, client, auth_headers):
-        """POST /api/notes with content > 255 chars should return 400."""
-        payload = {'content': 'x' * 256}
+        """POST /api/notes with content > 256 chars should return 400."""
+        payload = {'content': 'x' * 257}
 
         response = client.post(
             '/api/notes',
@@ -210,8 +210,8 @@ class TestCreateNote:
         assert response.status_code == 422
 
     def test_create_note_max_length_content(self, client, auth_headers):
-        """POST /api/notes with exactly 255 chars should succeed."""
-        payload = {'content': 'x' * 255}
+        """POST /api/notes with exactly 256 chars should succeed."""
+        payload = {'content': 'x' * 256}
 
         response = client.post(
             '/api/notes',
@@ -221,7 +221,7 @@ class TestCreateNote:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert len(data['content']) == 255
+        assert len(data['content']) == 256
 
     def test_create_note_extra_fields_rejected(self, client, auth_headers):
         """POST /api/notes with extra fields should return 400."""

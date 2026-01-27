@@ -16,7 +16,7 @@ class Note(db.Model):
         nullable=False
     )
     content: Mapped[str] = mapped_column(
-        db.String(255),
+        db.String(256),
         nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(

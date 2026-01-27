@@ -99,18 +99,18 @@ class TestNoteModel:
 
     def test_note_content_max_length(self, db, sample_user):
         """Note content should respect max length constraint."""
-        # Database allows 255 chars
-        content_255 = 'x' * 255
-        note = Note(user_id=sample_user.id, content=content_255)
+        # Database allows 256 chars
+        content_256 = 'x' * 256
+        note = Note(user_id=sample_user.id, content=content_256)
         db.session.add(note)
         db.session.commit()
 
-        assert note.content == content_255
+        assert note.content == content_256
 
     def test_note_content_exceeds_max_length(self, db, sample_user):
-        """Note content exceeding 255 chars should fail."""
-        content_256 = 'x' * 256
-        note = Note(user_id=sample_user.id, content=content_256)
+        """Note content exceeding 256 chars should fail."""
+        content_257 = 'x' * 257
+        note = Note(user_id=sample_user.id, content=content_257)
         db.session.add(note)
 
         # This might raise DataError or just truncate depending on DB
@@ -119,7 +119,7 @@ class TestNoteModel:
             db.session.commit()
             # If it didn't raise, check it was truncated
             db.session.refresh(note)
-            assert len(note.content) <= 255
+            assert len(note.content) <= 256
         except Exception:
             # Expected to fail
             db.session.rollback()
