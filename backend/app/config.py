@@ -73,4 +73,4 @@ def get_config():
         'production': ProductionConfig,
     }
 
-    return config_map.get(flask_env, DevelopmentConfig)
+    return config_map[flask_env]

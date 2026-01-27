@@ -8,5 +8,5 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />
   }
 
-  return children
+  return <div className="protected-route">{children}</div>
 }

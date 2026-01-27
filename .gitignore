@@ -4,3 +4,6 @@ node_modules/
 .env.dev
 .env.prod
 temp/
+.coverage
+.pytest_cache/
+coverage/

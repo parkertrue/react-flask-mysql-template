@@ -23,30 +23,32 @@ export default function Navbar() {
   }
 
   return (
-    <nav>
-      <div>
-        <div>
+    <nav className="navbar" data-testid="navbar">
+      <div className="navbar-container">
+        <div className="navbar-links">
           {isAuthenticated && isHome && (
-            <Link to="/notes">My Notes</Link>
+            <Link to="/notes" className="nav-link">My Notes</Link>
           )}
 
           {!isHome && (
-            <Link to="/">Home</Link>
+            <Link to="/" className="nav-link">Home</Link>
           )}
 
           {!isAuthenticated && !isLogin && (
-            <Link to="/login">Login</Link>
+            <Link to="/login" className="nav-link">Login</Link>
           )}
 
           {!isAuthenticated && !isRegister && (
-            <Link to="/register">Register</Link>
+            <Link to="/register" className="nav-link">Register</Link>
           )}
         </div>
 
         {isAuthenticated && (
-          <div>
-            <span>{email}</span>
-            <button onClick={handleLogout}>Logout</button>
+          <div className="navbar-user" data-testid="navbar-user">
+            <span className="user-email">{email}</span>
+            <button onClick={handleLogout} className="btn btn-logout">
+              Logout
+            </button>
           </div>
         )}
       </div>

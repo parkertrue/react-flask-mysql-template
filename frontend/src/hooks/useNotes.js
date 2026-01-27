@@ -37,6 +37,7 @@ export function useNotes() {
     try {
       const newNote = await createNote(content)
       setNotes(prev => [...prev, newNote])
+      setError(null)
       return newNote
     } catch (err) {
       const errorMsg = getErrorMessage(err)

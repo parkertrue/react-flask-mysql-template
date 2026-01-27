@@ -64,10 +64,10 @@ While not required, the following files can be removed to reduce clutter once yo
 * Remove **`.env.examples`**\
   ⚠️ Ensure **`.env.dev`** and **`.env.prod`** are created first.
 
-* Remove unused dev scripts:
+* Remove unused dev and test scripts:
 
-  * **Windows users:** you may delete `run_dev.sh`
-  * **Linux/macOS users:** you may delete `run_dev.ps1`
+  * **Windows users:** you may delete `run_dev.sh` and `run_tests.sh`
+  * **Linux/macOS users:** you may delete `run_dev.ps1` and `run_tests.ps1`
 
 * **Do NOT delete `entrypoint.sh`**\
   This file is required for the production Docker image, even on Windows.
@@ -100,7 +100,7 @@ docker compose --env-file .env.prod build
 docker compose --env-file .env.prod up
 ```
 
-Add `--build` only if images changed:
+Add `--build` if images or dependencies changed:
 
 ```bash
 docker compose --env-file .env.prod up --build
@@ -142,7 +142,7 @@ The dev database runs in Docker, while Flask and React run locally for faster it
 
 ---
 
-## One-Time Setup (Development)
+## One-Time Setup (Dev)
 
 These steps only need to be done **once per machine** (or when dependencies change).
 
@@ -158,7 +158,7 @@ docker compose --env-file .env.dev -f docker-compose.dev.yml build
 
 ### 2️: Backend Virtual Environment
 
-From the `backend/` directory:
+From `backend/`:
 
 #### Windows
 
@@ -180,7 +180,7 @@ pip install -r requirements.txt
 
 ### 3️: Frontend Dependencies
 
-From the `frontend/` directory:
+From `frontend/`:
 
 ```bash
 npm install
@@ -257,9 +257,111 @@ flask db upgrade
 
 ---
 
+## Stop Development Mode
+
+Stop development servers and database.
+
+---
+
+### Stop Database (Dev)
+
+```bash
+CTRL+C
+docker compose --env-file .env.dev -f docker-compose.dev.yml down
+```
+
+---
+
+### Stop Backend (Dev)
+
+From `backend/`:
+
+```bash
+CTRL+C
+```
+
+---
+
+### Stop Frontend (Dev)
+
+From `frontend/`:
+
+```bash
+CTRL+C
+```
+
+---
+
+# Testing Mode
+
+Run tests in an isolated environment.
+
+---
+
+## Backend Testing
+
+From `backend/`:
+
+#### Linux / macOS
+
+```bash
+./run_tests.sh all
+```
+
+#### Windows
+
+```powershell
+.\run_tests.ps1 all
+```
+
+Runs all unit and integration tests.
+
+### Testing Options
+
+To learn about running specific types of tests, print the help menu:
+
+#### Linux / macOS
+
+```bash
+./run_tests.sh help
+```
+
+#### Windows
+
+```powershell
+.\run_tests.ps1 help
+```
+
+---
+
+## Frontend Testing
+
+From `frontend/`:
+
+```bash
+npm run test:run
+```
+
+Runs all tests once (ideal for CI).
+
+```bash
+npm run test
+```
+
+Runs tests in watch mode (auto re-runs on changes).
+
+```bash
+npm run test:coverage
+```
+
+Runs tests once and generates a coverage report (`coverage/` folder).
+
+---
+
 ## Summary
 
 | Mode | DB     | Backend | Frontend |
 | ---- | ------ | ------- | -------- |
 | Prod | Docker | Docker  | Docker   |
 | Dev  | Docker | Local   | Local    |
+| Test | Memory | Local   | Local    |

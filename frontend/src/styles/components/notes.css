@@ -1,0 +1,82 @@
+/* Note Form */
+.note-form {
+  margin-bottom: 2rem;
+}
+
+.note-form-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.note-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.note-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.note-input:disabled {
+  background-color: #f5f5f5;
+}
+
+.char-counter {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+  text-align: right;
+  margin-top: 0.25rem;
+}
+
+.note-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+/* Notes List */
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.note-item {
+  background: white;
+  padding: 1rem;
+  border-left: 4px solid #3498db;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-content {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.note-id {
+  font-size: 0.85rem;
+  margin-left: 1rem;
+}
+
+/* Empty and Loading States */
+.notes-loading,
+.notes-empty {
+  text-align: center;
+  padding: 3rem;
+  background-color: #f5f5f5;
+}
+
+@media (max-width: 768px) {
+  .note-form-group {
+    flex-direction: column;
+  }
+}
