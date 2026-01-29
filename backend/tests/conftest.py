@@ -18,6 +18,9 @@ def app():
     os.environ['MYSQL_PASSWORD'] = 'test'
     os.environ['MYSQL_HOST'] = 'localhost'
     os.environ['MYSQL_DATABASE'] = 'test'
+    os.environ['REDIS_HOST'] = 'localhost'
+    os.environ['REDIS_DB'] = '0'
+    os.environ['REDIS_PASSWORD'] = 'testpass'
 
     app = create_app()
 

@@ -9,9 +9,9 @@ if (-Not (Test-Path $envFile)) {
 }
 
 # Load environment variables from .env.dev
-Write-Host "Loading environment variables from $envFile"
+Write-Host "Loading environment variables from .env.dev"
 Get-Content $envFile | ForEach-Object {
-    if ($_ -match "^\s*#") { return }  # skip comments
+    if ($_ -match "^\s*#") { return }
     if ($_ -match "=") {
         $parts = $_ -split "=", 2
         $name = $parts[0].Trim()
@@ -20,34 +20,57 @@ Get-Content $envFile | ForEach-Object {
     }
 }
 
-# Wait for MySQL to be ready
-Write-Host "Waiting for database at $($env:MYSQL_HOST):3306..."
-python -c "
-import os, time, pymysql
+# Wait for service dependencies
+Write-Host "Waiting for database and Redis..."
 
-host = os.getenv('MYSQL_HOST')
-user = os.getenv('MYSQL_USER')
-password = os.getenv('MYSQL_PASSWORD')
-database = os.getenv('MYSQL_DATABASE')
+python -c "
+import os
+import time
+import pymysql
+import redis
+
+mysql_cfg = dict(
+    host=os.getenv('MYSQL_HOST'),
+    port=3306,
+    user=os.getenv('MYSQL_USER'),
+    password=os.getenv('MYSQL_PASSWORD'),
+    database=os.getenv('MYSQL_DATABASE'),
+    connect_timeout=2,
+)
+
+redis_cfg = dict(
+    host=os.getenv('REDIS_HOST'),
+    port=6379,
+    password=os.getenv('REDIS_PASSWORD'),
+    db=int(os.getenv('REDIS_DB')),
+    socket_connect_timeout=2,
+)
 
 while True:
+    mysql_ok = redis_ok = False
+
     try:
-        conn = pymysql.connect(
-            host=host,
-            port=3306,
-            user=user,
-            password=password,
-            database=database,
-            connect_timeout=2
-        )
+        conn = pymysql.connect(**mysql_cfg)
         conn.close()
+        mysql_ok = True
+    except Exception:
+        print('MySQL not ready')
+
+    try:
+        r = redis.Redis(**redis_cfg)
+        r.ping()
+        r.close()
+        redis_ok = True
+    except Exception:
+        print('Redis not ready')
+
+    if mysql_ok and redis_ok:
         break
-    except:
-        print('Database not ready, retrying...')
-        time.sleep(1)
+
+    time.sleep(1)
 "
 
-Write-Host "Database is up!"
+Write-Host "Database and Redis are up"
 
 # Run migrations
 Write-Host "Running database migrations..."
