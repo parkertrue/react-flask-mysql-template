@@ -3,8 +3,6 @@
   border: none;
   cursor: pointer;
   font-size: 1rem;
-  display: inline-block;
-  text-align: center;
 }
 
 .btn:disabled {
@@ -30,5 +28,27 @@
 
 .btn-block {
   width: 100%;
-  display: block;
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: white;
+  color: #2c3e50;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+.dropdown-danger {
+  color: #e74c3c;
+}
+
+.dropdown-danger:hover {
+  background-color: #fee;
 }
