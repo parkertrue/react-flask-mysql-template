@@ -5,12 +5,14 @@ from flask_jwt_extended import (
     create_refresh_token,
     jwt_required,
     get_jwt_identity,
+    get_jwt,
     set_refresh_cookies,
     unset_jwt_cookies,
-    get_csrf_token
+    get_csrf_token,
+    decode_token
 )
 
-from app import db, limiter
+from app import db, limiter, redis_service
 from app.models import User
 from app.schemas import RegisterRequest, LoginRequest
 from app.errors import error_response
@@ -58,8 +60,22 @@ def login():
             status=401
         )
 
+    # Create tokens
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
+
+    # Extract JTI from refresh token and store in Redis
+    if redis_service:
+        decoded = decode_token(refresh_token)
+        jti = decoded.get('jti')
+
+        if jti:
+            success = redis_service.store_refresh_token(
+                user.id, jti, ttl_seconds=2592000)
+            if not success:
+                raise RuntimeError(
+                    "Failed to store refresh token in Redis")
+
     response = make_response(jsonify({
         "access_token": access_token,
         "refresh_csrf": get_csrf_token(refresh_token)
@@ -74,14 +90,66 @@ def login():
 @jwt_required(refresh=True, locations=["cookies"])
 def refresh():
     user_id = int(get_jwt_identity())
-    access_token = create_access_token(identity=str(user_id))
+    old_jwt = get_jwt()
+    old_jti = old_jwt.get('jti')
 
-    return jsonify({"access_token": access_token}), 200
+    # Create new tokens (rotation)
+    access_token = create_access_token(identity=str(user_id))
+    refresh_token = create_refresh_token(identity=str(user_id))
+
+    # Extract JTI from new refresh token
+    if redis_service:
+        decoded = decode_token(refresh_token)
+        new_jti = decoded.get('jti')
+
+        if new_jti:
+            success = redis_service.store_refresh_token(
+                user_id, new_jti, ttl_seconds=2592000)
+            if not success:
+                raise RuntimeError(
+                    "Failed to store new refresh token in Redis")
+
+            # Revoke old token
+            if old_jti:
+                redis_service.revoke_token(user_id, old_jti)
+
+    response = make_response(jsonify({
+        "access_token": access_token,
+        "refresh_csrf": get_csrf_token(refresh_token)
+    }), 200)
+
+    set_refresh_cookies(response, refresh_token)
+    return response
 
 
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required(refresh=True, locations=["cookies"])
 def logout():
+    user_id = int(get_jwt_identity())
+    jwt_data = get_jwt()
+    jti = jwt_data.get('jti')
+
+    # Revoke refresh token
+    if redis_service and jti:
+        redis_service.revoke_token(user_id, jti)
+
     response = make_response(jsonify({"message": "Logged out"}), 200)
+    unset_jwt_cookies(response)
+    return response
+
+
+@auth_bp.route("/logout-all", methods=["POST"])
+@jwt_required(refresh=True, locations=["cookies"])
+def logout_all():
+    """Revoke all refresh tokens for the current user (logout from all devices)"""
+    user_id = int(get_jwt_identity())
+
+    # Revoke all user tokens
+    message = "Logged out"
+    if redis_service:
+        count = redis_service.revoke_all_user_tokens(user_id)
+        message = f"Logged out from {count} device(s)" if count > 0 else "No active sessions found"
+
+    response = make_response(jsonify({"message": message}), 200)
     unset_jwt_cookies(response)
     return response

@@ -1,52 +1,74 @@
 #!/bin/sh
 set -e
 
-# Fail if .env.dev does not exist
+# Check if .env.dev exists
 if [ ! -f .env.dev ]; then
     echo "Error: .env.dev not found!"
     exit 1
 fi
 
-# Load all variables from .env.dev
+# Load environment variables from .env.dev
 echo "Loading environment variables from .env.dev"
 set -a
 source .env.dev
 set +a
 
-# Wait for MySQL to be ready
-echo "Waiting for database at $MYSQL_HOST:3306..."
+# Wait for service dependencies
+echo "Waiting for database and Redis..."
 
-python3 <<EOF
+python <<EOF
 import os
 import time
 import pymysql
+import redis
 
-host = os.getenv("MYSQL_HOST")
-user = os.getenv("MYSQL_USER")
-password = os.getenv("MYSQL_PASSWORD")
-database = os.getenv("MYSQL_DATABASE")
+mysql_cfg = dict(
+    host=os.getenv("MYSQL_HOST"),
+    port=3306,
+    user=os.getenv("MYSQL_USER"),
+    password=os.getenv("MYSQL_PASSWORD"),
+    database=os.getenv("MYSQL_DATABASE"),
+    connect_timeout=2,
+)
+
+redis_cfg = dict(
+    host=os.getenv("REDIS_HOST"),
+    port=6379,
+    password=os.getenv('REDIS_PASSWORD'),
+    db=int(os.getenv("REDIS_DB")),
+    socket_connect_timeout=2,
+)
 
 while True:
+    mysql_ok = redis_ok = False
+
     try:
-        conn = pymysql.connect(
-            host=host,
-            port=3306,
-            user=user,
-            password=password,
-            database=database,
-            connect_timeout=2
-        )
+        conn = pymysql.connect(**mysql_cfg)
         conn.close()
-        break
+        mysql_ok = True
     except Exception:
-        print("Database not ready, retrying...")
-        time.sleep(1)
+        print("MySQL not ready")
+
+    try:
+        r = redis.Redis(**redis_cfg)
+        r.ping()
+        r.close()
+        redis_ok = True
+    except Exception:
+        print("Redis not ready")
+
+    if mysql_ok and redis_ok:
+        break
+
+    time.sleep(1)
 EOF
 
-echo "Database is up!"
+echo "Database and Redis are up"
 
+# Run migrations
 echo "Running database migrations..."
 flask db upgrade
 
+# Start Flask app
 echo "Starting Flask app..."
 exec python run_app.py

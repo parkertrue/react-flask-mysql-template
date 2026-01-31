@@ -1,26 +1,14 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { logoutUser } from '../../api/services/authService'
+import LogoutDropdown from './LogoutDropdown'
 
 export default function Navbar() {
-  const { email, isAuthenticated, logout } = useAuth()
-  const navigate = useNavigate()
+  const { email, isAuthenticated } = useAuth()
   const location = useLocation()
 
   const isHome = location.pathname === '/'
   const isLogin = location.pathname === '/login'
   const isRegister = location.pathname === '/register'
-
-  const handleLogout = async () => {
-    try {
-      await logoutUser()
-    } catch (err) {
-      console.error('Logout error:', err)
-    } finally {
-      logout()
-      navigate('/')
-    }
-  }
 
   return (
     <nav className="navbar" data-testid="navbar">
@@ -46,9 +34,7 @@ export default function Navbar() {
         {isAuthenticated && (
           <div className="navbar-user" data-testid="navbar-user">
             <span className="user-email">{email}</span>
-            <button onClick={handleLogout} className="btn btn-logout">
-              Logout
-            </button>
+            <LogoutDropdown />
           </div>
         )}
       </div>

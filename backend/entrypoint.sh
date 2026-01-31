@@ -1,36 +1,57 @@
 #!/bin/sh
 set -e
 
-# Wait for MySQL to be ready
-echo "Waiting for database..."
+# Wait for service dependencies
+echo "Waiting for database and Redis..."
 
 python <<EOF
 import os
 import time
 import pymysql
+import redis
 
-host = os.getenv("MYSQL_HOST")
-user = os.getenv("MYSQL_USER")
-password = os.getenv("MYSQL_PASSWORD")
-database = os.getenv("MYSQL_DATABASE")
+mysql_cfg = dict(
+    host=os.getenv("MYSQL_HOST"),
+    port=3306,
+    user=os.getenv("MYSQL_USER"),
+    password=os.getenv("MYSQL_PASSWORD"),
+    database=os.getenv("MYSQL_DATABASE"),
+    connect_timeout=2,
+)
+
+redis_cfg = dict(
+    host=os.getenv("REDIS_HOST"),
+    port=6379,
+    password=os.getenv('REDIS_PASSWORD'),
+    db=int(os.getenv("REDIS_DB")),
+    socket_connect_timeout=2,
+)
 
 while True:
+    mysql_ok = redis_ok = False
+
     try:
-        conn = pymysql.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database,
-            connect_timeout=2,
-        )
+        conn = pymysql.connect(**mysql_cfg)
         conn.close()
+        mysql_ok = True
+    except Exception:
+        print("MySQL not ready")
+
+    try:
+        r = redis.Redis(**redis_cfg)
+        r.ping()
+        r.close()
+        redis_ok = True
+    except Exception:
+        print("Redis not ready")
+
+    if mysql_ok and redis_ok:
         break
-    except Exception as e:
-        print("Database not ready, retrying...")
-        time.sleep(1)
+
+    time.sleep(1)
 EOF
 
-echo "Database is up"
+echo "Database and Redis are up"
 
 echo "Running database migrations..."
 flask db upgrade

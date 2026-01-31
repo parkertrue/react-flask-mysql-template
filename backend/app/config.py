@@ -4,61 +4,89 @@ from datetime import timedelta
 
 class Config:
     """Base configuration"""
-    # Database configuration
-    DB_USER = os.getenv('MYSQL_USER')
-    DB_PASSWORD = os.getenv('MYSQL_PASSWORD')
-    DB_HOST = os.getenv('MYSQL_HOST')
-    DB_DATABASE = os.getenv('MYSQL_DATABASE')
 
-    if not all([DB_USER, DB_PASSWORD, DB_HOST, DB_DATABASE]):
-        raise ValueError(
-            'Missing required environment variables for database connection')
+    def __init__(self):
+        # Database configuration
+        self.DB_USER = os.getenv('MYSQL_USER')
+        self.DB_PASSWORD = os.getenv('MYSQL_PASSWORD')
+        self.DB_HOST = os.getenv('MYSQL_HOST')
+        self.DB_PORT = 3306
+        self.DB_DATABASE = os.getenv('MYSQL_DATABASE')
 
-    SQLALCHEMY_DATABASE_URI = (
-        f'mysql+pymysql://{DB_USER}:{DB_PASSWORD}@'
-        f'{DB_HOST}:3306/{DB_DATABASE}'
-    )
+        if not all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
+            raise ValueError("Missing required MySQL environment variables")
 
-    # JWT configuration
-    JWT_SECRET_KEY = os.getenv('SECRET_KEY')
-    if not JWT_SECRET_KEY:
-        raise ValueError('SECRET_KEY environment variable not set')
+        self.SQLALCHEMY_DATABASE_URI = (
+            f'mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@'
+            f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
+        )
 
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
-    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
-    JWT_TOKEN_LOCATION = ['headers', 'cookies']
-    JWT_REFRESH_TOKEN_LOCATION = ['cookies']
-    JWT_ACCESS_TOKEN_LOCATION = ['headers']
-    # JWT_COOKIE_SECURE = True  # Uncomment this in production for HTTPS
-    JWT_COOKIE_HTTPONLY = True
-    JWT_COOKIE_SAMESITE = 'Lax'
-    JWT_COOKIE_CSRF_PROTECT = True
-    JWT_CSRF_IN_COOKIES = True
-    JWT_CSRF_CHECK_FORM = False
-    JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-REFRESH-TOKEN"
+        # Redis configuration
+        self.REDIS_HOST = os.getenv('REDIS_HOST')
+        self.REDIS_PORT = 6379
+        self.REDIS_DB = os.getenv('REDIS_DB')
+        self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+        self.REDIS_MAX_CONNECTIONS = 50
+
+        if not all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+            raise ValueError("Missing required Redis environment variables")
+
+        self.REDIS_URI = (
+            f"redis://:{self.REDIS_PASSWORD}@"
+            f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        )
+        self.RATELIMIT_STORAGE_URI = self.REDIS_URI
+
+        # JWT configuration
+        self.JWT_SECRET_KEY = os.getenv('SECRET_KEY')
+        self.JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
+        self.JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+        self.JWT_TOKEN_LOCATION = ['headers', 'cookies']
+        self.JWT_REFRESH_TOKEN_LOCATION = ['cookies']
+        self.JWT_ACCESS_TOKEN_LOCATION = ['headers']
+        # self.JWT_COOKIE_SECURE = True  # Uncomment this in production for HTTPS
+        self.JWT_COOKIE_HTTPONLY = True
+        self.JWT_COOKIE_SAMESITE = 'Lax'
+        self.JWT_COOKIE_CSRF_PROTECT = True
+        self.JWT_CSRF_IN_COOKIES = True
+        self.JWT_CSRF_CHECK_FORM = False
+        self.JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-REFRESH-TOKEN"
+
+        if not self.JWT_SECRET_KEY:
+            raise ValueError("SECRET_KEY environment variable not set")
 
 
 class DevelopmentConfig(Config):
     """Development configuration"""
-    FLASK_ENV = "development"
-    DEBUG = True
-    TESTING = False
-    CORS_ORIGINS = ["http://localhost:5173"]
+
+    def __init__(self):
+        super().__init__()
+        self.FLASK_ENV = "development"
+        self.DEBUG = True
+        self.TESTING = False
+        self.CORS_ORIGINS = ["http://localhost:5173"]
 
 
 class TestingConfig(Config):
     """Testing configuration"""
-    FLASK_ENV = "testing"
-    DEBUG = True
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    __test__ = False
+
+    def __init__(self):
+        super().__init__()
+        self.FLASK_ENV = "testing"
+        self.DEBUG = True
+        self.TESTING = True
+        self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
 
 class ProductionConfig(Config):
     """Production configuration"""
-    FLASK_ENV = "production"
-    DEBUG = False
-    TESTING = False
+
+    def __init__(self):
+        super().__init__()
+        self.FLASK_ENV = "production"
+        self.DEBUG = False
+        self.TESTING = False
 
 
 def get_config():
@@ -73,4 +101,4 @@ def get_config():
         'production': ProductionConfig,
     }
 
-    return config_map[flask_env]
+    return config_map[flask_env]()

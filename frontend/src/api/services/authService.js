@@ -13,3 +13,7 @@ export async function loginUser(email, password) {
 export async function logoutUser() {
   await api.post('/auth/logout')
 }
+
+export async function logoutAllDevices() {
+  await api.post('/auth/logout-all')
+}
