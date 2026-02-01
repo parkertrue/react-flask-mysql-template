@@ -357,8 +357,30 @@ class TestNotesEdgeCases:
         assert len(json.loads(response.data)) == 3
 
     def test_create_note_with_special_characters(self, client, auth_headers):
-        """POST /api/notes should handle special characters in content."""
+        """POST /api/notes should entity-encode angle brackets and ampersands
+        (nh3 encodes bare <, >, & to &lt;, &gt;, &amp;) while keeping every
+        other symbol exactly as submitted."""
         payload = {'content': 'Special chars: <>&"\'(){}[]!@#$%^&*'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+
+        # nh3 entity-encodes the three special HTML chars
+        assert '&lt;' in data['content']
+        assert '&gt;' in data['content']
+        assert '&amp;' in data['content']
+        # All other symbols survive untouched
+        assert '(){}[]!@#$%^' in data['content']
+
+    def test_create_note_safe_symbols_preserved(self, client, auth_headers):
+        """Symbols that cannot be parsed as HTML tags pass through exactly."""
+        payload = {'content': 'cost: $100 (50% off!) — great #1 @here'}
 
         response = client.post(
             '/api/notes',
@@ -398,3 +420,186 @@ class TestNotesEdgeCases:
         data = json.loads(response.data)
         assert 'Line 1' in data['content']
         assert 'Line 2' in data['content']
+
+    def test_create_note_whitespace_only_rejected(self, client, auth_headers):
+        """Whitespace-only content sanitizes to '' and fails min_length."""
+        payload = {'content': '   '}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 422
+
+    def test_create_note_null_bytes_removed(self, client, auth_headers):
+        """Null bytes are stripped; remaining text is stored normally."""
+        payload = {'content': 'Before\x00After'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert '\x00' not in data['content']
+        assert 'Before' in data['content']
+        assert 'After' in data['content']
+
+
+class TestNotesXSS:
+    """Verify that every common XSS vector is neutralised at the API level.
+
+    Each test POSTs a known attack payload and asserts that the response
+    contains neither the dangerous markup nor any executable fragment.
+    """
+
+    def test_script_tag_stripped(self, client, auth_headers):
+        """<script> tags and their contents must not reach the database."""
+        payload = {'content': "<script>alert('xss')</script>Safe text"}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert '<script>' not in data['content']
+        assert 'alert' not in data['content']
+        assert 'Safe text' in data['content']
+
+    def test_script_tag_only_returns_422(self, client, auth_headers):
+        """A payload that is entirely a script tag sanitizes to empty,
+        which violates min_length and must be rejected."""
+        payload = {'content': "<script>alert('xss')</script>"}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 422
+
+    def test_event_handler_stripped(self, client, auth_headers):
+        """Tags with event-handler attributes are removed; text survives."""
+        payload = {'content': '<div onclick="evil()">Click me</div>'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert 'onclick' not in data['content']
+        assert '<div' not in data['content']
+        assert 'Click me' in data['content']
+
+    def test_img_onerror_stripped(self, client, auth_headers):
+        """Void tags with onerror handlers are removed entirely."""
+        payload = {'content': 'Before <img src=x onerror=alert(1)> After'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert 'onerror' not in data['content']
+        assert '<img' not in data['content']
+        assert 'Before' in data['content']
+        assert 'After' in data['content']
+
+    def test_svg_onload_stripped(self, client, auth_headers):
+        """SVG tags with onload are removed entirely."""
+        payload = {'content': 'Text <svg onload=alert(1)> more'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert 'onload' not in data['content']
+        assert '<svg' not in data['content']
+
+    def test_javascript_protocol_stripped(self, client, auth_headers):
+        """Anchor tags with javascript: hrefs are stripped; text kept."""
+        payload = {'content': "<a href='javascript:alert(1)'>Click</a>"}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert 'javascript:' not in data['content']
+        assert '<a ' not in data['content']
+        assert 'Click' in data['content']
+
+    def test_style_tag_stripped(self, client, auth_headers):
+        """Style tags and their content are removed."""
+        payload = {'content': '<style>body{color:red}</style>Visible'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert '<style>' not in data['content']
+        assert 'color:red' not in data['content']
+        assert 'Visible' in data['content']
+
+    def test_html_comment_stripped(self, client, auth_headers):
+        """HTML comments are removed; surrounding text kept."""
+        payload = {'content': '<!-- secret -->Public text'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert '<!--' not in data['content']
+        assert 'secret' not in data['content']
+        assert 'Public text' in data['content']
+
+    def test_nested_script_obfuscation_stripped(self, client, auth_headers):
+        """Common obfuscation: nesting a script tag inside itself.
+        nh3 strips the inner <script>...</script> block.  Text fragments
+        outside that tag survive as plain text but contain no executable
+        markup — the critical security property is that no tags remain."""
+        payload = {'content': '<scr<script>ipt>alert(1)</script>ipt> Safe'}
+
+        response = client.post(
+            '/api/notes',
+            data=json.dumps(payload),
+            headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        # No executable markup survives
+        assert '<script>' not in data['content']
+        assert 'onerror' not in data['content']
+        assert 'onclick' not in data['content']
+        # Visible safe text is preserved
+        assert 'Safe' in data['content']

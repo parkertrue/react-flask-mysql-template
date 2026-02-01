@@ -8,8 +8,8 @@ from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
 
 from app.config import get_config
-from app.errors import error_response
-from app.redis_service import RedisService
+from app.utils.errors import error_response
+from app.utils.redis_service import RedisService
 
 
 jwt = JWTManager()

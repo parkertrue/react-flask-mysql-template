@@ -1,11 +1,26 @@
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import (
+    BaseModel,
+    Field,
+    ConfigDict,
+    field_serializer,
+    field_validator
+)
 from datetime import datetime
+from app.utils.sanitizer import InputSanitizer
 
 
-class CreateNoteRequest(BaseModel):
+class NoteCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=256)
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator('content')
+    @classmethod
+    def sanitize_content(cls, v):
+        sanitized = InputSanitizer.sanitize_note_content(v)
+        if not sanitized:
+            raise ValueError('Note content cannot be empty after sanitization')
+        return sanitized
 
 
 class NoteResponse(BaseModel):

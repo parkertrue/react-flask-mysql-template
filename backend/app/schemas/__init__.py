@@ -1,2 +1,2 @@
 from .auth import RegisterRequest, LoginRequest
-from .notes import CreateNoteRequest, NoteResponse
+from .notes import NoteCreateRequest, NoteResponse

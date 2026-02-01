@@ -15,7 +15,7 @@ from flask_jwt_extended import (
 from app import db, limiter, redis_service
 from app.models import User
 from app.schemas import RegisterRequest, LoginRequest
-from app.errors import error_response
+from app.utils.errors import error_response
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")

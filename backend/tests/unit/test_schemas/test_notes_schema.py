@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 import time
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from pydantic import ValidationError
 
 from app.models import Note, User
+from app.schemas.notes import NoteCreateRequest
 
 
 class TestNoteModel:
@@ -234,3 +236,137 @@ class TestNoteModel:
         # But Pydantic schema will reject it
         db.session.commit()
         assert note.content == ''
+
+
+class TestCreateNoteRequestSchema:
+    """Test suite for CreateNoteRequest Pydantic schema (includes sanitizer)."""
+
+    # --- valid input passes through ---
+
+    def test_valid_plain_text_unchanged(self):
+        """Plain text with no HTML should not be modified."""
+        req = NoteCreateRequest(content="Just a normal note")
+        assert req.content == "Just a normal note"
+
+    def test_valid_unicode_preserved(self):
+        """Unicode characters should survive sanitization untouched."""
+        text = "Unicode: 你好 مرحبا שלום 🎉"
+        req = NoteCreateRequest(content=text)
+        assert req.content == text
+
+    def test_valid_newlines_preserved(self):
+        """Newline characters are plain text and must be kept."""
+        text = "Line 1\nLine 2\nLine 3"
+        req = NoteCreateRequest(content=text)
+        assert req.content == text
+
+    def test_valid_exactly_256_chars(self):
+        """Boundary: exactly max_length should be accepted."""
+        text = "a" * 256
+        req = NoteCreateRequest(content=text)
+        assert len(req.content) == 256
+
+    def test_valid_single_char(self):
+        """Boundary: single character (min_length) should be accepted."""
+        req = NoteCreateRequest(content="x")
+        assert req.content == "x"
+
+    # --- sanitizer strips malicious content ---
+
+    def test_strips_script_tag(self):
+        """Script tags and their content must be removed."""
+        req = NoteCreateRequest(
+            content="<script>alert('xss')</script>Safe text"
+        )
+        assert "<script>" not in req.content
+        assert "alert" not in req.content
+        assert "Safe text" in req.content
+
+    def test_strips_event_handler_tag(self):
+        """Tags carrying event handlers must be removed; inner text kept."""
+        req = NoteCreateRequest(
+            content='<div onclick="evil()">Click me</div>'
+        )
+        assert "onclick" not in req.content
+        assert "<div" not in req.content
+        assert "Click me" in req.content
+
+    def test_strips_img_onerror(self):
+        """Void tags with event handlers must be removed entirely."""
+        with pytest.raises(ValueError):
+            req = NoteCreateRequest(
+                content='<img src=x onerror=alert(1)>'
+            )
+
+    def test_strips_javascript_protocol_keeps_text(self):
+        """Anchor tags are stripped; the visible link text is kept."""
+        req = NoteCreateRequest(
+            content="<a href='javascript:alert(1)'>Click</a>"
+        )
+        assert "javascript:" not in req.content
+        assert "<a " not in req.content
+        assert "Click" in req.content
+
+    def test_strips_style_tag(self):
+        """Style tags and their content must be removed."""
+        req = NoteCreateRequest(
+            content="<style>body{color:red}</style>Visible"
+        )
+        assert "<style>" not in req.content
+        assert "color:red" not in req.content
+        assert "Visible" in req.content
+
+    def test_strips_html_comment(self):
+        """HTML comments must be removed."""
+        req = NoteCreateRequest(
+            content="<!-- secret -->Public text"
+        )
+        assert "<!--" not in req.content
+        assert "secret" not in req.content
+        assert "Public text" in req.content
+
+    # --- null-byte removal ---
+
+    def test_removes_null_bytes(self):
+        """Null bytes are stripped before sanitization."""
+        req = NoteCreateRequest(content="Before\x00After")
+        assert "\x00" not in req.content
+        assert "Before" in req.content
+        assert "After" in req.content
+
+    # --- validation rejections (these must raise, not silently pass) ---
+
+    def test_rejects_empty_string(self):
+        """Empty content violates min_length=1."""
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="")
+
+    def test_rejects_over_256_chars(self):
+        """Content longer than 256 chars violates max_length."""
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="x" * 257)
+
+    def test_rejects_extra_fields(self):
+        """extra='forbid' must reject unknown keys."""
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="valid", extra_field="bad")
+
+    def test_rejects_whitespace_only(self):
+        """Whitespace-only content is stripped to '' by the sanitizer,
+        which then violates min_length=1."""
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="   ")
+
+    def test_rejects_tabs_only(self):
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="\t\t\t")
+
+    def test_rejects_newlines_only(self):
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="\n\n\n")
+
+    def test_rejects_script_tag_only(self):
+        """A payload that is *only* a script tag sanitizes to '',
+        which violates min_length=1."""
+        with pytest.raises(ValidationError):
+            NoteCreateRequest(content="<script>alert(1)</script>")

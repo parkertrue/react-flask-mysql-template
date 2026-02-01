@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import redis
 
-from app.redis_service import RedisService
+from app.utils.redis_service import RedisService
 
 
 class TestRedisServiceInitialization:
@@ -10,7 +10,7 @@ class TestRedisServiceInitialization:
 
     def test_init_success(self):
         """Redis should initialize successfully with valid config"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True
@@ -28,7 +28,7 @@ class TestRedisServiceInitialization:
 
     def test_init_with_all_parameters(self):
         """Redis should accept all initialization parameters"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True
@@ -52,7 +52,7 @@ class TestRedisServiceInitialization:
 
     def test_init_connection_failure(self):
         """Redis should raise RuntimeError on connection failure"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.side_effect = redis.RedisError(
@@ -71,7 +71,7 @@ class TestRedisServiceInitialization:
 
     def test_init_exception(self):
         """Redis should raise RuntimeError on unexpected exceptions"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_redis_class.side_effect = Exception("Unexpected error")
 
             with pytest.raises(RuntimeError) as exc_info:
@@ -87,7 +87,7 @@ class TestRedisServiceInitialization:
 
     def test_get_client(self):
         """get_client should return the Redis client"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True
@@ -110,7 +110,7 @@ class TestTokenManagement:
     @pytest.fixture
     def service(self):
         """Create a RedisService instance with mocked client"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True
@@ -254,7 +254,7 @@ class TestCachingUtilities:
     @pytest.fixture
     def service(self):
         """Create a RedisService instance with mocked client"""
-        with patch('app.redis_service.redis.Redis') as mock_redis_class:
+        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True

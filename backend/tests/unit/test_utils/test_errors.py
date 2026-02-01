@@ -1,6 +1,6 @@
 import json
 
-from app.errors import error_response
+from app.utils.errors import error_response
 
 
 class TestErrorResponse:

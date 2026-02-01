@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app import db
 from app.models import Note, User
-from app.schemas import CreateNoteRequest, NoteResponse
+from app.schemas import NoteCreateRequest, NoteResponse
 
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
@@ -30,7 +30,7 @@ def get_notes():
 @jwt_required()
 def create_note():
     """Create a new note"""
-    payload = CreateNoteRequest(**request.get_json())
+    payload = NoteCreateRequest(**request.get_json())
     user_id = int(get_jwt_identity())
     user = db.get_or_404(User, user_id)
 
