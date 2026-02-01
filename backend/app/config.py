@@ -6,6 +6,8 @@ class Config:
     """Base configuration"""
 
     def __init__(self):
+        self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', False)
+
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
         self.DB_PASSWORD = os.getenv('MYSQL_PASSWORD')
@@ -62,7 +64,6 @@ class DevelopmentConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "development"
-        self.DEBUG = True
         self.TESTING = False
         self.CORS_ORIGINS = ["http://localhost:5173"]
 
@@ -74,7 +75,6 @@ class TestingConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "testing"
-        self.DEBUG = True
         self.TESTING = True
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
@@ -85,7 +85,7 @@ class ProductionConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "production"
-        self.DEBUG = False
+        self.FLASK_DEBUG = False
         self.TESTING = False
 
 

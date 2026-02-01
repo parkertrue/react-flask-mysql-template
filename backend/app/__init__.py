@@ -113,7 +113,7 @@ def create_app():
             status=401
         )
 
-    # Global error handler for Pydantic validation errors
+    # Pydantic error handler
     @app.errorhandler(ValidationError)
     def handle_pydantic_error(e):
         return error_response(
@@ -122,13 +122,21 @@ def create_app():
             status=422
         )
 
-    # Fallback error handler
+    # Generic error handlers
     @app.errorhandler(404)
     def not_found(e):
         return error_response(
             code="NOT_FOUND",
             message="Resource not found",
             status=404
+        )
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return error_response(
+            code="METHOD_NOT_ALLOWED",
+            message="Method not allowed",
+            status=405
         )
 
     @app.errorhandler(500)

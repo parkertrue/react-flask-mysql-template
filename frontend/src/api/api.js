@@ -22,7 +22,7 @@ api.interceptors.request.use(
     }
 
   // CSRF for cookie-auth endpoints
-  const cookieAuthEndpoints = ['/auth/refresh', '/auth/logout']
+  const cookieAuthEndpoints = ['/auth/refresh', '/auth/logout', 'auth/logout-all']
   if (cookieAuthEndpoints.some(endpoint => config.url?.includes(endpoint))) {
     const csrf = storage.getRefreshCsrf()
     if (csrf) {

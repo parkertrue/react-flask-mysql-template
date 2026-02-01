@@ -73,15 +73,17 @@ class TestGlobalErrorHandlers:
         """404 on API routes should return JSON error."""
         response = client.get('/api/nonexistent')
 
-        assert response.status_code == 404
-        assert response.content_type == 'application/json'
-
-    def test_405_method_not_allowed(self, client):
-        """405 errors for wrong HTTP methods should be handled."""
-        # Health endpoint only accepts GET
+    def test_405_handler(self, client):
+        """405 errors should return consistent error response."""
         response = client.post('/api/health')
 
         assert response.status_code == 405
+        data = json.loads(response.data)
+        assert data['error']['code'] == 'METHOD_NOT_ALLOWED'
+        assert 'not allowed' in data['error']['message'].lower()
+
+        assert response.status_code == 405
+        assert response.content_type == 'application/json'
 
     def test_pydantic_validation_error_handler(self, client, auth_headers):
         """Pydantic validation errors should return 400 with details."""

@@ -56,7 +56,6 @@ class TestConfigClasses:
         config = DevelopmentConfig()
 
         assert config.FLASK_ENV == 'development'
-        assert config.DEBUG is True
         assert config.TESTING is False
         assert hasattr(config, 'CORS_ORIGINS')
         assert 'http://localhost:5173' in config.CORS_ORIGINS
@@ -66,7 +65,6 @@ class TestConfigClasses:
         config = TestingConfig()
 
         assert config.FLASK_ENV == 'testing'
-        assert config.DEBUG is True
         assert config.TESTING is True
         # Testing mode overrides DB URI
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
@@ -76,7 +74,7 @@ class TestConfigClasses:
         config = ProductionConfig()
 
         assert config.FLASK_ENV == 'production'
-        assert config.DEBUG is False
+        assert config.FLASK_DEBUG is False
         assert config.TESTING is False
 
 
