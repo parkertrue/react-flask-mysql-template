@@ -1,18 +1,38 @@
+# Python
 __pycache__/
 .venv/
+
+# Node
 node_modules/
+
+# Environment Files
 .env.dev
 .env.prod
-temp/
+.env.examples
+
+# Testing
 .coverage
 .pytest_cache/
 coverage/
 
-.gitignore
+# Git
 .git/
-.env.examples
+.gitignore
+.gitattributes
+
+# Documentation
 README.md
+
+# Compose Files
 docker-compose.yml
 docker-compose.dev.yml
+
+# Dev Scripts
 run_dev.sh
-run_dev.ps1
+run_tests.sh
+
+# SSL certificates (mounted as volumes instead)
+nginx/certs/
+
+# Dev
+temp/

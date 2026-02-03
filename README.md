@@ -8,13 +8,16 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 * Hybrid development setup (local app + Dockerized database)
 * Flask application using the factory pattern
 * MySQL database with Alembic migrations
+* Redis for session management and rate limiting
 * Nginx reverse proxy for serving the frontend and API in production
+* HTTPS support with self-signed certificates for development
 
 **Full-stack template**:
 
 * **Frontend**: React (Vite)
 * **Backend**: Flask + SQLAlchemy + Alembic
 * **Database**: MySQL
+* **Cache/Sessions**: Redis
 * **Reverse proxy (prod)**: Nginx
 * **Containers**: Docker / Docker Compose
 
@@ -24,19 +27,25 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 
 Make sure the following tools are installed before running the project:
 
-* **Docker & Docker Compose**\
-  Used for MySQL and production builds.\
+* **Docker & Docker Compose**  
+  Used for MySQL, Redis, and production builds.  
   [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
 
-* **Python 3.12+**\
-    Used for the Flask backend.\
-    [https://www.python.org/downloads/](https://www.python.org/downloads/)
+* **Python 3.12+**  
+  Used for the Flask backend.  
+  [https://www.python.org/downloads/](https://www.python.org/downloads/)
 
-* **Node.js 20+ (includes npm)**\
-  Used for the React frontend (Vite).\
+* **Node.js 20+ (includes npm)**  
+  Used for the React frontend (Vite).  
   [https://nodejs.org/](https://nodejs.org/)
 
-> ⚠️ Make sure Docker is running before executing any docker compose commands.
+* **Git Bash (Windows users only)**  
+  Provides a Unix-like shell on Windows so you can use the same commands as Linux/macOS.  
+  Installed automatically with Git for Windows.  
+  [https://git-scm.com/download/win](https://git-scm.com/download/win)
+
+> ⚠️ **Windows users:** Use Git Bash for all commands in this README.  
+> ⚠️ **All users:** Make sure Docker is running before executing any docker compose commands.
 
 ---
 
@@ -44,33 +53,59 @@ Make sure the following tools are installed before running the project:
 
 You must create these locally (not committed):
 
-* `.env.dev` → Development (local backend + frontend, Docker DB)
+* `.env.dev` → Development (local backend + frontend, Docker DB + Redis)
 * `.env.prod` → Production (fully Dockerized)
 
-Copy the examples from `.env.examples`. Make sure to set strong, unique passwords for MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, and SECRET_KEY. Use different credentials for dev and prod.
+Copy the examples from `.env.examples`. Make sure to set strong, unique passwords for MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD, REDIS_PASSWORD, and SECRET_KEY. Use different credentials for dev and prod.
 
 You can generate secure values with:
 
-```
+```bash
 python3 -c "import uuid; print(uuid.uuid4().hex)"
 ```
 
 ---
 
-## Optional File Cleanup
+# SSL/HTTPS Setup
 
-While not required, the following files can be removed to reduce clutter once your environment is set up:
+The production app must run over HTTPS. To enable HTTPS:
 
-* Remove **`.env.examples`**\
-  ⚠️ Ensure **`.env.dev`** and **`.env.prod`** are created first.
+## Production Testing (Self-Signed Certificate)
 
-* Remove unused dev and test scripts:
+```bash
+# 1. Generate self-signed certificate
+mkdir -p nginx/certs
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/certs/privkey.pem \
+  -out nginx/certs/fullchain.pem \
+  -subj "/C=US/ST=California/L=San Francisco/O=Dev/CN=localhost"
 
-  * **Windows users:** you may delete `run_dev.sh` and `run_tests.sh`
-  * **Linux/macOS users:** you may delete `run_dev.ps1` and `run_tests.ps1`
+# 2. Update nginx/default.conf and docker-compose.yml for HTTPS
+# See HTTPS_Upgrade_Guide.md for detailed instructions
 
-* **Do NOT delete `entrypoint.sh`**\
-  This file is required for the production Docker image, even on Windows.
+# 3. Rebuild and restart
+docker compose --env-file .env.prod up --build
+```
+
+Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs).
+
+## Production (Let's Encrypt)
+
+For production with a real domain:
+
+```bash
+# 1. Install Certbot on your server
+sudo apt install certbot  # Ubuntu/Debian
+
+# 2. Obtain certificate
+sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
+
+# 3. Update nginx/default.conf with your domain
+# 4. Mount /etc/letsencrypt in docker-compose.yml
+# See HTTPS_Upgrade_Guide.md for complete production setup
+```
+
+**For complete HTTPS setup instructions, see `HTTPS_Upgrade_Guide.md`.**
 
 ---
 
@@ -81,6 +116,7 @@ Run your web application in a consistent, production-like environment.
 **Architecture (Prod)**
 
 * MySQL → Docker
+* Redis → Docker
 * Flask (Gunicorn) → Docker
 * React → Built & served by Nginx
 
@@ -100,13 +136,17 @@ docker compose --env-file .env.prod build
 docker compose --env-file .env.prod up
 ```
 
-Add `--build` if images or dependencies changed:
+**When to rebuild:**
+
+Frontend changes require `--build` (React app is built into `dist/` and served by Nginx):
 
 ```bash
 docker compose --env-file .env.prod up --build
 ```
 
-**Production URL:** [http://localhost](http://localhost)
+Backend changes do NOT require `--build` — Gunicorn reloads automatically when Python files change.
+
+**Production URL:** [http://localhost](http://localhost) (or [https://localhost](https://localhost) if SSL is configured)
 
 ---
 
@@ -132,11 +172,12 @@ docker system prune -af
 
 # Development Mode
 
-The dev database runs in Docker, while Flask and React run locally for faster iteration, hot reloading, and easier debugging.
+The dev database and Redis run in Docker, while Flask and React run locally for faster iteration, hot reloading, and easier debugging.
 
 **Architecture (Dev)**
 
 * MySQL → Docker
+* Redis → Docker
 * Flask → Local machine
 * React → Local machine
 
@@ -146,39 +187,24 @@ The dev database runs in Docker, while Flask and React run locally for faster it
 
 These steps only need to be done **once per machine** (or when dependencies change).
 
----
-
-### 1: Build / Pull Docker Images (DB)
+### 1: Build / Pull Docker Images (DB + Redis)
 
 ```bash
 docker compose --env-file .env.dev -f docker-compose.dev.yml build
 ```
 
----
-
-### 2️: Backend Virtual Environment
+### 2: Backend Virtual Environment
 
 From `backend/`:
 
-#### Windows
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-#### Linux / macOS
-
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv
+source .venv/Scripts/activate   # Windows (Git Bash)
+source .venv/bin/activate       # Linux/macOS
 pip install -r requirements.txt
 ```
 
----
-
-### 3️: Frontend Dependencies
+### 3: Frontend Dependencies
 
 From `frontend/`:
 
@@ -190,17 +216,15 @@ npm install
 
 ## Daily Development Workflow
 
-These are the commands you’ll run **every time you start working**.
+These are the commands you'll run **every time you start working**.
 
----
-
-### Start Database (Dev)
+### Start Database + Redis (Dev)
 
 ```bash
 docker compose --env-file .env.dev -f docker-compose.dev.yml up
 ```
 
-MySQL will be available on port 3306.
+MySQL will be available on port 3306, Redis on port 6379.
 
 ---
 
@@ -208,22 +232,14 @@ MySQL will be available on port 3306.
 
 From `backend/`:
 
-#### Windows
-
-```powershell
-.\run_dev.ps1
-```
-
-#### Linux / macOS
-
 ```bash
 ./run_dev.sh
 ```
 
 What this does:
-
 * Loads `.env.dev`
-* Waits for MySQL to be ready
+* Activates virtual environment (if not already active)
+* Waits for MySQL and Redis to be ready
 * Runs `flask db upgrade`
 * Starts the Flask app
 
@@ -239,10 +255,10 @@ npm run dev
 
 **Dev URLs**
 
-| Service                 | URL                                            |
-| ----------------------- | ---------------------------------------------- |
-| Frontend                | [http://localhost:5173](http://localhost:5173) |
-| Backend                 | [http://localhost:5000/api/health](http://localhost:5000/api/health) |
+| Service  | URL |
+|----------|-----|
+| Frontend | [http://localhost:5173](http://localhost:5173) |
+| Backend  | [http://localhost:5000/api/health](http://localhost:5000/api/health) |
 
 ---
 
@@ -261,16 +277,12 @@ flask db upgrade
 
 Stop development servers and database.
 
----
-
-### Stop Database (Dev)
+### Stop Database + Redis (Dev)
 
 ```bash
 CTRL+C
 docker compose --env-file .env.dev -f docker-compose.dev.yml down
 ```
-
----
 
 ### Stop Backend (Dev)
 
@@ -279,8 +291,6 @@ From `backend/`:
 ```bash
 CTRL+C
 ```
-
----
 
 ### Stop Frontend (Dev)
 
@@ -296,40 +306,22 @@ CTRL+C
 
 Run tests in an isolated environment.
 
----
-
 ## Backend Testing
 
 From `backend/`:
-
-#### Linux / macOS
 
 ```bash
 ./run_tests.sh all
 ```
 
-#### Windows
-
-```powershell
-.\run_tests.ps1 all
-```
-
-Runs all unit and integration tests.
+Runs all unit and integration tests with coverage.
 
 ### Testing Options
 
-To learn about running specific types of tests, print the help menu:
-
-#### Linux / macOS
+To learn about running specific types of tests:
 
 ```bash
 ./run_tests.sh help
-```
-
-#### Windows
-
-```powershell
-.\run_tests.ps1 help
 ```
 
 ---
@@ -339,29 +331,17 @@ To learn about running specific types of tests, print the help menu:
 From `frontend/`:
 
 ```bash
-npm run test:run
+npm run test:run      # Run tests once (ideal for CI)
+npm run test          # Watch mode (auto re-runs on changes)
+npm run test:coverage # Generate coverage report (coverage/ folder)
 ```
-
-Runs all tests once (ideal for CI).
-
-```bash
-npm run test
-```
-
-Runs tests in watch mode (auto re-runs on changes).
-
-```bash
-npm run test:coverage
-```
-
-Runs tests once and generates a coverage report (`coverage/` folder).
 
 ---
 
 ## Summary
 
-| Mode | DB     | Backend | Frontend |
-| ---- | ------ | ------- | -------- |
-| Prod | Docker | Docker  | Docker   |
-| Dev  | Docker | Local   | Local    |
-| Test | Memory | Local   | Local    |
+| Mode | DB     | Redis  | Backend | Frontend |
+|------|--------|--------|---------|----------|
+| Prod | Docker | Docker | Docker  | Docker   |
+| Dev  | Docker | Docker | Local   | Local    |
+| Test | Memory | N/A    | Local   | Local    |

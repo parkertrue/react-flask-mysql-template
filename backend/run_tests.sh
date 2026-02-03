@@ -1,17 +1,14 @@
 #!/bin/bash
+set -e
 
-# Make executable with: chmod +x run_tests.sh
-
-set -e  # Exit on error
-
-# Color codes for output
+# Color codes
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 show_help() {
-    echo "Usage: ./run_tests.sh <type> [nocoverage]"
+    echo "Usage: ./run_tests.sh <type> [coverage]"
     echo ""
     echo "Types:"
     echo "  all           - Run all tests"
@@ -26,41 +23,38 @@ show_help() {
     echo "Examples:"
     echo "  ./run_tests.sh all              # All tests with coverage"
     echo "  ./run_tests.sh unit             # Unit tests with coverage"
-    echo "  ./run_tests.sh all nocoverage   # All tests, no coverage"
+    echo "  ./run_tests.sh all coverage     # Explicit coverage flag"
 }
-
 
 echo -e "${GREEN}================================${NC}"
 echo -e "${GREEN}Backend Test Suite Runner${NC}"
 echo -e "${GREEN}================================${NC}"
 echo ""
 
-# Check if no args
 if [ "$#" -eq 0 ]; then
     show_help
     exit 0
 fi
 
-# Check if virtual environment is activated
-if [[ -z "${VIRTUAL_ENV}" ]]; then
-    echo -e "${YELLOW}Warning: Virtual environment not detected${NC}"
-    echo -e "${YELLOW}Attempting to activate .venv...${NC}"
-    
-    if [ -f ".venv/bin/activate" ]; then
-        source .venv/bin/activate
-        echo -e "${GREEN}Virtual environment activated${NC}"
+# Activate virtual environment (cross-platform)
+if [ -z "${VIRTUAL_ENV}" ]; then
+    echo -e "${YELLOW}Activating virtual environment...${NC}"
+    if [ -f ".venv/Scripts/activate" ]; then
+        source .venv/Scripts/activate  # Windows (Git Bash)
+    elif [ -f ".venv/bin/activate" ]; then
+        source .venv/bin/activate      # Linux/macOS
     else
-        echo -e "${RED}Error: .venv not found. Run setup first:${NC}"
-        echo "  python3 -m venv .venv"
-        echo "  source .venv/bin/activate"
+        echo -e "${RED}Error: .venv not found.${NC}"
+        echo -e "${RED}Run setup first:${NC}"
+        echo "  python -m venv .venv"
+        echo "  source .venv/Scripts/activate  # or .venv/bin/activate on Linux"
         echo "  pip install -r requirements.txt"
         exit 1
     fi
 fi
 
-# Parse command line arguments
 TEST_TYPE="$1"
-COVERAGE="$2"
+COVERAGE="${2:-coverage}"  # Default to coverage unless 'nocoverage' specified
 
 case "$TEST_TYPE" in
     help)
@@ -70,7 +64,7 @@ case "$TEST_TYPE" in
     
     all)
         echo -e "${GREEN}Running all tests...${NC}"
-        if [ "$COVERAGE" = "coverage" ]; then
+        if [ "$COVERAGE" != "nocoverage" ]; then
             pytest --cov=app --cov-report=term-missing -v
         else
             pytest -v
@@ -79,7 +73,7 @@ case "$TEST_TYPE" in
 
     unit)
         echo -e "${GREEN}Running unit tests only...${NC}"
-        if [ "$COVERAGE" = "coverage" ]; then
+        if [ "$COVERAGE" != "nocoverage" ]; then
             pytest tests/unit/ --cov=app --cov-report=term-missing -v
         else
             pytest tests/unit/ -v
@@ -88,7 +82,7 @@ case "$TEST_TYPE" in
     
     integration)
         echo -e "${GREEN}Running integration tests only...${NC}"
-        if [ "$COVERAGE" = "coverage" ]; then
+        if [ "$COVERAGE" != "nocoverage" ]; then
             pytest tests/integration/ --cov=app --cov-report=term-missing -v
         else
             pytest tests/integration/ -v

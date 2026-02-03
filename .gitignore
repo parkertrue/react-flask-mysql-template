@@ -1,9 +1,21 @@
+# Python
 __pycache__/
 .venv/
+
+# Node
 node_modules/
+
+# Environment Files
 .env.dev
 .env.prod
-temp/
+
+# Testing
 .coverage
 .pytest_cache/
 coverage/
+
+# SSL certificates
+nginx/certs/
+
+# Dev
+temp/
