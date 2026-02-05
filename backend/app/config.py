@@ -46,7 +46,6 @@ class Config:
         self.JWT_TOKEN_LOCATION = ['headers', 'cookies']
         self.JWT_REFRESH_TOKEN_LOCATION = ['cookies']
         self.JWT_ACCESS_TOKEN_LOCATION = ['headers']
-        # self.JWT_COOKIE_SECURE = True  # Uncomment this in production for HTTPS
         self.JWT_COOKIE_HTTPONLY = True
         self.JWT_COOKIE_SAMESITE = 'Lax'
         self.JWT_COOKIE_CSRF_PROTECT = True
@@ -87,6 +86,7 @@ class ProductionConfig(Config):
         self.FLASK_ENV = "production"
         self.FLASK_DEBUG = False
         self.TESTING = False
+        self.JWT_COOKIE_SECURE = True
 
 
 def get_config():

@@ -31,8 +31,8 @@ docker-compose.dev.yml
 run_dev.sh
 run_tests.sh
 
-# SSL certificates (mounted as volumes instead)
+# SSL certificates
 nginx/certs/
 
-# Dev
+# Dev Workspace
 temp/

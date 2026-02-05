@@ -17,5 +17,5 @@ coverage/
 # SSL certificates
 nginx/certs/
 
-# Dev
+# Dev Workspace
 temp/
