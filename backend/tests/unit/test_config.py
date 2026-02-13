@@ -7,6 +7,7 @@ from app.config import (
     Config,
     DevelopmentConfig,
     TestingConfig,
+    E2EConfig,
     ProductionConfig,
     get_config
 )
@@ -26,7 +27,7 @@ class TestConfigClasses:
     """Test Config class attributes"""
 
     def test_config_class_reads_env_vars(self, monkeypatch):
-        """Config class should read environment variables lazily"""
+        """Config class should read environment variables"""
         monkeypatch.setenv('MYSQL_USER', 'test')
         monkeypatch.setenv('MYSQL_PASSWORD', 'test')
         monkeypatch.setenv('MYSQL_HOST', 'localhost')
@@ -38,7 +39,6 @@ class TestConfigClasses:
 
         config = Config()
 
-        # These are read from environment via properties
         assert config.DB_USER == 'test'
         assert config.DB_PASSWORD == 'test'
         assert config.DB_HOST == 'localhost'
@@ -56,18 +56,33 @@ class TestConfigClasses:
         config = DevelopmentConfig()
 
         assert config.FLASK_ENV == 'development'
-        assert config.TESTING is False
         assert hasattr(config, 'CORS_ORIGINS')
         assert 'http://localhost:5173' in config.CORS_ORIGINS
+        assert config.REDIS_ENABLED is True
+        assert config.RATELIMIT_ENABLED is True
 
     def test_testing_config_attributes(self):
         """TestingConfig should have correct attributes"""
         config = TestingConfig()
 
         assert config.FLASK_ENV == 'testing'
-        assert config.TESTING is True
-        # Testing mode overrides DB URI
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
+        assert config.REDIS_ENABLED is False
+        assert config.RATELIMIT_ENABLED is False
+
+    def test_e2e_config_attributes(self):
+        """E2EConfig should be identical to production except rate limiting disabled and CORS enabled"""
+        config = E2EConfig()
+
+        # Should have all production settings
+        assert config.FLASK_ENV == 'e2e'
+        assert config.FLASK_DEBUG is False
+        assert config.JWT_COOKIE_SECURE is True
+        assert config.REDIS_ENABLED is True
+
+        # Only differences: rate limiting disabled and CORS enabled
+        assert config.RATELIMIT_ENABLED is False
+        assert config.CORS_ORIGINS == ["https://localhost"]
 
     def test_production_config_attributes(self):
         """ProductionConfig should have correct attributes"""
@@ -75,14 +90,16 @@ class TestConfigClasses:
 
         assert config.FLASK_ENV == 'production'
         assert config.FLASK_DEBUG is False
-        assert config.TESTING is False
+        assert config.JWT_COOKIE_SECURE is True
+        assert config.REDIS_ENABLED is True
+        assert config.RATELIMIT_ENABLED is True
 
 
 class TestGetConfigFactory:
     """Test get_config() factory function"""
 
     def test_get_config_development(self, monkeypatch):
-        """get_config should return configured DevelopmentConfig for dev env"""
+        """get_config should return DevelopmentConfig for dev env"""
         monkeypatch.setenv('FLASK_ENV', 'development')
         monkeypatch.setenv('MYSQL_USER', 'testuser')
         monkeypatch.setenv('MYSQL_PASSWORD', 'testpass')
@@ -95,11 +112,8 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        # Should be instance of DevelopmentConfig
         assert isinstance(config, DevelopmentConfig)
         assert config.FLASK_ENV == 'development'
-
-        # URIs should be populated by get_config()
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://testuser:testpass@testhost:3306/testdb'
         assert config.REDIS_URI == 'redis://:redispass@redishost:6379/1'
         assert config.RATELIMIT_STORAGE_URI == 'redis://:redispass@redishost:6379/1'
@@ -111,15 +125,37 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        # Should be instance of TestingConfig
         assert isinstance(config, TestingConfig)
         assert config.FLASK_ENV == 'testing'
-
-        # Testing mode uses memory DB
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
+        assert config.REDIS_ENABLED is False
+        assert config.RATELIMIT_ENABLED is False
+
+    def test_get_config_e2e_mode(self, monkeypatch):
+        """get_config should return E2EConfig when E2E_MODE=true with production env"""
+        monkeypatch.setenv('FLASK_ENV', 'production')
+        monkeypatch.setenv('E2E_MODE', 'true')
+        monkeypatch.setenv('MYSQL_USER', 'produser')
+        monkeypatch.setenv('MYSQL_PASSWORD', 'prodpass')
+        monkeypatch.setenv('MYSQL_HOST', 'prodhost')
+        monkeypatch.setenv('MYSQL_DATABASE', 'proddb')
+        monkeypatch.setenv('REDIS_HOST', 'prodredis')
+        monkeypatch.setenv('REDIS_DB', '0')
+        monkeypatch.setenv('REDIS_PASSWORD', 'prodredispass')
+        monkeypatch.setenv('SECRET_KEY', 'prodsecret')
+
+        config = get_config()
+
+        assert isinstance(config, E2EConfig)
+        assert config.FLASK_ENV == 'e2e'  # Still production
+        assert config.RATELIMIT_ENABLED is False  # But rate limiting disabled
+        assert config.REDIS_ENABLED is True
+        assert config.JWT_COOKIE_SECURE is True
+        assert config.CORS_ORIGINS == [
+            "https://localhost"]  # CORS enabled for tests
 
     def test_get_config_production(self, monkeypatch):
-        """get_config should return configured ProductionConfig for prod env"""
+        """get_config should return ProductionConfig for prod env"""
         monkeypatch.setenv('FLASK_ENV', 'production')
         monkeypatch.setenv('MYSQL_USER', 'produser')
         monkeypatch.setenv('MYSQL_PASSWORD', 'prodpass')
@@ -132,11 +168,8 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        # Should be instance of ProductionConfig
         assert isinstance(config, ProductionConfig)
         assert config.FLASK_ENV == 'production'
-
-        # URIs should be populated
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://produser:prodpass@prodhost:3306/proddb'
         assert config.REDIS_URI == 'redis://:prodredispass@prodredis:6379/0'
         assert config.RATELIMIT_STORAGE_URI == 'redis://:prodredispass@prodredis:6379/0'
@@ -149,16 +182,26 @@ class TestGetConfigFactory:
             get_config()
 
         assert 'FLASK_ENV' in str(exc_info.value)
+        assert 'invalid' in str(exc_info.value)
 
-    def test_get_config_missing_env(self, monkeypatch):
-        """get_config should raise error if FLASK_ENV not set"""
+    def test_get_config_defaults_to_production(self, monkeypatch):
+        """get_config should default to production if FLASK_ENV not set"""
         if 'FLASK_ENV' in os.environ:
             monkeypatch.delenv('FLASK_ENV')
 
-        with pytest.raises(ValueError) as exc_info:
-            get_config()
+        monkeypatch.setenv('MYSQL_USER', 'produser')
+        monkeypatch.setenv('MYSQL_PASSWORD', 'prodpass')
+        monkeypatch.setenv('MYSQL_HOST', 'prodhost')
+        monkeypatch.setenv('MYSQL_DATABASE', 'proddb')
+        monkeypatch.setenv('REDIS_HOST', 'prodredis')
+        monkeypatch.setenv('REDIS_DB', '0')
+        monkeypatch.setenv('REDIS_PASSWORD', 'prodredispass')
+        monkeypatch.setenv('SECRET_KEY', 'prodsecret')
 
-        assert 'FLASK_ENV' in str(exc_info.value)
+        config = get_config()
+
+        assert isinstance(config, ProductionConfig)
+        assert config.FLASK_ENV == 'production'
 
 
 class TestGetConfigValidation:
@@ -331,3 +374,35 @@ class TestConfigInheritance:
         assert hasattr(config, 'REDIS_DB')
         assert hasattr(config, 'REDIS_PASSWORD')
         assert hasattr(config, 'REDIS_MAX_CONNECTIONS')
+
+    def test_e2e_inherits_from_config(self):
+        """E2EConfig should inherit all base settings"""
+        config = E2EConfig()
+
+        assert hasattr(config, 'JWT_ACCESS_TOKEN_EXPIRES')
+        assert hasattr(config, 'REDIS_HOST')
+        assert hasattr(config, 'SQLALCHEMY_DATABASE_URI')
+
+
+class TestRateLimitBehavior:
+    """Test rate limiting configuration across environments"""
+
+    def test_rate_limiting_enabled_in_development(self):
+        """Rate limiting should be enabled in development"""
+        config = DevelopmentConfig()
+        assert config.RATELIMIT_ENABLED is True
+
+    def test_rate_limiting_disabled_in_testing(self):
+        """Rate limiting should be disabled in testing"""
+        config = TestingConfig()
+        assert config.RATELIMIT_ENABLED is False
+
+    def test_rate_limiting_disabled_in_e2e(self):
+        """Rate limiting should be disabled in E2E to allow unlimited test registrations"""
+        config = E2EConfig()
+        assert config.RATELIMIT_ENABLED is False
+
+    def test_rate_limiting_enabled_in_production(self):
+        """Rate limiting should be enabled in production"""
+        config = ProductionConfig()
+        assert config.RATELIMIT_ENABLED is True

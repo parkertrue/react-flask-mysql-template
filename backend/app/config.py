@@ -7,6 +7,7 @@ class Config:
 
     def __init__(self):
         self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', False)
+        self.CORS_ORIGINS = None
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
@@ -24,6 +25,7 @@ class Config:
         )
 
         # Redis configuration
+        self.REDIS_ENABLED = True
         self.REDIS_HOST = os.getenv('REDIS_HOST')
         self.REDIS_PORT = 6379
         self.REDIS_DB = os.getenv('REDIS_DB')
@@ -37,6 +39,9 @@ class Config:
             f"redis://:{self.REDIS_PASSWORD}@"
             f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         )
+
+        # Rate Limiter configuration
+        self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
 
         # JWT configuration
@@ -63,7 +68,6 @@ class DevelopmentConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "development"
-        self.TESTING = False
         self.CORS_ORIGINS = ["http://localhost:5173"]
 
 
@@ -74,8 +78,9 @@ class TestingConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "testing"
-        self.TESTING = True
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+        self.REDIS_ENABLED = False
+        self.RATELIMIT_ENABLED = False
 
 
 class ProductionConfig(Config):
@@ -85,15 +90,31 @@ class ProductionConfig(Config):
         super().__init__()
         self.FLASK_ENV = "production"
         self.FLASK_DEBUG = False
-        self.TESTING = False
         self.JWT_COOKIE_SECURE = True
+
+
+class E2EConfig(Config):
+    """E2E Testing configuration"""
+
+    def __init__(self):
+        super().__init__()
+        self.FLASK_ENV = "e2e"
+        self.JWT_COOKIE_SECURE = True
+        self.RATELIMIT_ENABLED = False
+        self.CORS_ORIGINS = ["https://localhost"]
 
 
 def get_config():
     """Get configuration based on environment"""
-    flask_env = os.getenv('FLASK_ENV')
+    flask_env = os.getenv('FLASK_ENV', 'production')
+    e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
+
     if flask_env not in ["development", "testing", "production"]:
-        raise ValueError('FLASK_ENV environment variable not set or invalid')
+        raise ValueError(
+            f'FLASK_ENV must be one of: development, testing, production. Got: {flask_env}')
+
+    if e2e_mode and flask_env == 'production':
+        return E2EConfig()
 
     config_map = {
         'development': DevelopmentConfig,

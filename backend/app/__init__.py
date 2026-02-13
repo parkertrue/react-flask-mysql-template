@@ -37,8 +37,8 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Initialize Redis and rate limiter (skip in testing)
-    if app.config["FLASK_ENV"] != "testing":
+    # Initialize Redis
+    if app.config["REDIS_ENABLED"]:
         redis_service = RedisService(
             host=app.config["REDIS_HOST"],
             port=app.config["REDIS_PORT"],
@@ -47,10 +47,12 @@ def create_app():
             max_connections=app.config["REDIS_MAX_CONNECTIONS"]
         )
 
+    # Initialize Rate Limiter
+    if app.config["RATELIMIT_ENABLED"]:
         limiter.init_app(app)
 
-    # Enable CORS (only in development)
-    if app.config["FLASK_ENV"] == "development":
+    # Enable CORS
+    if app.config["CORS_ORIGINS"]:
         CORS(app, origins=app.config["CORS_ORIGINS"],
              supports_credentials=True)
 
@@ -62,8 +64,8 @@ def create_app():
         if jwt_payload.get('type') != 'refresh':
             return False
 
-        # Skip Redis check in testing
-        if app.config["FLASK_ENV"] == "testing" or redis_service is None:
+        # Skip Redis check if not available
+        if redis_service is None:
             return False
 
         jti = jwt_payload.get('jti')

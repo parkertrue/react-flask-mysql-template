@@ -13,6 +13,8 @@ node_modules/
 .coverage
 .pytest_cache/
 coverage/
+playwright-report/
+test-results/
 
 # SSL certificates
 nginx/certs/
