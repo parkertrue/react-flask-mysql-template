@@ -86,6 +86,25 @@ class TestingConfig(Config):
         self.RATELIMIT_ENABLED = False
 
 
+class IntegrationConfig(Config):
+    """Integration/E2E testing configuration"""
+
+    def __init__(self):
+        super().__init__()
+        self.FLASK_ENV = "integration"
+        self.RATELIMIT_ENABLED = False
+        self.CORS_ORIGINS = [
+            "http://localhost:5173",
+            "https://localhost",
+            "https://localhost:8443",
+        ]
+        e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
+        self.JWT_COOKIE_SECURE = e2e_mode
+        # CSRF protection is browser-only; disable it for API integration
+        # tests, which have no browser to carry the cookie.
+        self.JWT_COOKIE_CSRF_PROTECT = e2e_mode
+
+
 class ProductionConfig(Config):
     """Production configuration"""
 
@@ -96,32 +115,25 @@ class ProductionConfig(Config):
         self.JWT_COOKIE_SECURE = True
 
 
-class E2EConfig(Config):
-    """E2E Testing configuration"""
-
-    def __init__(self):
-        super().__init__()
-        self.FLASK_ENV = "e2e"
-        self.JWT_COOKIE_SECURE = True
-        self.RATELIMIT_ENABLED = False
-        self.CORS_ORIGINS = ["https://localhost"]
-
-
 def get_config():
-    """Get configuration based on environment"""
+    """Get configuration based on environment
+
+    FLASK_ENV is the only switch. E2E_MODE deliberately cannot promote or
+    demote a config class: previously E2E_MODE=true silently replaced
+    ProductionConfig with a weaker one, so a single env var could disable
+    rate limiting and widen CORS on a production deployment.
+    """
     flask_env = os.getenv('FLASK_ENV', 'production')
-    e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
 
-    if flask_env not in ["development", "testing", "production"]:
+    if flask_env not in ["development", "testing", "integration", "production"]:
         raise ValueError(
-            f'FLASK_ENV must be one of: development, testing, production. Got: {flask_env}')
-
-    if e2e_mode and flask_env == 'production':
-        return E2EConfig()
+            f'FLASK_ENV must be one of: development, testing, integration, '
+            f'production. Got: {flask_env}')
 
     config_map = {
         'development': DevelopmentConfig,
         'testing': TestingConfig,
+        'integration': IntegrationConfig,
         'production': ProductionConfig,
     }
 

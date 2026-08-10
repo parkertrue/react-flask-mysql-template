@@ -7,7 +7,7 @@ from app.config import (
     Config,
     DevelopmentConfig,
     TestingConfig,
-    E2EConfig,
+    IntegrationConfig,
     ProductionConfig,
     get_config
 )
@@ -70,19 +70,34 @@ class TestConfigClasses:
         assert config.REDIS_ENABLED is False
         assert config.RATELIMIT_ENABLED is False
 
-    def test_e2e_config_attributes(self):
-        """E2EConfig should be identical to production except rate limiting disabled and CORS enabled"""
-        config = E2EConfig()
+    def test_integration_config_attributes(self):
+        """IntegrationConfig should disable rate limiting and widen CORS"""
+        config = IntegrationConfig()
 
-        # Should have all production settings
-        assert config.FLASK_ENV == 'e2e'
-        assert config.FLASK_DEBUG is False
-        assert config.JWT_COOKIE_SECURE is True
+        assert config.FLASK_ENV == 'integration'
         assert config.REDIS_ENABLED is True
-
-        # Only differences: rate limiting disabled and CORS enabled
         assert config.RATELIMIT_ENABLED is False
-        assert config.CORS_ORIGINS == ["https://localhost"]
+        assert config.CORS_ORIGINS == [
+            "http://localhost:5173",
+            "https://localhost",
+            "https://localhost:8443",
+        ]
+
+    def test_integration_config_without_e2e_mode(self, monkeypatch):
+        """Without E2E_MODE, cookie security and CSRF are off for API tests"""
+        monkeypatch.delenv('E2E_MODE', raising=False)
+        config = IntegrationConfig()
+
+        assert config.JWT_COOKIE_SECURE is False
+        assert config.JWT_COOKIE_CSRF_PROTECT is False
+
+    def test_integration_config_with_e2e_mode(self, monkeypatch):
+        """With E2E_MODE, the browser-facing protections come back on"""
+        monkeypatch.setenv('E2E_MODE', 'true')
+        config = IntegrationConfig()
+
+        assert config.JWT_COOKIE_SECURE is True
+        assert config.JWT_COOKIE_CSRF_PROTECT is True
 
     def test_production_config_attributes(self):
         """ProductionConfig should have correct attributes"""
@@ -131,8 +146,8 @@ class TestGetConfigFactory:
         assert config.REDIS_ENABLED is False
         assert config.RATELIMIT_ENABLED is False
 
-    def test_get_config_e2e_mode(self, monkeypatch):
-        """get_config should return E2EConfig when E2E_MODE=true with production env"""
+    def test_e2e_mode_cannot_downgrade_production(self, monkeypatch):
+        """E2E_MODE must not swap ProductionConfig for a weaker config"""
         monkeypatch.setenv('FLASK_ENV', 'production')
         monkeypatch.setenv('E2E_MODE', 'true')
         monkeypatch.setenv('MYSQL_USER', 'produser')
@@ -146,13 +161,12 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, E2EConfig)
-        assert config.FLASK_ENV == 'e2e'  # Still production
-        assert config.RATELIMIT_ENABLED is False  # But rate limiting disabled
+        assert isinstance(config, ProductionConfig)
+        assert config.FLASK_ENV == 'production'
+        assert config.RATELIMIT_ENABLED is True
         assert config.REDIS_ENABLED is True
         assert config.JWT_COOKIE_SECURE is True
-        assert config.CORS_ORIGINS == [
-            "https://localhost"]  # CORS enabled for tests
+        assert config.CORS_ORIGINS is None
 
     def test_get_config_production(self, monkeypatch):
         """get_config should return ProductionConfig for prod env"""
@@ -375,9 +389,9 @@ class TestConfigInheritance:
         assert hasattr(config, 'REDIS_PASSWORD')
         assert hasattr(config, 'REDIS_MAX_CONNECTIONS')
 
-    def test_e2e_inherits_from_config(self):
-        """E2EConfig should inherit all base settings"""
-        config = E2EConfig()
+    def test_integration_inherits_from_config(self):
+        """IntegrationConfig should inherit all base settings"""
+        config = IntegrationConfig()
 
         assert hasattr(config, 'JWT_ACCESS_TOKEN_EXPIRES')
         assert hasattr(config, 'REDIS_HOST')
@@ -397,9 +411,9 @@ class TestRateLimitBehavior:
         config = TestingConfig()
         assert config.RATELIMIT_ENABLED is False
 
-    def test_rate_limiting_disabled_in_e2e(self):
-        """Rate limiting should be disabled in E2E to allow unlimited test registrations"""
-        config = E2EConfig()
+    def test_rate_limiting_disabled_in_integration(self):
+        """Rate limiting is off in integration to allow unlimited test traffic"""
+        config = IntegrationConfig()
         assert config.RATELIMIT_ENABLED is False
 
     def test_rate_limiting_enabled_in_production(self):

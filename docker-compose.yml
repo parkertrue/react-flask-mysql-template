@@ -63,8 +63,6 @@ services:
     build: ./backend
     env_file:
       - .env.prod
-    environment:
-      - E2E_MODE=${E2E_MODE:-false}
     depends_on:
       db:
         condition: service_healthy

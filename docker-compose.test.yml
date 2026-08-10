@@ -1,0 +1,99 @@
+services:
+  db:
+    container_name: db_test
+    image: mysql:8.0.44
+    env_file:
+      - .env.test
+    healthcheck:
+      test: [
+        "CMD", "mysqladmin", "ping", 
+        "-h", "127.0.0.1", 
+        "-u", "root", 
+        "-p${MYSQL_ROOT_PASSWORD}"
+      ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: "no"
+    networks:
+      - test-network
+    ports:
+      - "127.0.0.1:3307:3306"
+    mem_limit: 512m
+    cpus: 0.5
+    tmpfs:
+      - /var/lib/mysql
+
+  redis:
+    container_name: redis_test
+    image: redis:8.4-alpine
+    env_file:
+      - .env.test
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: "no"
+    networks:
+      - test-network
+    ports:
+      - "127.0.0.1:6380:6379"
+    mem_limit: 128m
+    cpus: 0.25
+
+  backend:
+    container_name: backend_test
+    build: ./backend
+    env_file:
+      - .env.test
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - test-network
+    restart: "no"
+    mem_limit: 512m
+    cpus: 1.0
+    profiles:
+      - e2e
+
+  nginx:
+    container_name: nginx_test
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "8443:443"
+      - "8080:80"
+    volumes:
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - test-network
+    restart: "no"
+    mem_limit: 256m
+    cpus: 0.5
+    profiles:
+      - e2e
+
+networks:
+  test-network:

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, make_response, jsonify
+from flask import Blueprint, request, make_response, jsonify, current_app
 from sqlalchemy import select
 from flask_jwt_extended import (
     create_access_token,
@@ -76,10 +76,13 @@ def login():
                 raise RuntimeError(
                     "Failed to store refresh token in Redis")
 
-    response = make_response(jsonify({
-        "access_token": access_token,
-        "refresh_csrf": get_csrf_token(refresh_token)
-    }), 200)
+    # Only advertise a CSRF token when cookie CSRF protection is actually on;
+    # IntegrationConfig turns it off for headless API tests.
+    response_data = {"access_token": access_token}
+    if current_app.config.get("JWT_COOKIE_CSRF_PROTECT", True):
+        response_data["refresh_csrf"] = get_csrf_token(refresh_token)
+
+    response = make_response(jsonify(response_data), 200)
 
     set_refresh_cookies(response, refresh_token)
     return response
@@ -113,10 +116,13 @@ def refresh():
             if old_jti:
                 redis_service.revoke_token(user_id, old_jti)
 
-    response = make_response(jsonify({
-        "access_token": access_token,
-        "refresh_csrf": get_csrf_token(refresh_token)
-    }), 200)
+    # Only advertise a CSRF token when cookie CSRF protection is actually on;
+    # IntegrationConfig turns it off for headless API tests.
+    response_data = {"access_token": access_token}
+    if current_app.config.get("JWT_COOKIE_CSRF_PROTECT", True):
+        response_data["refresh_csrf"] = get_csrf_token(refresh_token)
+
+    response = make_response(jsonify(response_data), 200)
 
     set_refresh_cookies(response, refresh_token)
     return response
