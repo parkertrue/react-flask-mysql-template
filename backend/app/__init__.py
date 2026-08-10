@@ -37,15 +37,22 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Initialize Redis
+    # Initialize Redis. A failure here must not stop the app from booting; the
+    # blocklist loader below fails closed when redis_service is None.
     if app.config["REDIS_ENABLED"]:
-        redis_service = RedisService(
-            host=app.config["REDIS_HOST"],
-            port=app.config["REDIS_PORT"],
-            db=app.config["REDIS_DB"],
-            password=app.config["REDIS_PASSWORD"],
-            max_connections=app.config["REDIS_MAX_CONNECTIONS"]
-        )
+        try:
+            redis_service = RedisService(
+                host=app.config["REDIS_HOST"],
+                port=app.config["REDIS_PORT"],
+                db=int(app.config["REDIS_DB"]),
+                password=app.config["REDIS_PASSWORD"],
+                max_connections=app.config["REDIS_MAX_CONNECTIONS"]
+            )
+        except Exception:
+            app.logger.exception("Redis initialization failed")
+            redis_service = None
+    else:
+        redis_service = None
 
     # Initialize Rate Limiter
     if app.config["RATELIMIT_ENABLED"]:
@@ -64,9 +71,11 @@ def create_app():
         if jwt_payload.get('type') != 'refresh':
             return False
 
-        # Skip Redis check if not available
+        # Fail closed: without Redis we cannot tell a live refresh token from a
+        # revoked one, so treat them all as revoked rather than honouring
+        # tokens the user already logged out of.
         if redis_service is None:
-            return False
+            return True
 
         jti = jwt_payload.get('jti')
         user_id = jwt_payload.get('sub')

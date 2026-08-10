@@ -6,14 +6,17 @@ class Config:
     """Base configuration"""
 
     def __init__(self):
-        self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', False)
+        # Parse as a string: os.getenv always returns str, and the bare string
+        # "0" is truthy, which would silently enable debug mode wherever
+        # FLASK_DEBUG=0 was set.
+        self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true')
         self.CORS_ORIGINS = None
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
         self.DB_PASSWORD = os.getenv('MYSQL_PASSWORD')
         self.DB_HOST = os.getenv('MYSQL_HOST')
-        self.DB_PORT = 3306
+        self.DB_PORT = int(os.getenv('MYSQL_PORT', '3306'))
         self.DB_DATABASE = os.getenv('MYSQL_DATABASE')
 
         if not all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
@@ -27,7 +30,7 @@ class Config:
         # Redis configuration
         self.REDIS_ENABLED = True
         self.REDIS_HOST = os.getenv('REDIS_HOST')
-        self.REDIS_PORT = 6379
+        self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
         self.REDIS_DB = os.getenv('REDIS_DB')
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
         self.REDIS_MAX_CONNECTIONS = 50

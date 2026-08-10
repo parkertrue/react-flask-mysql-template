@@ -217,22 +217,22 @@ class TestTokenManagement:
 
     def test_revoke_all_user_tokens_success(self, service):
         """Should revoke all user tokens successfully"""
-        service._client.keys.return_value = [
+        service._client.scan_iter.return_value = iter([
             "refresh_token:1:jti1",
             "refresh_token:1:jti2",
             "refresh_token:1:jti3"
-        ]
+        ])
         service._client.delete.return_value = 3
 
         count = service.revoke_all_user_tokens(1)
 
         assert count == 3
-        service._client.keys.assert_called_once_with("refresh_token:1:*")
+        service._client.scan_iter.assert_called_once_with("refresh_token:1:*")
         service._client.delete.assert_called_once()
 
     def test_revoke_all_user_tokens_no_tokens(self, service):
         """Should return 0 when user has no tokens"""
-        service._client.keys.return_value = []
+        service._client.scan_iter.return_value = iter([])
 
         count = service.revoke_all_user_tokens(1)
 
@@ -241,7 +241,7 @@ class TestTokenManagement:
 
     def test_revoke_all_user_tokens_error(self, service):
         """Should return 0 on Redis errors"""
-        service._client.keys.side_effect = redis.RedisError("Keys failed")
+        service._client.scan_iter.side_effect = redis.RedisError("Scan failed")
 
         count = service.revoke_all_user_tokens(1)
 

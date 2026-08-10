@@ -59,7 +59,9 @@ class RedisService:
     def revoke_all_user_tokens(self, user_id: int) -> int:
         try:
             pattern = f"refresh_token:{user_id}:*"
-            keys = cast(list, self._client.keys(pattern))
+            # scan_iter, not keys: KEYS blocks the Redis event loop for the
+            # whole scan, which stalls every other client on a large keyspace.
+            keys = [key for key in self._client.scan_iter(pattern)]
 
             if not keys:
                 return 0
