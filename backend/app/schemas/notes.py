@@ -17,7 +17,7 @@ class NoteCreateRequest(BaseModel):
     @field_validator('content')
     @classmethod
     def sanitize_content(cls, v):
-        sanitized = InputSanitizer.sanitize_note_content(v)
+        sanitized = InputSanitizer.sanitize_text(v)
         if not sanitized:
             raise ValueError('Note content cannot be empty after sanitization')
         return sanitized

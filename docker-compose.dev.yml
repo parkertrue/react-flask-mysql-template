@@ -21,7 +21,7 @@ services:
     networks:
       - app-network
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     mem_limit: 512m
     cpus: 0.5
 
@@ -45,7 +45,7 @@ services:
     networks:
       - app-network
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     mem_limit: 128m
     cpus: 0.25
 

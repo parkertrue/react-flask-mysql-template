@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# Environment Files
+.env
+.env.*
+
+# Tests
+tests/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Dev Scripts
+run_dev.sh
+run_tests.sh
+
+# Editor / tooling
+.vscode/
+.claude/

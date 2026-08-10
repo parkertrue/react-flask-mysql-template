@@ -357,9 +357,9 @@ class TestNotesEdgeCases:
         assert len(json.loads(response.data)) == 3
 
     def test_create_note_with_special_characters(self, client, auth_headers):
-        """POST /api/notes should entity-encode angle brackets and ampersands
-        (nh3 encodes bare <, >, & to &lt;, &gt;, &amp;) while keeping every
-        other symbol exactly as submitted."""
+        """POST /api/notes stores plain text: symbols that are not part of a
+        real tag survive verbatim rather than being entity-encoded. Escaping
+        is the render layer's responsibility, not storage's."""
         payload = {'content': 'Special chars: <>&"\'(){}[]!@#$%^&*'}
 
         response = client.post(
@@ -371,10 +371,11 @@ class TestNotesEdgeCases:
         assert response.status_code == 201
         data = json.loads(response.data)
 
-        # nh3 entity-encodes the three special HTML chars
-        assert '&lt;' in data['content']
-        assert '&gt;' in data['content']
-        assert '&amp;' in data['content']
+        # Stored as plain text, not HTML-escaped
+        assert '&lt;' not in data['content']
+        assert '&amp;' not in data['content']
+        assert '<' in data['content']
+        assert '&' in data['content']
         # All other symbols survive untouched
         assert '(){}[]!@#$%^' in data['content']
 

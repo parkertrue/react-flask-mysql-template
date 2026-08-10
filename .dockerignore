@@ -8,6 +8,7 @@ node_modules/
 # Environment Files
 .env.dev
 .env.prod
+.env.test
 .env.examples
 
 # Testing
@@ -28,6 +29,7 @@ README.md
 # Compose Files
 docker-compose.yml
 docker-compose.dev.yml
+docker-compose.test.yml
 
 # Dev Scripts
 run_dev.sh
@@ -38,3 +40,6 @@ nginx/certs/
 
 # Dev Workspace
 temp/
+.vscode/
+.claude/
+CLAUDE.md

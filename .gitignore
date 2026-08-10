@@ -8,11 +8,16 @@ node_modules/
 # Environment Files
 .env.dev
 .env.prod
+.env.test
+
+# Build output
+frontend/dist/
 
 # Testing
 .coverage
 .pytest_cache/
 coverage/
+htmlcov/
 playwright-report/
 test-results/
 
@@ -21,3 +26,5 @@ nginx/certs/
 
 # Dev Workspace
 temp/
+.vscode/
+.claude/settings.local.json

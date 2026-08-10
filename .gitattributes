@@ -1,1 +1,7 @@
 *.sh text eol=lf
+
+# Parsed by Linux tooling inside containers; CRLF breaks line continuations
+# and shebangs regardless of the checkout platform.
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+entrypoint.sh text eol=lf
