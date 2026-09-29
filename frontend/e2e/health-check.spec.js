@@ -3,7 +3,10 @@ import { test, expect } from '@playwright/test'
 test.describe('System Health Check', () => {
   test('API health endpoint is accessible', async ({ page }) => {
     // Try to access the health endpoint
-    const response = await page.goto('https://localhost/api/health')
+    // Relative, so it follows the configured baseURL. Hardcoding
+    // https://localhost pinned this to :443 and broke when the E2E stack moved
+    // to :8443.
+    const response = await page.goto('/api/health')
     
     expect(response.status()).toBe(200)
     
@@ -30,7 +33,7 @@ test.describe('System Health Check', () => {
     // Test the API directly to see what it returns
     const testEmail = `api-test-${Date.now()}@example.com`
     
-    const response = await request.post('https://localhost/api/auth/register', {
+    const response = await request.post('/api/auth/register', {
       data: {
         email: testEmail,
         password: 'SecurePass123'
