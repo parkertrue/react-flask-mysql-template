@@ -1,0 +1,135 @@
+name: Integration & E2E
+
+# These need Docker (and browsers, for E2E), so they are far slower than the
+# unit suites and are not worth running on every commit. Nightly plus on demand.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC daily
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Backend integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      # .env.test is gitignored (it holds local credentials), so CI writes its
+      # own. Ports match docker-compose.test.yml: MySQL 3307, Redis 6380.
+      - name: Write .env.test
+        run: |
+          cat > .env.test <<'EOF'
+          MYSQL_HOST=localhost
+          MYSQL_PORT=3307
+          MYSQL_DATABASE=test_integration
+          MYSQL_USER=testuser
+          MYSQL_PASSWORD=testpass
+          MYSQL_ROOT_PASSWORD=testrootpass
+          FLASK_ENV=integration
+          SECRET_KEY=ci-only-not-a-real-secret
+          REDIS_HOST=localhost
+          REDIS_PORT=6380
+          REDIS_DB=0
+          REDIS_PASSWORD=testredispass
+          EOF
+
+      - name: Start test services
+        run: docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Run integration tests
+        working-directory: backend
+        run: |
+          set -a && . ../.env.test && set +a
+          pytest tests/integration
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # nginx/certs/ is gitignored and the e2e stack terminates TLS, so mint a
+      # throwaway self-signed pair. Playwright is configured to ignore the
+      # resulting cert warnings.
+      - name: Generate self-signed certificates
+        run: |
+          mkdir -p nginx/certs
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout nginx/certs/privkey.pem \
+            -out nginx/certs/fullchain.pem \
+            -subj "/C=US/ST=California/L=San Francisco/O=Dev/CN=localhost"
+
+      # Same values as the integration job; docker-compose.test.yml overrides
+      # the host/port for the backend container so it reaches db/redis by
+      # service name. E2E_MODE turns on secure JWT cookies and CSRF.
+      - name: Write .env.test
+        run: |
+          cat > .env.test <<'EOF'
+          MYSQL_HOST=localhost
+          MYSQL_PORT=3307
+          MYSQL_DATABASE=test_integration
+          MYSQL_USER=testuser
+          MYSQL_PASSWORD=testpass
+          MYSQL_ROOT_PASSWORD=testrootpass
+          FLASK_ENV=integration
+          SECRET_KEY=ci-only-not-a-real-secret
+          E2E_MODE=true
+          REDIS_HOST=localhost
+          REDIS_PORT=6380
+          REDIS_DB=0
+          REDIS_PASSWORD=testredispass
+          EOF
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.js brings the e2e compose profile up itself via its
+      # webServer block, and does not reuse an existing server when CI is set.
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml --profile e2e down -v
