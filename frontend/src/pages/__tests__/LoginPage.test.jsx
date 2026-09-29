@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import LoginPage from '../LoginPage'
 import { AuthContext } from '../../contexts/AuthContext'
@@ -362,13 +362,15 @@ describe('LoginPage', () => {
 
   describe('loading state', () => {
     it('should disable inputs while loading', async () => {
-      authService.loginUser.mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({
-          access_token: 'token',
-          refresh_csrf: 'csrf'
-        }), 100))
+      // Hold the login open with an explicit resolve handle rather than a
+      // timer. handleSubmit clears isLoading in a finally block, and racing a
+      // setTimeout let that update land after the test ended — an unhandled
+      // "window is not defined" once jsdom had been torn down.
+      let resolveLogin
+      authService.loginUser.mockImplementation(
+        () => new Promise(resolve => { resolveLogin = resolve })
       )
-      
+
       renderWithAuth()
       
       const emailInput = screen.getByLabelText(/email/i)
@@ -387,6 +389,12 @@ describe('LoginPage', () => {
       expect(passwordInput).toBeDisabled()
       expect(submitButton).toBeDisabled()
       expect(submitButton).toHaveTextContent(/logging in/i)
+
+      // Settle the login inside the test so the finally-block state update is
+      // flushed before teardown.
+      await act(async () => {
+        resolveLogin({ access_token: 'token', refresh_csrf: 'csrf' })
+      })
     })
 
     it('should re-enable inputs after successful login', async () => {
