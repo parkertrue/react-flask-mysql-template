@@ -10,7 +10,7 @@ It ships with **auth** (register/login/logout/refresh with rotating refresh toke
 
 ## Environment Setup
 
-Copy `.env.examples` to create `.env.dev`, `.env.prod`, and `.env.test` before running any environment.
+Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by every test suite, including unit tests via `run_tests.sh`.
 
 ## Development Workflow
 
@@ -32,7 +32,7 @@ cd frontend && npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000/api/health
 
-First-time setup: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` and `cd frontend && npm install`.
+First-time setup: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt` and `cd frontend && npm install`.
 
 ## Running Tests
 
@@ -96,11 +96,11 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 
 ### Backend (`backend/app/`)
 - **`__init__.py`** — App factory. Registers all Flask extensions (JWT, SQLAlchemy, CORS, Limiter, Redis) and blueprints. The JWT blocklist loader **fails closed**: if Redis is unavailable, every refresh token is treated as revoked rather than valid.
-- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings. `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one.
+- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder.
 - **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh), `health`, `notes` (the example CRUD feature).
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (JWT blocklist + caching), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
+- **`utils/`** — Redis service (refresh-token allowlist + caching; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
 - **`migrations/`** — Alembic migrations for MySQL.
 
 ### Frontend (`frontend/src/`)
@@ -113,10 +113,15 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`e2e/`** — Playwright tests for full user journeys.
 
 ### Test Architecture
-- **Backend unit tests** (`tests/unit/`): `TestingConfig` uses SQLite in-memory, disables Redis and rate limiting. Route tests live here too — they need no real services. Fixtures in `tests/conftest.py`.
+- **Backend unit tests** (`tests/unit/`): `TestingConfig` uses SQLite in-memory, disables Redis and rate limiting. Route tests live here too — they need no real services. Refresh-cookie routes (`/refresh`, `/logout`, `/logout-all`) fail closed without Redis, so their tests use the `fake_redis` fixture. Fixtures in `tests/conftest.py`.
 - **Backend integration tests** (`tests/integration/`): `IntegrationConfig` connects to real MySQL (port 3307) and Redis (port 6380) from `docker-compose.test.yml`, via the `integration_*` fixtures. Reserve these for behavior that genuinely needs a real service.
-- **Frontend unit tests**: Vitest + jsdom + MSW (Mock Service Worker) for API mocking. Setup in `src/test/setup.js`.
+- **Frontend unit tests**: Vitest + jsdom. Most tests `vi.mock` the service modules; `api/__tests__/api.test.js` (interceptors, token refresh) and `test/integration/auth-flow.test.jsx` run MSW servers against the real Axios client. Setup in `src/test/setup.js`.
 - **E2E tests**: Playwright against the full stack via `docker-compose.test.yml` with the `e2e` profile. Ignores self-signed TLS cert errors. E2E runs against the **test** stack, never the production compose file.
+
+### Nginx (`nginx/`)
+- **`default.conf`** — HTTP→HTTPS redirect, TLS, SPA routing, `/api` proxy, per-IP `limit_req`. Upstream 5xx and rate-limit 429s get JSON bodies in the API's error shape, keeping the original status.
+- **`security_headers.conf`** — shared security headers. Every location includes it, because a location that declares its own `add_header` inherits none from the server block.
+- **`templates/00-rate-limits.conf.template`** — rate-limit zones rendered from `NGINX_AUTH_RATE`/`NGINX_API_RATE` at container start. Production defaults are in `nginx/Dockerfile`; `docker-compose.test.yml` relaxes the auth rate for E2E.
 
 ### Docker Compose Files
 | File | Purpose |

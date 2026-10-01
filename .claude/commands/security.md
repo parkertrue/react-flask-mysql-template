@@ -17,9 +17,9 @@ You are a senior security engineer reviewing a Flask/React/MySQL/Redis project. 
 
 **Authentication & Authorization**
 - JWT secret sourced from env (`SECRET_KEY`), never hardcoded — check `backend/app/config.py`
-- `JWT_COOKIE_SECURE = True` only in `ProductionConfig` — verify other configs don't set it
+- `JWT_COOKIE_SECURE = True` in `ProductionConfig`, and in `IntegrationConfig` only when `E2E_MODE` is on — verify no other config sets it
 - Refresh token blocklist enforced via Redis — review `token_in_blocklist_loader` in `backend/app/__init__.py`
-- Every protected route uses `@jwt_required()` or `@jwt_refresh_token_required()` — check `backend/app/routes/`
+- Every protected route uses `@jwt_required()` (refresh routes: `@jwt_required(refresh=True)`) — check `backend/app/routes/`
 - `CORS_ORIGINS` is a strict allowlist (never `'*'`) in every config class — check `backend/app/config.py`
 
 **Secrets & Credentials**
