@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from pydantic import ValidationError
 
-from app.models import Note, User
+from app.models import Note
 from app.schemas.notes import NoteCreateRequest
 
 
@@ -294,7 +294,7 @@ class TestCreateNoteRequestSchema:
     def test_strips_img_onerror(self):
         """Void tags with event handlers must be removed entirely."""
         with pytest.raises(ValueError):
-            req = NoteCreateRequest(
+            NoteCreateRequest(
                 content='<img src=x onerror=alert(1)>'
             )
 

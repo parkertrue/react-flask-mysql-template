@@ -73,6 +73,9 @@ class TestGlobalErrorHandlers:
         """404 on API routes should return JSON error."""
         response = client.get('/api/nonexistent')
 
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+
     def test_405_handler(self, client):
         """405 errors should return consistent error response."""
         response = client.post('/api/health')
