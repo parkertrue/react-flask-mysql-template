@@ -10,7 +10,6 @@ test.describe('Critical User Journey', () => {
 
   test.beforeEach(() => {
     testEmail = generateTestEmail()
-    console.log('Test email:', testEmail) // For debugging
   })
 
   test('complete user journey: register → login → create note → logout', async ({ page }) => {
@@ -29,20 +28,9 @@ test.describe('Critical User Journey', () => {
     // Click register button
     await page.getByRole('button', { name: /register|creating account/i }).click()
     
-    // Wait a moment for the request to process
-    await page.waitForTimeout(2000)
-
-    // Check if there's an error message (registration failed)
-    const errorMessage = page.locator('.error-message, [data-testid="error-message"]').first()
-    const hasError = await errorMessage.isVisible().catch(() => false)
-    
-    if (hasError) {
-      const errorText = await errorMessage.textContent()
-      console.error('Registration error:', errorText)
-      throw new Error(`Registration failed: ${errorText}. Check screenshot and backend logs.`)
-    }
-
-    // Wait for redirect to login page (registration successful)
+    // Success shows a message, then redirects to login. If registration fails,
+    // this assertion fails and the failure screenshot shows the error.
+    await expect(page.getByTestId('success-message')).toBeVisible()
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 })
 
     // 3. Login with newly created account
@@ -120,10 +108,8 @@ test.describe('Critical User Journey', () => {
     await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
     await page.getByRole('button', { name: /register|creating account/i }).click()
     
-    // Wait for registration to complete and redirect to login
+    // The redirect only happens after the API returned 201
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 })
-    // Extra wait to ensure registration fully completes in database
-    await page.waitForTimeout(1000)
     
     // Try to register again with same email
     await page.goto('/register')

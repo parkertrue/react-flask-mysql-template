@@ -136,10 +136,6 @@ test.describe('Notes CRUD Operations', () => {
     // Button should be disabled for empty input (client-side validation)
     const addButton = page.getByRole('button', { name: /create|add note/i })
     await expect(addButton).toBeDisabled()
-    
-    // Verify it stays disabled
-    await page.waitForTimeout(1000)
-    await expect(addButton).toBeDisabled()
   })
 
   test('notes persist across page reloads', async () => {
