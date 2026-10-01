@@ -26,14 +26,12 @@ export default defineConfig({
   // the production compose file with E2E_MODE=true, which meant test runs and
   // real deployments shared a config path.
   webServer: {
-    command: 'docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e up',
+    // --build: `up` alone reuses a stale backend image after code changes
+    command: 'docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e up --build',
     cwd: '..',
     url: 'https://localhost:8443/api/health',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     ignoreHTTPSErrors: true,
-    env: {
-      E2E_MODE: 'true'
-    },
   },
 })

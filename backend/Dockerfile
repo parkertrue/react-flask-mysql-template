@@ -12,14 +12,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Copy and enable entrypoint; create non-root user and transfer ownership
+# Run as a non-root user. The code stays root-owned, so a compromised app
+# process cannot rewrite it; nothing needs to write under /app at runtime.
 RUN chmod +x entrypoint.sh \
     && addgroup --system appgroup \
-    && adduser --system --ingroup appgroup appuser \
-    && chown -R appuser:appgroup /app
+    && adduser --system --ingroup appgroup appuser
 
 USER appuser
 
 ENTRYPOINT ["./entrypoint.sh"]
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60","--graceful-timeout", "30", "--keep-alive", "5", "run_app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "run_app:app"]

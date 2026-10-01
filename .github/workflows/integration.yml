@@ -58,11 +58,11 @@ jobs:
 
       - name: Service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.test.yml logs
+        run: docker compose --env-file .env.test -f docker-compose.test.yml logs
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.test.yml down -v
+        run: docker compose --env-file .env.test -f docker-compose.test.yml down -v
 
   e2e:
     name: Playwright E2E
@@ -89,7 +89,7 @@ jobs:
 
       # Same values as the integration job; docker-compose.test.yml overrides
       # the host/port for the backend container so it reaches db/redis by
-      # service name. E2E_MODE turns on secure JWT cookies and CSRF.
+      # service name, and sets E2E_MODE for secure JWT cookies and CSRF.
       - name: Write .env.test
         run: |
           cat > .env.test <<'EOF'
@@ -101,7 +101,6 @@ jobs:
           MYSQL_ROOT_PASSWORD=testrootpass
           FLASK_ENV=integration
           SECRET_KEY=ci-only-not-a-real-secret
-          E2E_MODE=true
           REDIS_HOST=localhost
           REDIS_PORT=6380
           REDIS_DB=0
@@ -132,4 +131,4 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose -f docker-compose.test.yml --profile e2e down -v
+        run: docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e down -v

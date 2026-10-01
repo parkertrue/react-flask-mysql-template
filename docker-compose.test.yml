@@ -2,15 +2,17 @@ services:
   db:
     container_name: db_test
     image: mysql:8.0.44
-    env_file:
-      - .env.test
+    # Only the variables MySQL needs, interpolated from the --env-file passed
+    # to docker compose, so SECRET_KEY and the Redis password stay out.
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     healthcheck:
-      test: [
-        "CMD", "mysqladmin", "ping", 
-        "-h", "127.0.0.1", 
-        "-u", "root", 
-        "-p${MYSQL_ROOT_PASSWORD}"
-      ]
+      # ping exits 0 whenever the server is up, even if auth fails, so no
+      # credentials need to appear in the process list
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,18 +30,19 @@ services:
   redis:
     container_name: redis_test
     image: redis:8.4-alpine
-    env_file:
-      - .env.test
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
+    # noeviction: see docker-compose.yml
     command:
       - redis-server
       - --requirepass
       - ${REDIS_PASSWORD}
       - --maxmemory
-      - 128mb
+      - 96mb
       - --maxmemory-policy
-      - allkeys-lru
+      - noeviction
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -62,6 +65,9 @@ services:
       MYSQL_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      # This service only runs for Playwright, which needs the browser-facing
+      # cookie settings: Secure cookies and CSRF protection on.
+      E2E_MODE: "true"
     depends_on:
       db:
         condition: service_healthy
@@ -70,6 +76,13 @@ services:
     networks:
       - test-network
     restart: "no"
+    healthcheck:
+      # start_period covers the entrypoint's wait-for-services and migrations
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     mem_limit: 512m
     cpus: 1.0
     profiles:
@@ -80,13 +93,17 @@ services:
     build:
       context: .
       dockerfile: nginx/Dockerfile
+    environment:
+      # The E2E suite logs in and registers many times from one address
+      NGINX_AUTH_RATE: 600r/m
     ports:
-      - "8443:443"
-      - "8080:80"
+      - "127.0.0.1:8443:443"
+      - "127.0.0.1:8080:80"
     volumes:
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - test-network
     restart: "no"
