@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Prevents Python from writing pyc files & buffers
 ENV PYTHONDONTWRITEBYTECODE=1
