@@ -13,7 +13,7 @@ describe('healthService', () => {
     it('should call GET /health', async () => {
       const mockResponse = {
         data: {
-          status: 'healthy',
+          status: 'ok',
           timestamp: '2024-01-01T00:00:00Z'
         }
       }
@@ -27,14 +27,14 @@ describe('healthService', () => {
 
     it('should return status object', async () => {
       const mockResponse = {
-        data: { status: 'healthy' }
+        data: { status: 'ok' }
       }
       api.get.mockResolvedValue(mockResponse)
 
       const result = await checkHealth()
 
       expect(result).toHaveProperty('status')
-      expect(result.status).toBe('healthy')
+      expect(result.status).toBe('ok')
     })
 
     it('should propagate errors from API', async () => {

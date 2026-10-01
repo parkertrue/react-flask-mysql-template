@@ -15,7 +15,7 @@ describe('HomePage', () => {
     storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)
-    checkHealth.mockResolvedValue({ status: 'healthy' })
+    checkHealth.mockResolvedValue({ status: 'ok' })
   })
 
   const renderHomePage = () => {
@@ -56,12 +56,12 @@ describe('HomePage', () => {
       expect(screen.getByTestId('api-status')).toHaveTextContent('checking')
     })
 
-    it('should display healthy status when API is healthy', async () => {
-      checkHealth.mockResolvedValue({ status: 'healthy' })
+    it('should display ok status when API is healthy', async () => {
+      checkHealth.mockResolvedValue({ status: 'ok' })
       renderHomePage()
 
       await waitFor(() => {
-        expect(screen.getByTestId('api-status')).toHaveTextContent('healthy')
+        expect(screen.getByTestId('api-status')).toHaveTextContent('ok')
       })
     })
 

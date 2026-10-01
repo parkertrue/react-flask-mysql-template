@@ -20,12 +20,12 @@ describe('useHealth', () => {
   })
 
   it('should fetch health status on mount', async () => {
-    checkHealth.mockResolvedValue({ status: 'healthy' })
+    checkHealth.mockResolvedValue({ status: 'ok' })
 
     const { result } = renderHook(() => useHealth())
 
     await waitFor(() => {
-      expect(result.current.status).toBe('healthy')
+      expect(result.current.status).toBe('ok')
     })
 
     expect(checkHealth).toHaveBeenCalledTimes(1)
@@ -46,7 +46,7 @@ describe('useHealth', () => {
 
   it('should poll health status every 30 seconds', async () => {
     vi.useFakeTimers()
-    checkHealth.mockResolvedValue({ status: 'healthy' })
+    checkHealth.mockResolvedValue({ status: 'ok' })
 
     renderHook(() => useHealth())
 
@@ -69,7 +69,7 @@ describe('useHealth', () => {
   })
 
   it('should clear interval on unmount', async () => {
-    checkHealth.mockResolvedValue({ status: 'healthy' })
+    checkHealth.mockResolvedValue({ status: 'ok' })
 
     const { unmount } = renderHook(() => useHealth())
 
@@ -89,13 +89,13 @@ describe('useHealth', () => {
   it('should update status when health check returns different value', async () => {
     vi.useFakeTimers()
     checkHealth
-      .mockResolvedValueOnce({ status: 'healthy' })
+      .mockResolvedValueOnce({ status: 'ok' })
       .mockResolvedValueOnce({ status: 'degraded' })
 
     const { result } = renderHook(() => useHealth())
 
     await vi.waitFor(() => {
-      expect(result.current.status).toBe('healthy')
+      expect(result.current.status).toBe('ok')
     })
 
     await vi.advanceTimersByTimeAsync(30000)
@@ -111,7 +111,7 @@ describe('useHealth', () => {
     vi.useFakeTimers()
     checkHealth
       .mockRejectedValueOnce(new Error('Failed'))
-      .mockResolvedValueOnce({ status: 'healthy' })
+      .mockResolvedValueOnce({ status: 'ok' })
 
     const { result } = renderHook(() => useHealth())
 
@@ -123,7 +123,7 @@ describe('useHealth', () => {
     await vi.advanceTimersByTimeAsync(30000)
 
     await vi.waitFor(() => {
-      expect(result.current.status).toBe('healthy')
+      expect(result.current.status).toBe('ok')
       expect(result.current.error).toBeNull()
     })
 

@@ -7,7 +7,6 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
   EMAIL_MAX_LENGTH,
-  NOTE_MIN_LENGTH,
   NOTE_MAX_LENGTH
 } from '../validation'
 
@@ -363,7 +362,6 @@ describe('constants', () => {
   })
 
   it('should export correct note constraints', () => {
-    expect(NOTE_MIN_LENGTH).toBe(1)
     expect(NOTE_MAX_LENGTH).toBe(256)
   })
 })

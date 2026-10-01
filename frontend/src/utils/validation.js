@@ -1,7 +1,6 @@
 export const PASSWORD_MIN_LENGTH = 8
 export const PASSWORD_MAX_LENGTH = 128
 export const EMAIL_MAX_LENGTH = 128
-export const NOTE_MIN_LENGTH = 1
 export const NOTE_MAX_LENGTH = 256
 
 /**
@@ -65,20 +64,15 @@ export function validateEmail(email) {
 
 /**
  * Validate note content
- * Must be 1-256 characters
+ * Must be non-blank and at most 256 characters once trimmed
  */
 export function validateNoteContent(content) {
   const errors = []
+  const trimmed = content?.trim()
 
-  if (!content || !content.trim()) {
+  if (!trimmed) {
     errors.push('Note content is required')
     return errors
-  }
-
-  const trimmed = content.trim()
-
-  if (trimmed.length < NOTE_MIN_LENGTH) {
-    errors.push('Note cannot be empty')
   }
 
   if (trimmed.length > NOTE_MAX_LENGTH) {
