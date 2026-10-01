@@ -1,4 +1,3 @@
-import pytest
 import json
 from sqlalchemy import select, func
 
@@ -225,45 +224,6 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 400
 
-    def test_register_rate_limiting(self, client):
-        """Registration should be rate limited (3 per hour)."""
-        # Note: This test may be flaky depending on rate limiter implementation
-        # The limiter uses memory:// storage in tests
-
-        payload = {
-            'email': 'ratelimit{}@example.com',
-            'password': 'ValidPass123'
-        }
-
-        # Make 3 successful requests (should all work)
-        for i in range(3):
-            test_payload = {
-                'email': f'ratelimit{i}@example.com',
-                'password': 'ValidPass123'
-            }
-            response = client.post(
-                '/api/auth/register',
-                data=json.dumps(test_payload),
-                content_type='application/json'
-            )
-            # Either success or rate limited
-            assert response.status_code in [201, 429]
-
-        # 4th request might be rate limited
-        test_payload = {
-            'email': 'ratelimit4@example.com',
-            'password': 'ValidPass123'
-        }
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(test_payload),
-            content_type='application/json'
-        )
-
-        # Should be either successful or rate limited
-        assert response.status_code in [201, 429]
-
-
 class TestLoginEndpoint:
     """Test suite for POST /api/auth/login endpoint."""
 
@@ -402,126 +362,134 @@ class TestLoginEndpoint:
 
         assert response.status_code == 401
 
-    def test_login_rate_limiting(self, client, sample_user):
-        """Login should be rate limited (5 per minute)."""
-        payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
+LOGIN_PAYLOAD = {'email': 'test@example.com', 'password': 'TestPassword123'}
 
-        # Make multiple requests
-        for _ in range(5):
-            response = client.post(
-                '/api/auth/login',
-                data=json.dumps(payload),
-                content_type='application/json'
-            )
-            # Should be either successful or rate limited
-            assert response.status_code in [200, 429]
 
-        # Additional request might be rate limited
-        response = client.post(
-            '/api/auth/login',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-        assert response.status_code in [200, 429]
+def login(client):
+    """Log in as sample_user; return the refresh CSRF header to send back."""
+    response = client.post('/api/auth/login', json=LOGIN_PAYLOAD)
+    assert response.status_code == 200
+    return {'X-CSRF-REFRESH-TOKEN': response.get_json()['refresh_csrf']}
 
 
 class TestRefreshEndpoint:
     """Test suite for POST /api/auth/refresh endpoint."""
 
-    def test_refresh_with_valid_cookie(self, client, sample_user):
-        """Valid refresh token should return new access token."""
-        # First login to get refresh token
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
+    def test_refresh_returns_working_access_token(self, client, sample_user, fake_redis):
+        csrf = login(client)
 
-        login_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
+        response = client.post('/api/auth/refresh', headers=csrf)
 
-        assert login_response.status_code == 200
+        assert response.status_code == 200
+        token = response.get_json()['access_token']
+        notes = client.get('/api/notes', headers={'Authorization': f'Bearer {token}'})
+        assert notes.status_code == 200
 
-        # Extract cookies from login response
-        # Note: In test client, cookies are automatically maintained
+    def test_refresh_rotates_csrf_token(self, client, sample_user, fake_redis):
+        """Each refresh token carries its own CSRF value; clients must store the new one"""
+        csrf = login(client)
 
-        # Now try to refresh
-        refresh_response = client.post('/api/auth/refresh')
+        response = client.post('/api/auth/refresh', headers=csrf)
 
-        # Should succeed or fail based on cookie handling
-        # Test client might not handle cookies the same way
-        assert refresh_response.status_code in [200, 401]
+        new_csrf = response.get_json()['refresh_csrf']
+        assert new_csrf != csrf['X-CSRF-REFRESH-TOKEN']
 
-        if refresh_response.status_code == 200:
-            data = json.loads(refresh_response.data)
-            assert 'access_token' in data
+    def test_second_refresh_requires_rotated_csrf(self, client, sample_user, fake_redis):
+        csrf = login(client)
+        first = client.post('/api/auth/refresh', headers=csrf)
+        new_csrf = {'X-CSRF-REFRESH-TOKEN': first.get_json()['refresh_csrf']}
 
-    def test_refresh_without_cookie(self, client):
-        """Refresh without cookie should return 401."""
+        stale = client.post('/api/auth/refresh', headers=csrf)
+        fresh = client.post('/api/auth/refresh', headers=new_csrf)
+
+        assert stale.status_code == 401
+        assert fresh.status_code == 200
+
+    def test_refresh_revokes_previous_token(self, client, sample_user, fake_redis):
+        csrf = login(client)
+        (old,) = fake_redis.tokens
+
+        client.post('/api/auth/refresh', headers=csrf)
+
+        assert old not in fake_redis.tokens
+        assert len(fake_redis.tokens) == 1
+
+    def test_refresh_without_csrf_header(self, client, sample_user, fake_redis):
+        login(client)
+
         response = client.post('/api/auth/refresh')
 
         assert response.status_code == 401
 
-    def test_refresh_rate_limiting(self, client, sample_user):
-        """Refresh should be rate limited (10 per minute)."""
-        # Login first
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
+    def test_refresh_without_cookie(self, client):
+        response = client.post('/api/auth/refresh')
 
-        client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
 
-        # Try multiple refreshes
-        for _ in range(10):
-            response = client.post('/api/auth/refresh')
-            assert response.status_code in [200, 401, 429]
+    def test_refresh_fails_closed_without_redis(self, client, sample_user):
+        """With no Redis there is no allowlist, so every refresh token is revoked"""
+        csrf = login(client)
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
 
 
 class TestLogoutEndpoint:
-    """Test suite for POST /api/auth/logout endpoint."""
+    """Test suite for POST /api/auth/logout and /api/auth/logout-all."""
 
-    def test_logout_success(self, client, sample_user):
-        """Logout should clear cookies and return 200."""
-        # Login first
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
+    def test_logout_revokes_token_and_clears_cookies(self, client, sample_user, fake_redis):
+        csrf = login(client)
 
-        login_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
+        response = client.post('/api/auth/logout', headers=csrf)
 
-        assert login_response.status_code == 200
+        assert response.status_code == 200
+        assert response.get_json()['message'] == 'Logged out'
+        assert fake_redis.tokens == set()
+        cleared = response.headers.getlist('Set-Cookie')
+        assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
+        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
 
-        # Logout
-        logout_response = client.post('/api/auth/logout')
+    def test_refresh_after_logout_is_rejected(self, client, sample_user, fake_redis):
+        csrf = login(client)
+        refresh_cookie = client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        client.post('/api/auth/logout', headers=csrf)
 
-        # May succeed or fail depending on cookie handling
-        assert logout_response.status_code in [200, 401]
+        # Replay the logged-out token, as a stolen cookie would be
+        client.set_cookie('refresh_token_cookie', refresh_cookie, path='/api/auth')
+        response = client.post('/api/auth/refresh', headers=csrf)
 
-        if logout_response.status_code == 200:
-            data = json.loads(logout_response.data)
-            assert 'message' in data
-            assert 'logged out' in data['message'].lower()
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
 
     def test_logout_without_cookie(self, client):
-        """Logout without cookie should return 401."""
         response = client.post('/api/auth/logout')
 
         assert response.status_code == 401
+
+    def test_logout_all_revokes_every_session(self, client, app, sample_user, fake_redis):
+        other_device = app.test_client()
+        login(other_device)
+        csrf = login(client)
+        assert len(fake_redis.tokens) == 2
+
+        response = client.post('/api/auth/logout-all', headers=csrf)
+
+        assert response.status_code == 200
+        assert response.get_json()['message'] == 'Logged out from 2 device(s)'
+        assert fake_redis.tokens == set()
+
+    def test_logout_all_leaves_other_users_sessions(self, client, app, sample_user, second_user, fake_redis):
+        other_user = app.test_client()
+        other_user.post('/api/auth/login', json={
+            'email': 'other@example.com', 'password': 'OtherPassword123'})
+        csrf = login(client)
+
+        client.post('/api/auth/logout-all', headers=csrf)
+
+        assert [uid for uid, _ in fake_redis.tokens] == [second_user.id]
 
 
 class TestAuthenticationFlow:
@@ -621,182 +589,3 @@ class TestAuthenticationFlow:
             content_type='application/json'
         )
         assert new_response.status_code == 200
-
-
-# ============================================================================
-#                           REDIS INTEGRATION TESTS
-# ============================================================================
-
-
-class TestRefreshTokenRotation:
-    """Test suite for refresh token rotation"""
-
-    def test_refresh_returns_new_access_token(self, client, sample_user):
-        """Refresh should return a new access token"""
-        # Login first
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-        login_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-        assert login_response.status_code == 200
-
-        # Extract original access token
-        original_data = json.loads(login_response.data)
-        original_access_token = original_data['access_token']
-
-        # Refresh
-        refresh_response = client.post('/api/auth/refresh')
-
-        if refresh_response.status_code == 200:
-            refresh_data = json.loads(refresh_response.data)
-            new_access_token = refresh_data['access_token']
-
-            # New token should be different
-            assert new_access_token != original_access_token
-
-            # New token should work for protected endpoints
-            headers = {
-                'Authorization': f'Bearer {new_access_token}',
-                'Content-Type': 'application/json'
-            }
-            notes_response = client.get('/api/notes', headers=headers)
-            assert notes_response.status_code == 200
-
-    def test_refresh_returns_new_csrf_token(self, client, sample_user):
-        """Refresh should return a new CSRF token"""
-        # Login
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-        login_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-        assert login_response.status_code == 200
-
-        original_data = json.loads(login_response.data)
-        original_csrf = original_data['refresh_csrf']
-
-        # Refresh
-        refresh_response = client.post('/api/auth/refresh')
-
-        if refresh_response.status_code == 200:
-            refresh_data = json.loads(refresh_response.data)
-            new_csrf = refresh_data['refresh_csrf']
-
-            # CSRF should be different
-            assert new_csrf != original_csrf
-
-
-class TestLogoutAllEndpoint:
-    """Test suite for logout-all endpoint"""
-
-    def test_logout_all_endpoint_exists(self, client, sample_user):
-        """Should have logout-all endpoint"""
-        # Login
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-        client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-
-        # Logout all
-        response = client.post('/api/auth/logout-all')
-
-        # Should succeed or return 401 (if cookies not handled properly in test)
-        assert response.status_code in [200, 401]
-
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert 'message' in data
-
-    def test_logout_all_response_message(self, client, sample_user):
-        """Logout-all should return appropriate message"""
-        # Login
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-        client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-
-        # Logout all
-        response = client.post('/api/auth/logout-all')
-
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            # Message should mention logout or sessions
-            message = data['message'].lower()
-            assert 'logged out' in message or 'session' in message
-
-
-class TestSecurityScenarios:
-    """Test security scenarios with token rotation"""
-
-    def test_multiple_device_logout_response(self, client, sample_user):
-        """
-        User should be able to logout from all devices
-
-        Scenario: User logs in from phone, tablet, computer.
-        Then uses logout-all on phone. All devices should be logged out.
-        """
-        # Simulate device login
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-
-        # Device 1
-        device1_client = client
-        device1_client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-
-        # Logout all from device 1
-        response = device1_client.post('/api/auth/logout-all')
-
-        # Should succeed
-        if response.status_code == 200:
-            data = json.loads(response.data)
-            assert 'Logged out' in data['message'] or 'logged out' in data['message']
-
-    def test_logout_clears_cookies(self, client, sample_user):
-        """Logout should clear refresh token cookies"""
-        # Login
-        login_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-        login_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(login_payload),
-            content_type='application/json'
-        )
-        assert login_response.status_code == 200
-
-        # Logout
-        logout_response = client.post('/api/auth/logout')
-
-        # Check for Set-Cookie headers that clear cookies
-        cookies = logout_response.headers.getlist('Set-Cookie')
-        # Should have cookie clearing headers
-        if logout_response.status_code == 200:
-            # In production, cookies would be cleared
-            # Test environment may not fully handle this
-            pass
