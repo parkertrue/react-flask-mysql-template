@@ -9,21 +9,22 @@ export const api = axios.create({
   withCredentials: true
 })
 
-// Track refresh attempts to prevent infinite loops
+// Endpoints authenticated by the refresh cookie, which the backend protects
+// with a double-submit CSRF header. '/auth/logout' also covers '/auth/logout-all'.
+const REFRESH_COOKIE_ENDPOINTS = ['/auth/refresh', '/auth/logout']
+
+// Only one refresh may be in flight; requests that expire meanwhile wait in
+// the queue and retry with the token it produces.
 let isRefreshing = false
 let failedQueue = []
 
-// Request interceptor - attach token to requests
-api.interceptors.request.use(
-  config => {
-    const token = storage.getAccessToken()
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+api.interceptors.request.use(config => {
+  const token = storage.getAccessToken()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
 
-  // CSRF for cookie-auth endpoints
-  const cookieAuthEndpoints = ['/auth/refresh', '/auth/logout', 'auth/logout-all']
-  if (cookieAuthEndpoints.some(endpoint => config.url?.includes(endpoint))) {
+  if (REFRESH_COOKIE_ENDPOINTS.some(endpoint => config.url?.startsWith(endpoint))) {
     const csrf = storage.getRefreshCsrf()
     if (csrf) {
       config.headers['X-CSRF-REFRESH-TOKEN'] = csrf
@@ -33,27 +34,25 @@ api.interceptors.request.use(
   return config
 }, error => Promise.reject(error))
 
-// Response interceptor - handle token refresh
 api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
-    const errorCode = error.response?.data?.error?.code
-    const isTokenExpired = errorCode === 'AUTH_TOKEN_EXPIRED'
-    const hasAuthHeader = !!originalRequest.headers?.Authorization
-    const url = originalRequest?.url || ''
-    const isAuthEndpoint = url.includes('/auth/')
-    const isLogout = url.includes('/auth/logout')
+    if (!originalRequest) {
+      return Promise.reject(error)
+    }
 
-    // Only refresh when it's truly an expired token
+    const errorCode = error.response?.data?.error?.code
+    const url = originalRequest.url || ''
+
+    // Only refresh when an authenticated request failed on an expired token
     if (
-      isTokenExpired &&
-      hasAuthHeader &&
-      !isAuthEndpoint &&
+      errorCode === 'AUTH_TOKEN_EXPIRED' &&
+      originalRequest.headers?.Authorization &&
+      !url.startsWith('/auth/') &&
       !originalRequest._retry
     ) {
       if (isRefreshing) {
-        // Queue the request until refresh finishes
         const token = await new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
@@ -65,27 +64,25 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        // Attempt to refresh token
         const response = await api.post('/auth/refresh')
-        const { access_token } = response.data
+        const { access_token, refresh_csrf } = response.data
         storage.setAccessToken(access_token)
+        // Every refresh token carries its own CSRF value. Keeping the old one
+        // makes the next refresh, and logout, fail the backend's CSRF check.
+        storage.setRefreshCsrf(refresh_csrf)
 
-        // Update authorization header
-        api.defaults.headers.common.Authorization = `Bearer ${access_token}`
         originalRequest.headers.Authorization = `Bearer ${access_token}`
 
-        // Process queued requests
         failedQueue.forEach(p => p.resolve(access_token))
         failedQueue = []
-
         isRefreshing = false
+
         return api(originalRequest)
       } catch (refreshError) {
-        // Reject all queued requests
         failedQueue.forEach(p => p.reject(refreshError))
         failedQueue = []
-
         isRefreshing = false
+
         storage.clearAuth()
         window.location.href = '/login'
 
@@ -93,12 +90,12 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle other auth errors
     if (
       (errorCode === 'AUTH_INVALID_TOKEN' || errorCode === 'AUTH_MISSING_TOKEN') &&
-      !isLogout) {
-        storage.clearAuth()
-        window.location.href = '/login'
+      !url.startsWith('/auth/logout')
+    ) {
+      storage.clearAuth()
+      window.location.href = '/login'
     }
 
     return Promise.reject(error)
