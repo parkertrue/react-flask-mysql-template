@@ -101,7 +101,7 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
 - **`utils/`** — Redis service (refresh-token allowlist + caching; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
-- **`migrations/`** — Alembic migrations for MySQL.
+- **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)
 - **`api/`** — Centralized Axios instance + service modules (auth, health, notes). All backend calls go through here.
@@ -132,9 +132,9 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 
 ## Starting a New App From This Template
 
-1. Replace the notes slice: `backend/app/{models,schemas,routes}/notes.py`, `frontend/src/{api/services,hooks,components,pages}` notes files, and their tests.
+1. Replace the notes slice: `backend/app/{models,schemas,routes}/notes.py`, `backend/migrations/versions/0002_notes.py`, `frontend/src/{api/services,hooks,components,pages}` notes files, and their tests.
 2. Update `Note` references in `backend/tests/conftest.py` fixtures.
 3. Update `frontend/src/utils/validation.js` (the note-length validators).
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage`/`RegisterPage`.
-5. Add an Alembic migration for the new tables.
+5. Generate an Alembic migration for the new tables (`flask db migrate`); it chains onto `0001_users`.
 6. Rewrite this file and `README.md` for the new app.

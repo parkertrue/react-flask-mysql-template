@@ -357,9 +357,9 @@ GitHub Actions (`.github/workflows/`):
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/{models,schemas,routes}/notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
+1. Replace the notes feature: `backend/app/{models,schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
 2. Update the `Note` fixtures in `backend/tests/conftest.py`.
 3. Update the note-length validators in `frontend/src/utils/validation.js`.
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.
-5. Add an Alembic migration for your new tables (`flask db migrate`).
+5. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
 6. Rewrite this README and `CLAUDE.md` for your app.
