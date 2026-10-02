@@ -1,45 +1,15 @@
-# Python
-__pycache__/
-.venv/
+# The repo root is the build context for nginx/Dockerfile only, which needs the
+# frontend source and the nginx config. Allowlist rather than denylist, so env
+# files, certs, venvs and anything added later stay out by default.
+*
+!frontend/
+!nginx/*.conf
+!nginx/templates/
 
-# Node
-node_modules/
-
-# Environment Files
-.env.dev
-.env.prod
-.env.test
-.env.examples
-
-# Testing
-.coverage
-.pytest_cache/
-coverage/
-playwright-report/
-test-results/
-
-# Git
-.git/
-.gitignore
-.gitattributes
-
-# Documentation
-README.md
-
-# Compose Files
-docker-compose.yml
-docker-compose.dev.yml
-docker-compose.test.yml
-
-# Dev Scripts
-run_dev.sh
-run_tests.sh
-
-# SSL certificates
-nginx/certs/
-
-# Dev Workspace
-temp/
-.vscode/
-.claude/
-CLAUDE.md
+# Host-built output inside frontend/. node_modules matters most: copying it
+# over the image's `npm ci` would ship the host's platform-specific binaries.
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/

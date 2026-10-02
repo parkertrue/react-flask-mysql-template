@@ -1,17 +1,19 @@
 services:
   db:
     image: mysql:8.0.44
-    env_file:
-      - .env.prod
+    # Only the variables MySQL needs, interpolated from the --env-file passed
+    # to docker compose, so SECRET_KEY and the Redis password stay out.
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: [
-        "CMD", "mysqladmin", "ping", 
-        "-h", "127.0.0.1", 
-        "-u", "root", 
-        "-p${MYSQL_ROOT_PASSWORD}"
-      ]
+      # ping exits 0 whenever the server is up, even if auth fails, so no
+      # credentials need to appear in the process list
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,18 +33,22 @@ services:
 
   redis:
     image: redis:8.4-alpine
-    env_file:
-      - .env.prod
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
+    # Redis holds the refresh-token allowlist and rate-limit counters, so
+    # nothing may be evicted: noeviction makes a full Redis fail loudly instead
+    # of silently logging users out and resetting limits. maxmemory stays below
+    # the container limit to leave room for the AOF rewrite fork.
     command: >
-      redis-server 
+      redis-server
       --requirepass ${REDIS_PASSWORD}
-      --appendonly yes 
-      --maxmemory 256mb 
-      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --maxmemory 192mb
+      --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -71,6 +77,13 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      # start_period covers the entrypoint's wait-for-services and migrations
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -90,7 +103,8 @@ services:
     volumes:
       - ./nginx/certs:/etc/nginx/certs:ro 
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped

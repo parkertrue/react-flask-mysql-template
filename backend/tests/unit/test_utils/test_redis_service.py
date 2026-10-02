@@ -33,7 +33,7 @@ class TestRedisServiceInitialization:
             mock_redis_class.return_value = mock_client
             mock_client.ping.return_value = True
 
-            service = RedisService(
+            RedisService(
                 host='redishost',
                 port=6380,
                 db=2,

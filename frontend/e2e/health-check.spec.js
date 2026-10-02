@@ -11,8 +11,7 @@ test.describe('System Health Check', () => {
     expect(response.status()).toBe(200)
     
     const body = await response.json()
-    console.log('Health check response:', body)
-    expect(body.status).toBe('ok') // Changed from 'healthy' to 'ok'
+    expect(body.status).toBe('ok')
   })
 
   test('frontend loads correctly', async ({ page }) => {
@@ -29,28 +28,15 @@ test.describe('System Health Check', () => {
     await expect(page.getByRole('heading', { name: /register/i })).toBeVisible()
   })
 
-  test('registration API returns expected response', async ({ page, request }) => {
-    // Test the API directly to see what it returns
-    const testEmail = `api-test-${Date.now()}@example.com`
-    
+  test('registration API returns JSON through nginx', async ({ request }) => {
     const response = await request.post('/api/auth/register', {
       data: {
-        email: testEmail,
+        email: `api-test-${Date.now()}@example.com`,
         password: 'SecurePass123'
       },
-      ignoreHTTPSErrors: true
     })
-    
-    console.log('Registration API status:', response.status())
-    const body = await response.text()
-    console.log('Registration API response body:', body)
-    
-    // Try to parse as JSON
-    try {
-      const json = JSON.parse(body)
-      console.log('Registration API JSON:', JSON.stringify(json, null, 2))
-    } catch (e) {
-      console.log('Response is not JSON, raw text:', body.substring(0, 500))
-    }
+
+    expect(response.status()).toBe(201)
+    expect(await response.json()).toEqual({ message: 'User created' })
   })
 })

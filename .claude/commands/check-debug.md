@@ -4,7 +4,6 @@ Scan for debug statements and debug configuration that must be removed before pu
 Grep for:
 - `print(` — list every occurrence with file:line and the content of the line
 - `pprint(`
-- Known issue: `backend/app/__init__.py` contains a large debug print block (approx lines 41–87) with a `DEBUG: Redis Initialization` header — this entire block must be removed
 
 **JavaScript debug statements in `frontend/src/`** (not in `__tests__/` or `e2e/`)
 Grep for:

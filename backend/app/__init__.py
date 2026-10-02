@@ -6,10 +6,11 @@ from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import error_response
-from app.utils.redis_service import RedisService
+from app.utils.redis_service import RedisService, get_redis_service
 
 
 jwt = JWTManager()
@@ -19,29 +20,33 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["1000 per day", "200 per hour"]
 )
-redis_service: RedisService | None = None
 
 
 def create_app():
     """Application factory for creating Flask app instances"""
-    global redis_service
-
     app = Flask(__name__)
 
-    # Load configuration
     config = get_config()
     app.config.from_object(config)
 
-    # Initialize extensions
+    # Behind nginx, REMOTE_ADDR is the proxy's address. Without this every
+    # client shares one rate-limit bucket, so a single user can lock everyone
+    # out of login. Only trust as many X-Forwarded-* hops as there are proxies.
+    proxies = app.config["TRUSTED_PROXY_COUNT"]
+    if proxies:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app, x_for=proxies, x_proto=proxies, x_host=proxies)
+
     jwt.init_app(app)
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # Initialize Redis. A failure here must not stop the app from booting; the
-    # blocklist loader below fails closed when redis_service is None.
+    # A Redis failure must not stop the app from booting; the blocklist loader
+    # below fails closed when there is no service.
+    app.extensions["redis_service"] = None
     if app.config["REDIS_ENABLED"]:
         try:
-            redis_service = RedisService(
+            app.extensions["redis_service"] = RedisService(
                 host=app.config["REDIS_HOST"],
                 port=app.config["REDIS_PORT"],
                 db=int(app.config["REDIS_DB"]),
@@ -50,30 +55,25 @@ def create_app():
             )
         except Exception:
             app.logger.exception("Redis initialization failed")
-            redis_service = None
-    else:
-        redis_service = None
 
-    # Initialize Rate Limiter
     if app.config["RATELIMIT_ENABLED"]:
         limiter.init_app(app)
 
-    # Enable CORS
     if app.config["CORS_ORIGINS"]:
         CORS(app, origins=app.config["CORS_ORIGINS"],
              supports_credentials=True)
 
-    # JWT blocklist loader for token revocation
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         """Check if refresh token has been revoked"""
-        # Only check refresh tokens
+        # Only refresh tokens are tracked in Redis
         if jwt_payload.get('type') != 'refresh':
             return False
 
         # Fail closed: without Redis we cannot tell a live refresh token from a
         # revoked one, so treat them all as revoked rather than honouring
         # tokens the user already logged out of.
+        redis_service = get_redis_service()
         if redis_service is None:
             return True
 
@@ -133,7 +133,16 @@ def create_app():
             status=422
         )
 
-    # Generic error handlers
+    # Generic error handlers. Werkzeug's defaults are HTML pages, which the
+    # frontend cannot show; every error leaves the API in the same JSON shape.
+    @app.errorhandler(400)
+    def bad_request(e):
+        return error_response(
+            code="BAD_REQUEST",
+            message="Malformed request",
+            status=400
+        )
+
     @app.errorhandler(404)
     def not_found(e):
         return error_response(
@@ -148,6 +157,22 @@ def create_app():
             code="METHOD_NOT_ALLOWED",
             message="Method not allowed",
             status=405
+        )
+
+    @app.errorhandler(415)
+    def unsupported_media_type(e):
+        return error_response(
+            code="UNSUPPORTED_MEDIA_TYPE",
+            message="Request body must be JSON",
+            status=415
+        )
+
+    @app.errorhandler(429)
+    def rate_limited(e):
+        return error_response(
+            code="RATE_LIMITED",
+            message="Too many requests, please try again later",
+            status=429
         )
 
     @app.errorhandler(500)

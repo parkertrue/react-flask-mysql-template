@@ -1,6 +1,5 @@
 import pytest
 import os
-import sys
 from datetime import timedelta
 
 from app.config import (
@@ -12,15 +11,19 @@ from app.config import (
     get_config
 )
 
+STRONG_SECRET = 'x' * 32
+
 
 @pytest.fixture(autouse=True)
-def isolate_config_tests():
-    """Isolate config tests from session env vars."""
-    if 'app.config' in sys.modules:
-        del sys.modules['app.config']
-    yield
-    if 'app.config' in sys.modules:
-        del sys.modules['app.config']
+def isolate_config_tests(monkeypatch):
+    """Clear optional env vars so tests see the documented defaults.
+
+    run_tests.sh loads .env.test, which sets non-default ports (3307/6380)
+    and may set FLASK_DEBUG or E2E_MODE. Tests that need a value set it
+    explicitly with monkeypatch.
+    """
+    for var in ('MYSQL_PORT', 'REDIS_PORT', 'FLASK_DEBUG', 'E2E_MODE'):
+        monkeypatch.delenv(var, raising=False)
 
 
 class TestConfigClasses:
@@ -99,8 +102,9 @@ class TestConfigClasses:
         assert config.JWT_COOKIE_SECURE is True
         assert config.JWT_COOKIE_CSRF_PROTECT is True
 
-    def test_production_config_attributes(self):
+    def test_production_config_attributes(self, monkeypatch):
         """ProductionConfig should have correct attributes"""
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
         config = ProductionConfig()
 
         assert config.FLASK_ENV == 'production'
@@ -157,7 +161,7 @@ class TestGetConfigFactory:
         monkeypatch.setenv('REDIS_HOST', 'prodredis')
         monkeypatch.setenv('REDIS_DB', '0')
         monkeypatch.setenv('REDIS_PASSWORD', 'prodredispass')
-        monkeypatch.setenv('SECRET_KEY', 'prodsecret')
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
 
         config = get_config()
 
@@ -178,7 +182,7 @@ class TestGetConfigFactory:
         monkeypatch.setenv('REDIS_HOST', 'prodredis')
         monkeypatch.setenv('REDIS_DB', '0')
         monkeypatch.setenv('REDIS_PASSWORD', 'prodredispass')
-        monkeypatch.setenv('SECRET_KEY', 'prodsecret')
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
 
         config = get_config()
 
@@ -210,7 +214,7 @@ class TestGetConfigFactory:
         monkeypatch.setenv('REDIS_HOST', 'prodredis')
         monkeypatch.setenv('REDIS_DB', '0')
         monkeypatch.setenv('REDIS_PASSWORD', 'prodredispass')
-        monkeypatch.setenv('SECRET_KEY', 'prodsecret')
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
 
         config = get_config()
 
@@ -416,7 +420,51 @@ class TestRateLimitBehavior:
         config = IntegrationConfig()
         assert config.RATELIMIT_ENABLED is False
 
-    def test_rate_limiting_enabled_in_production(self):
+    def test_rate_limiting_enabled_in_production(self, monkeypatch):
         """Rate limiting should be enabled in production"""
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
         config = ProductionConfig()
         assert config.RATELIMIT_ENABLED is True
+
+
+class TestProductionSecretKey:
+    """ProductionConfig refuses secrets that would let anyone forge JWTs"""
+
+    def test_rejects_short_secret(self, monkeypatch):
+        monkeypatch.setenv('SECRET_KEY', 'x' * 31)
+
+        with pytest.raises(ValueError, match='SECRET_KEY'):
+            ProductionConfig()
+
+    def test_rejects_template_placeholder(self, monkeypatch):
+        monkeypatch.setenv('SECRET_KEY', 'your_secret_key_here')
+
+        with pytest.raises(ValueError, match='SECRET_KEY'):
+            ProductionConfig()
+
+    def test_accepts_long_secret(self, monkeypatch):
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+
+        assert ProductionConfig().JWT_SECRET_KEY == STRONG_SECRET
+
+    def test_short_secret_allowed_outside_production(self, monkeypatch):
+        monkeypatch.setenv('SECRET_KEY', 'short')
+
+        assert DevelopmentConfig().JWT_SECRET_KEY == 'short'
+
+
+class TestConnectionUris:
+    """Credentials must survive URI parsing whatever characters they contain"""
+
+    def test_special_characters_are_encoded(self, monkeypatch):
+        monkeypatch.setenv('MYSQL_USER', 'app')
+        monkeypatch.setenv('MYSQL_PASSWORD', 'p@ss/w:rd#1')
+        monkeypatch.setenv('REDIS_PASSWORD', 'r@dis/pw')
+
+        config = DevelopmentConfig()
+
+        from sqlalchemy.engine import make_url
+        from redis.connection import parse_url
+        assert make_url(config.SQLALCHEMY_DATABASE_URI).password == 'p@ss/w:rd#1'
+        assert make_url(config.SQLALCHEMY_DATABASE_URI).host == config.DB_HOST
+        assert parse_url(config.REDIS_URI)['password'] == 'r@dis/pw'

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Note, User
+from app.models import Note
 
 
 class TestNoteModel:
@@ -27,14 +27,14 @@ class TestNoteModel:
     def test_note_requires_user_id(self, db):
         """Note creation should fail without user_id."""
         with pytest.raises(TypeError) as exc_info:
-            note = Note(content='Content without user')
+            Note(content='Content without user')
 
         assert 'user_id' in str(exc_info.value)
 
     def test_note_requires_content(self, db, sample_user):
         """Note creation should fail without content."""
         with pytest.raises(TypeError) as exc_info:
-            note = Note(user_id=sample_user.id)
+            Note(user_id=sample_user.id)
 
         assert 'content' in str(exc_info.value)
 

@@ -3,7 +3,6 @@ import time
 from datetime import timedelta
 from flask_jwt_extended import create_access_token
 
-import app as _app_module
 from app import create_app, db as _db
 from app.models import User, Note
 
@@ -33,7 +32,7 @@ def app():
 
     # SECRET_KEY is required by the Config base class
     if 'SECRET_KEY' not in os.environ:
-        os.environ['SECRET_KEY'] = 'test-secret-key-12345'
+        os.environ['SECRET_KEY'] = 'test-secret-key-0123456789abcdef'
 
     app = create_app()
 
@@ -65,6 +64,43 @@ def db(app):
 def client(app, db):
     """Unit test client"""
     return app.test_client()
+
+
+class FakeRedisService:
+    """In-memory stand-in for RedisService's refresh-token methods."""
+
+    def __init__(self):
+        self.tokens = set()  # {(user_id, jti)}
+
+    def store_refresh_token(self, user_id, jti, ttl_seconds):
+        self.tokens.add((user_id, jti))
+        return True
+
+    def is_token_valid(self, user_id, jti):
+        return (user_id, jti) in self.tokens
+
+    def revoke_token(self, user_id, jti):
+        present = (user_id, jti) in self.tokens
+        self.tokens.discard((user_id, jti))
+        return present
+
+    def revoke_all_user_tokens(self, user_id):
+        mine = {t for t in self.tokens if t[0] == user_id}
+        self.tokens -= mine
+        return len(mine)
+
+
+@pytest.fixture
+def fake_redis(app):
+    """Give the unit app a Redis token store.
+
+    TestingConfig disables Redis, and without it the blocklist loader fails
+    closed, so every refresh-cookie route would return 401.
+    """
+    fake = FakeRedisService()
+    app.extensions["redis_service"] = fake
+    yield fake
+    app.extensions["redis_service"] = None
 
 
 # ============================================================================
@@ -105,14 +141,8 @@ def integration_app():
 
         for attempt in range(1, max_retries + 1):
             try:
-                _db.engine.connect()
-
-                if _app_module.redis_service:
-                    _app_module.redis_service.get_client().ping()
-                    print(
-                        f"Test services ready (attempt {attempt}/{max_retries})")
-                else:
-                    print("Redis is disabled in IntegrationConfig")
+                with _db.engine.connect():
+                    pass
 
                 break
 
@@ -125,6 +155,14 @@ def integration_app():
                         f"up -d' is running."
                     )
                 time.sleep(retry_delay)
+
+        # IntegrationConfig enables Redis, so a missing service means it failed
+        # to connect in create_app(). Fail here rather than let every
+        # Redis-backed test skip and the suite report green.
+        if app.extensions["redis_service"] is None:
+            raise RuntimeError(
+                "Redis failed to initialise; see the log above. Make sure "
+                "docker-compose.test.yml services are healthy.")
 
         yield app
 
@@ -153,20 +191,12 @@ def integration_client(integration_app, integration_db):
 def integration_redis(integration_app):
     """Integration test Redis - real Redis
 
-    Skips the test if Redis is unavailable. Flushes the db after each test to
-    keep tests isolated.
+    Flushes the db after each test to keep tests isolated.
     """
     with integration_app.app_context():
-        if _app_module.redis_service is None:
-            pytest.skip("Redis is not enabled for integration tests")
-
-        yield _app_module.redis_service
-
-        if _app_module.redis_service:
-            try:
-                _app_module.redis_service.get_client().flushdb()
-            except Exception as e:
-                print(f"Failed to flush Redis: {e}")
+        redis_service = integration_app.extensions["redis_service"]
+        yield redis_service
+        redis_service.get_client().flushdb()
 
 
 @pytest.fixture

@@ -1,5 +1,15 @@
 import redis
 from typing import cast
+from flask import current_app
+
+
+def get_redis_service() -> "RedisService | None":
+    """The current app's RedisService, or None if Redis is disabled or down.
+
+    Looked up per call rather than imported, so every app instance (one per
+    gunicorn worker, several per test session) sees its own service.
+    """
+    return current_app.extensions.get("redis_service")
 
 
 class RedisService:

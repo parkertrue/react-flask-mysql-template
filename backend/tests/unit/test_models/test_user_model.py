@@ -24,7 +24,7 @@ class TestUserModel:
     def test_user_requires_email(self, db):
         """User creation should fail without email."""
         with pytest.raises(TypeError) as exc_info:
-            user = User()
+            User()
 
         assert 'email' in str(exc_info.value)
 
@@ -199,7 +199,7 @@ class TestUserRelationships:
         assert note2 in sample_user.notes
 
     def test_user_deletion_cascade(self, db, sample_user):
-        """Test what happens to notes when user is deleted."""
+        """Deleting a user deletes their notes (cascade="all, delete-orphan")."""
         from app.models import Note
 
         note = Note(user_id=sample_user.id, content='Test note')
@@ -211,11 +211,7 @@ class TestUserRelationships:
         db.session.delete(sample_user)
         db.session.commit()
 
-        # Check if note still exists (depends on cascade setting)
-        # Current model doesn't specify cascade, so note becomes orphaned
-        # This documents current behavior
-        remaining_note = db.session.get(Note, note_id)
-        # Behavior depends on your foreign key cascade settings
+        assert db.session.get(Note, note_id) is None
 
 
 class TestUserQueries:

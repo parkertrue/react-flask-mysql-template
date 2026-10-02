@@ -22,6 +22,7 @@ tests/
 # Dev Scripts
 run_dev.sh
 run_tests.sh
+requirements-dev.txt
 
 # Editor / tooling
 .vscode/

@@ -1,5 +1,9 @@
 import os
 from datetime import timedelta
+from urllib.parse import quote
+
+MIN_SECRET_KEY_LENGTH = 32
+PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
 
 
 class Config:
@@ -22,8 +26,11 @@ class Config:
         if not all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
             raise ValueError("Missing required MySQL environment variables")
 
+        # Credentials are percent-encoded: a password containing @ / : or #
+        # would otherwise be parsed as part of the host.
         self.SQLALCHEMY_DATABASE_URI = (
-            f'mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@'
+            f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
+            f'{quote(self.DB_PASSWORD, safe="")}@'
             f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
         )
 
@@ -39,7 +46,7 @@ class Config:
             raise ValueError("Missing required Redis environment variables")
 
         self.REDIS_URI = (
-            f"redis://:{self.REDIS_PASSWORD}@"
+            f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
             f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         )
 
@@ -47,13 +54,18 @@ class Config:
         self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
 
+        # Number of reverse proxies in front of Flask whose X-Forwarded-*
+        # headers are trusted. 0 means REMOTE_ADDR is the client.
+        self.TRUSTED_PROXY_COUNT = 0
+
         # JWT configuration
-        self.JWT_SECRET_KEY = os.getenv('SECRET_KEY')
+        self.JWT_SECRET_KEY = os.getenv('SECRET_KEY', '')
         self.JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
         self.JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+        # Access tokens travel in the Authorization header, refresh tokens in
+        # an HttpOnly cookie that is only sent to the /api/auth routes.
         self.JWT_TOKEN_LOCATION = ['headers', 'cookies']
-        self.JWT_REFRESH_TOKEN_LOCATION = ['cookies']
-        self.JWT_ACCESS_TOKEN_LOCATION = ['headers']
+        self.JWT_REFRESH_COOKIE_PATH = '/api/auth'
         self.JWT_COOKIE_HTTPONLY = True
         self.JWT_COOKIE_SAMESITE = 'Lax'
         self.JWT_COOKIE_CSRF_PROTECT = True
@@ -113,6 +125,15 @@ class ProductionConfig(Config):
         self.FLASK_ENV = "production"
         self.FLASK_DEBUG = False
         self.JWT_COOKIE_SECURE = True
+        self.TRUSTED_PROXY_COUNT = 1  # nginx
+
+        # Anyone who knows the template's placeholder can forge JWTs, so a
+        # weak key must stop the deploy rather than boot quietly.
+        if (len(self.JWT_SECRET_KEY) < MIN_SECRET_KEY_LENGTH
+                or self.JWT_SECRET_KEY in PLACEHOLDER_SECRET_KEYS):
+            raise ValueError(
+                f"SECRET_KEY must be a random value of at least "
+                f"{MIN_SECRET_KEY_LENGTH} characters in production")
 
 
 def get_config():

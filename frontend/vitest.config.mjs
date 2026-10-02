@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
@@ -11,7 +10,7 @@ export default defineConfig({
     exclude: [
       'node_modules/',
       '**/e2e/', 
-      '**/*.config.js',
+      '**/*.config.{js,mjs}',
       '**/*.css'
     ],
     coverage: {
@@ -21,22 +20,16 @@ export default defineConfig({
         'node_modules/',
         '**/e2e/', 
         'src/test/',
-        '**/*.config.js',
+        '**/*.config.{js,mjs}',
         '**/main.jsx',
         '**/*.css'
       ]
     },
-    // Suppress console warnings during tests
-    silent: false,
+    // React Testing Library's act() warnings are noise for async hooks
     onConsoleLog(log) {
       if (log.includes('was not wrapped in act')) {
         return false
       }
-    }
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
     }
   }
 })

@@ -28,34 +28,31 @@ show_help() {
 
 start_test_services() {
     echo -e "${YELLOW}Starting test services (MySQL + Redis)...${NC}"
-    
-    # Run docker compose from parent directory (where docker-compose.test.yml is)
-    (cd .. && docker compose -f docker-compose.test.yml up -d)
-    
-    echo -e "${YELLOW}Waiting for services to be healthy...${NC}"
-    sleep 10
-    
-    # Verify services are up
-    if ! (cd .. && docker compose -f docker-compose.test.yml ps | grep -q "Up"); then
+
+    # Tear down on any exit, including a failing pytest under set -e
+    trap stop_test_services EXIT
+
+    # --wait blocks until the compose healthchecks pass
+    if ! (cd .. && docker compose --env-file .env.test -f docker-compose.test.yml up -d --wait); then
         echo -e "${RED}❌ Test services failed to start${NC}"
-        (cd .. && docker compose -f docker-compose.test.yml logs)
+        (cd .. && docker compose --env-file .env.test -f docker-compose.test.yml logs)
         exit 1
     fi
-    
+
     echo -e "${GREEN}✅ Test services ready${NC}"
 }
 
 stop_test_services() {
     echo -e "${YELLOW}Stopping test services...${NC}"
-    
-    # Run docker compose from parent directory
-    (cd .. && docker compose -f docker-compose.test.yml down -v)
+    (cd .. && docker compose --env-file .env.test -f docker-compose.test.yml down -v)
 }
 
 load_test_env() {
     # Load .env.test from parent directory (project root)
     if [ -f "../.env.test" ]; then
-        export $(grep -v '^#' ../.env.test | xargs)
+        set -a
+        . ../.env.test
+        set +a
         echo -e "${GREEN}✅ Loaded .env.test${NC}"
     else
         echo -e "${RED}❌ .env.test not found in project root${NC}"
@@ -73,13 +70,13 @@ activate_venv() {
             source .venv/bin/activate
         else
             echo -e "${RED}❌ Virtual environment not found${NC}"
-            echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
+            echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt"
             exit 1
         fi
     fi
 }
 
-if [ "$#" -eq 0 ]; then
+if [ "$#" -eq 0 ] || [ "$1" = "help" ]; then
     show_help
     exit 0
 fi
@@ -115,11 +112,6 @@ activate_venv
 load_test_env
 
 case "$TEST_TYPE" in
-    help)
-        show_help
-        exit 0
-        ;;
-    
     unit)
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}Running UNIT tests (fast)${NC}"
@@ -146,9 +138,7 @@ case "$TEST_TYPE" in
         else
             pytest tests/integration/ --cov=app --cov-report=term-missing $VERBOSE
         fi
-        
-        # Stop services
-        stop_test_services
+
         ;;
     
     combined)
@@ -177,9 +167,7 @@ case "$TEST_TYPE" in
         # Generate HTML report
         coverage html
         echo -e "${GREEN}✅ HTML coverage report: htmlcov/index.html${NC}"
-        
-        # Stop services
-        stop_test_services
+
         ;;
     
     all)
@@ -207,9 +195,7 @@ case "$TEST_TYPE" in
         else
             pytest tests/integration/ --cov=app --cov-report=term-missing $VERBOSE
         fi
-        
-        # Stop services
-        stop_test_services
+
         ;;
     
     *)
