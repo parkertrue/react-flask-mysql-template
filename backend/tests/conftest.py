@@ -32,7 +32,7 @@ def app():
 
     # SECRET_KEY is required by the Config base class
     if 'SECRET_KEY' not in os.environ:
-        os.environ['SECRET_KEY'] = 'test-secret-key-12345'
+        os.environ['SECRET_KEY'] = 'test-secret-key-0123456789abcdef'
 
     app = create_app()
 

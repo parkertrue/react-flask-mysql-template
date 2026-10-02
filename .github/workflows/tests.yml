@@ -24,7 +24,7 @@ jobs:
       # limiting, but the base Config still validates that these are present,
       # so they need placeholder values even though nothing connects.
       FLASK_ENV: testing
-      SECRET_KEY: ci-only-not-a-real-secret
+      SECRET_KEY: ci-only-not-a-real-secret-0123456789
       MYSQL_USER: ci
       MYSQL_PASSWORD: ci
       MYSQL_HOST: localhost

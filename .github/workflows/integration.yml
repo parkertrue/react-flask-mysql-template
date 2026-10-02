@@ -36,7 +36,7 @@ jobs:
           MYSQL_PASSWORD=testpass
           MYSQL_ROOT_PASSWORD=testrootpass
           FLASK_ENV=integration
-          SECRET_KEY=ci-only-not-a-real-secret
+          SECRET_KEY=ci-only-not-a-real-secret-0123456789
           REDIS_HOST=localhost
           REDIS_PORT=6380
           REDIS_DB=0
@@ -100,7 +100,7 @@ jobs:
           MYSQL_PASSWORD=testpass
           MYSQL_ROOT_PASSWORD=testrootpass
           FLASK_ENV=integration
-          SECRET_KEY=ci-only-not-a-real-secret
+          SECRET_KEY=ci-only-not-a-real-secret-0123456789
           REDIS_HOST=localhost
           REDIS_PORT=6380
           REDIS_DB=0
