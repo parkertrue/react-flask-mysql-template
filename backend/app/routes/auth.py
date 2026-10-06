@@ -1,4 +1,4 @@
-from flask import Blueprint, request, make_response, jsonify, current_app
+from flask import Blueprint, abort, request, make_response, jsonify, current_app
 from sqlalchemy import select
 from flask_jwt_extended import (
     create_access_token,
@@ -128,6 +128,22 @@ def logout():
         redis_service.revoke_token(user_id, jti)
 
     response = make_response(jsonify({"message": "Logged out"}), 200)
+    unset_jwt_cookies(response)
+    return response
+
+
+@auth_bp.route("/clear-cookies", methods=["POST"])
+def clear_cookies():
+    """Expire the refresh cookies when a logout request itself failed.
+
+    They are HttpOnly, so the client cannot remove them. No token is needed,
+    since logout may have failed on exactly that. Requiring a JSON body means
+    another site can only send this with a CORS preflight, which it won't pass.
+    """
+    if not request.is_json:
+        abort(415)
+
+    response = make_response(jsonify({"message": "Cookies cleared"}), 200)
     unset_jwt_cookies(response)
     return response
 

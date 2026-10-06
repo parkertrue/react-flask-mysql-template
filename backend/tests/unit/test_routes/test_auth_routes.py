@@ -483,6 +483,30 @@ class TestLogoutEndpoint:
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
 
+    def test_clear_cookies_expires_refresh_cookies(self, client, sample_user, fake_redis):
+        login(client)
+
+        response = client.post('/api/auth/clear-cookies', json={})
+
+        assert response.status_code == 200
+        cleared = response.headers.getlist('Set-Cookie')
+        assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
+        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
+        assert client.get_cookie('refresh_token_cookie', path='/api/auth') is None
+
+    def test_clear_cookies_needs_no_token(self, client):
+        response = client.post('/api/auth/clear-cookies', json={})
+
+        assert response.status_code == 200
+
+    def test_clear_cookies_rejects_form_posts(self, client):
+        """A cross-site form can send this without a preflight; JSON can't"""
+        response = client.post(
+            '/api/auth/clear-cookies', data={'x': '1'})
+
+        assert response.status_code == 415
+        assert 'Set-Cookie' not in response.headers
+
     def test_logout_without_cookie(self, client):
         response = client.post('/api/auth/logout')
 

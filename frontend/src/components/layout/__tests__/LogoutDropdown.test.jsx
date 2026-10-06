@@ -5,7 +5,7 @@ import { BrowserRouter } from 'react-router-dom'
 import LogoutDropdown from '../LogoutDropdown'
 import { AuthProvider } from '../../../contexts/AuthProvider'
 import { storage } from '../../../utils/storage'
-import { logoutUser, logoutAllDevices } from '../../../api/services/authService'
+import { logoutUser, logoutAllDevices, clearAuthCookies } from '../../../api/services/authService'
 
 vi.mock('../../../utils/storage')
 vi.mock('../../../api/services/authService')
@@ -27,6 +27,7 @@ describe('LogoutDropdown', () => {
     storage.getEmail.mockReturnValue('test@example.com')
     logoutUser.mockResolvedValue({})
     logoutAllDevices.mockResolvedValue({})
+    clearAuthCookies.mockResolvedValue({})
   })
 
   const renderDropdown = () => {
@@ -598,6 +599,52 @@ describe('LogoutDropdown', () => {
 
       expect(screen.getByText('Logout This Device')).toBeInTheDocument()
       expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
+    })
+  })
+
+  describe('refresh cookie cleanup', () => {
+    it.each([
+      ['Logout This Device', logoutUser],
+      ['Logout All Devices', logoutAllDevices],
+    ])('%s asks the server to clear cookies when logout fails', async (item, request) => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      request.mockRejectedValue(new Error('Network error'))
+
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText(item))
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
+      expect(clearAuthCookies).toHaveBeenCalledTimes(1)
+      console.error.mockRestore()
+    })
+
+    it('does not clear cookies separately when logout succeeds', async () => {
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText('Logout This Device'))
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
+      expect(clearAuthCookies).not.toHaveBeenCalled()
+    })
+
+    it('still logs out locally if clearing cookies fails too', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      logoutUser.mockRejectedValue(new Error('Network error'))
+      clearAuthCookies.mockRejectedValue(new Error('Network error'))
+
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText('Logout This Device'))
+
+      await waitFor(() => {
+        expect(storage.clearAuth).toHaveBeenCalled()
+        expect(mockNavigate).toHaveBeenCalledWith('/')
+      })
+      console.error.mockRestore()
     })
   })
 })

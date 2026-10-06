@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { logoutUser, logoutAllDevices } from '../../api/services/authService'
+import { logoutUser, logoutAllDevices, clearAuthCookies } from '../../api/services/authService'
 
 export default function LogoutDropdown() {
   const { logout } = useAuth()
@@ -20,29 +20,23 @@ export default function LogoutDropdown() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleLogout = async () => {
+  const endSession = async (request, label) => {
     setShowDropdown(false)
     try {
-      await logoutUser()
+      await request()
     } catch (err) {
-      console.error('Logout error:', err)
+      console.error(`${label} error:`, err)
+      // The refresh cookie is HttpOnly, so only the server can expire it.
+      // If this fails too, there is nothing more the client can do.
+      await clearAuthCookies().catch(() => {})
     } finally {
       logout()
       navigate('/')
     }
   }
 
-  const handleLogoutAll = async () => {
-    setShowDropdown(false)
-    try {
-      await logoutAllDevices()
-    } catch (err) {
-      console.error('Logout all error:', err)
-    } finally {
-      logout()
-      navigate('/')
-    }
-  }
+  const handleLogout = () => endSession(logoutUser, 'Logout')
+  const handleLogoutAll = () => endSession(logoutAllDevices, 'Logout all')
 
   return (
     <div className="logout-dropdown" ref={dropdownRef}>

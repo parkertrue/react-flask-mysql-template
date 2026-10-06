@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { registerUser, loginUser, logoutUser, logoutAllDevices } from '../authService'
+import { registerUser, loginUser, logoutUser, logoutAllDevices, clearAuthCookies } from '../authService'
 import { api } from '../../api'
 
 vi.mock('../../api')
@@ -511,6 +511,16 @@ describe('authService', () => {
       expect(api.post).toHaveBeenCalledTimes(2)
       expect(api.post).toHaveBeenCalledWith('/auth/logout')
       expect(api.post).toHaveBeenCalledWith('/auth/logout-all')
+    })
+  })
+
+  describe('clearAuthCookies', () => {
+    it('should POST a JSON body to /auth/clear-cookies', async () => {
+      api.post.mockResolvedValue({})
+
+      await clearAuthCookies()
+
+      expect(api.post).toHaveBeenCalledWith('/auth/clear-cookies', {})
     })
   })
 })
