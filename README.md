@@ -308,6 +308,7 @@ From `backend/`:
 ./run_tests.sh integration   # Real MySQL + Redis from docker-compose.test.yml
 ./run_tests.sh combined      # Both, with one merged coverage report
 ./run_tests.sh help          # All options
+ruff check .                # Lint
 ```
 
 Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis), wait for them to be healthy, and remove them afterwards.

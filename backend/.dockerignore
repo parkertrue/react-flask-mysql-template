@@ -23,6 +23,7 @@ tests/
 run_dev.sh
 run_tests.sh
 requirements-dev.txt
+ruff.toml
 
 # Editor / tooling
 .vscode/

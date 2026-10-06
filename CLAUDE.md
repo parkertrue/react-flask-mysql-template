@@ -44,6 +44,7 @@ cd backend
 ./run_tests.sh combined          # All tests with merged coverage report
 ./run_tests.sh unit --verbose    # Verbose output
 ./run_tests.sh unit --no-coverage
+ruff check .                     # Lint (errors only; CI fails on any finding)
 ```
 
 ### Frontend
