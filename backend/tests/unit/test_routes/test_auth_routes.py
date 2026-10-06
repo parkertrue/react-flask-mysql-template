@@ -1,7 +1,11 @@
 import json
+from unittest.mock import patch
+
 from sqlalchemy import select, func
+from werkzeug.security import check_password_hash
 
 from app.models import User
+from app.routes import auth as auth_routes
 
 
 class TestRegisterEndpoint:
@@ -304,6 +308,21 @@ class TestLoginEndpoint:
         data = json.loads(response.data)
         assert data['error']['code'] == 'INVALID_CREDENTIALS'
 
+    def test_login_nonexistent_user_still_hashes(self, client):
+        """Skipping the hash would make unknown emails measurably faster."""
+        payload = {
+            'email': 'nonexistent@example.com',
+            'password': 'SomePassword123'
+        }
+
+        with patch('app.routes.auth.check_password_hash',
+                   wraps=check_password_hash) as check:
+            response = client.post('/api/auth/login', json=payload)
+
+        assert response.status_code == 401
+        check.assert_called_once_with(
+            auth_routes._DUMMY_PASSWORD_HASH, 'SomePassword123')
+
     def test_login_invalid_email_format(self, client):
         """Invalid email format should return 422."""
         payload = {
@@ -463,6 +482,30 @@ class TestLogoutEndpoint:
 
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
+
+    def test_clear_cookies_expires_refresh_cookies(self, client, sample_user, fake_redis):
+        login(client)
+
+        response = client.post('/api/auth/clear-cookies', json={})
+
+        assert response.status_code == 200
+        cleared = response.headers.getlist('Set-Cookie')
+        assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
+        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
+        assert client.get_cookie('refresh_token_cookie', path='/api/auth') is None
+
+    def test_clear_cookies_needs_no_token(self, client):
+        response = client.post('/api/auth/clear-cookies', json={})
+
+        assert response.status_code == 200
+
+    def test_clear_cookies_rejects_form_posts(self, client):
+        """A cross-site form can send this without a preflight; JSON can't"""
+        response = client.post(
+            '/api/auth/clear-cookies', data={'x': '1'})
+
+        assert response.status_code == 415
+        assert 'Set-Cookie' not in response.headers
 
     def test_logout_without_cookie(self, client):
         response = client.post('/api/auth/logout')

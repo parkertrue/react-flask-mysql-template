@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { AuthProvider, AuthContext } from '../AuthContext'
+import { AuthContext } from '../AuthContext'
+import { AuthProvider } from '../AuthProvider'
 import { storage } from '../../utils/storage'
 import { useContext } from 'react'
 

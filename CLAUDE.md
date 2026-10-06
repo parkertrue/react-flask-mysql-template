@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A full-stack application template: React (Vite) frontend, Flask backend, MySQL database, Redis caching, Nginx reverse proxy. Three Docker Compose environments: dev, test, and production.
+A full-stack application template: React (Vite) frontend, Flask backend, MySQL database, Redis (refresh tokens and rate limits), Nginx reverse proxy. Three Docker Compose environments: dev, test, and production.
 
 It ships with **auth** (register/login/logout/refresh with rotating refresh tokens) and a minimal **notes** CRUD feature. The notes feature is a deliberately thin vertical slice — model, schema, routes, service, hook, components, tests — meant to be **replaced** by whatever the real app is. Use it as the worked example of how a feature is wired end to end, then delete it.
 
 ## Environment Setup
 
-Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by every test suite, including unit tests via `run_tests.sh`.
+Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by the integration and E2E suites; unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
 
 ## Development Workflow
 
@@ -44,11 +44,13 @@ cd backend
 ./run_tests.sh combined          # All tests with merged coverage report
 ./run_tests.sh unit --verbose    # Verbose output
 ./run_tests.sh unit --no-coverage
+ruff check .                     # Lint (errors only; CI fails on any finding)
 ```
 
 ### Frontend
 ```bash
 cd frontend
+npm run lint          # ESLint (CI fails on any finding)
 npm run test          # Watch mode
 npm run test:run      # Run once (CI)
 npm run test:coverage
@@ -95,17 +97,17 @@ docker compose --env-file .env.prod up
 Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to Flask (Gunicorn) → MySQL/Redis
 
 ### Backend (`backend/app/`)
-- **`__init__.py`** — App factory. Registers all Flask extensions (JWT, SQLAlchemy, CORS, Limiter, Redis) and blueprints. The JWT blocklist loader **fails closed**: if Redis is unavailable, every refresh token is treated as revoked rather than valid.
+- **`__init__.py`** — App factory. Registers all Flask extensions (JWT, SQLAlchemy, Limiter, Redis) and blueprints. There is no CORS: the browser only ever calls a relative `/api`, which is same-origin in every environment (Vite's proxy in dev, nginx elsewhere). The JWT blocklist loader **fails closed**: if Redis is unavailable, every refresh token is treated as revoked rather than valid.
 - **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder.
-- **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh), `health`, `notes` (the example CRUD feature).
+- **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health`, `notes` (the example CRUD feature).
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (refresh-token allowlist + caching; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
+- **`utils/`** — Redis service (refresh-token allowlist; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it) and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
 - **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)
 - **`api/`** — Centralized Axios instance + service modules (auth, health, notes). All backend calls go through here.
-- **`contexts/AuthContext`** — Global auth state (user, tokens, login/logout).
+- **`contexts/`** — `AuthProvider` holds global auth state (user, tokens, login/logout); `AuthContext` is the bare context, in its own file so fast refresh keeps working.
 - **`hooks/`** — `useAuth`, `useHealth`, `useNotes`.
 - **`utils/`** — `validation.js` (shared field validators), `storage.js` (token storage; see the comment there on the accepted localStorage XSS trade-off).
 - **`components/`** — `layout/` (Navbar, LogoutDropdown), `notes/` (the example feature). Each with co-located unit tests in `__tests__/`.

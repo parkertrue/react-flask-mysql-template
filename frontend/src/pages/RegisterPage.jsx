@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { registerUser } from '../api/services/authService'
@@ -21,7 +21,13 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  // Redirect if already logged in
+  // In an effect so leaving the page before it fires cancels the redirect
+  useEffect(() => {
+    if (!success) return
+    const timer = setTimeout(() => navigate('/login'), 2000)
+    return () => clearTimeout(timer)
+  }, [success, navigate])
+
   if (isAuthenticated) {
     return <Navigate to="/notes" replace />
   }
@@ -29,7 +35,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate all inputs
     const emailErrors = validateEmail(email)
     const passwordErrors = validatePassword(password)
     const matchErrors = validatePasswordMatch(password, confirmPassword)
@@ -49,7 +54,6 @@ export default function RegisterPage() {
     try {
       await registerUser(email, password)
       setSuccess(true)
-      setTimeout(() => navigate('/login'), 2000)
     } catch (err) {
       setErrors({ general: getErrorMessage(err) })
     } finally {

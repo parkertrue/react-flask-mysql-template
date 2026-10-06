@@ -1,4 +1,4 @@
-from flask import Blueprint, request, make_response, jsonify, current_app
+from flask import Blueprint, abort, request, make_response, jsonify, current_app
 from sqlalchemy import select
 from flask_jwt_extended import (
     create_access_token,
@@ -11,6 +11,7 @@ from flask_jwt_extended import (
     get_csrf_token,
     decode_token
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db, limiter
 from app.models import User
@@ -20,6 +21,9 @@ from app.utils.redis_service import get_redis_service
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+# Same algorithm as User.set_password, so checking it costs the same.
+_DUMMY_PASSWORD_HASH = generate_password_hash("not-a-real-password")
 
 
 def _issue_tokens(user_id: int):
@@ -81,7 +85,12 @@ def login():
     stmt = select(User).where(User.email == payload.email)
     user = db.session.execute(stmt).scalar_one_or_none()
 
-    if not user or not user.check_password(payload.password):
+    if user is None:
+        # Hash anyway, so an unknown email takes as long as a wrong password
+        # and response timing doesn't reveal which emails are registered.
+        check_password_hash(_DUMMY_PASSWORD_HASH, payload.password)
+
+    if user is None or not user.check_password(payload.password):
         return error_response(
             code="INVALID_CREDENTIALS",
             message="Invalid email or password",
@@ -119,6 +128,22 @@ def logout():
         redis_service.revoke_token(user_id, jti)
 
     response = make_response(jsonify({"message": "Logged out"}), 200)
+    unset_jwt_cookies(response)
+    return response
+
+
+@auth_bp.route("/clear-cookies", methods=["POST"])
+def clear_cookies():
+    """Expire the refresh cookies when a logout request itself failed.
+
+    They are HttpOnly, so the client cannot remove them. No token is needed,
+    since logout may have failed on exactly that. Requiring a JSON body means
+    another site can only send this with a CORS preflight, which it won't pass.
+    """
+    if not request.is_json:
+        abort(415)
+
+    response = make_response(jsonify({"message": "Cookies cleared"}), 200)
     unset_jwt_cookies(response)
     return response
 

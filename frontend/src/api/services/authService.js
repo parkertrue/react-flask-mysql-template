@@ -17,3 +17,8 @@ export async function logoutUser() {
 export async function logoutAllDevices() {
   await api.post('/auth/logout-all')
 }
+
+// The JSON body is required: it stops other sites calling this without CORS
+export async function clearAuthCookies() {
+  await api.post('/auth/clear-cookies', {})
+}

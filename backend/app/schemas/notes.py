@@ -1,26 +1,16 @@
-from pydantic import (
-    BaseModel,
-    Field,
-    ConfigDict,
-    field_serializer,
-    field_validator
-)
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from datetime import datetime
-from app.utils.sanitizer import InputSanitizer
 
 
 class NoteCreateRequest(BaseModel):
+    # Stored as the user typed it, markup included. Output safety belongs to
+    # the render layer: React escapes text, so "<b>" shows as "<b>". Never
+    # inject it as HTML (dangerouslySetInnerHTML, innerHTML) without
+    # sanitizing at that point.
     content: str = Field(min_length=1, max_length=256)
 
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator('content')
-    @classmethod
-    def sanitize_content(cls, v):
-        sanitized = InputSanitizer.sanitize_text(v)
-        if not sanitized:
-            raise ValueError('Note content cannot be empty after sanitization')
-        return sanitized
+    # Trimmed before the length checks, so whitespace-only notes are rejected
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class NoteResponse(BaseModel):

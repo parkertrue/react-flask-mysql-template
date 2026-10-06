@@ -5,7 +5,6 @@ import { loginUser } from '../api/services/authService'
 import { getErrorMessage } from '../api/errors'
 import { 
   validateEmail, 
-  validatePassword, 
   PASSWORD_MAX_LENGTH, 
   EMAIL_MAX_LENGTH 
 } from '../utils/validation'
@@ -18,7 +17,6 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
 
-  // Redirect if already logged in
   if (isAuthenticated) {
     return <Navigate to="/notes" replace />
   }
@@ -26,9 +24,10 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate inputs
     const emailErrors = validateEmail(email)
-    const passwordErrors = validatePassword(password)
+    // Only registration enforces the password rules, so changing them never
+    // locks out existing users
+    const passwordErrors = password ? [] : ['Password is required']
     
     if (emailErrors.length > 0 || passwordErrors.length > 0) {
       setErrors({

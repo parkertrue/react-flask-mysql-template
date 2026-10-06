@@ -9,12 +9,15 @@ PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
 class Config:
     """Base configuration"""
 
+    # Whether MySQL and Redis settings are required. Only TestingConfig opts
+    # out: it runs on in-memory SQLite with Redis and rate limiting off.
+    USES_SERVICES = True
+
     def __init__(self):
         # Parse as a string: os.getenv always returns str, and the bare string
         # "0" is truthy, which would silently enable debug mode wherever
         # FLASK_DEBUG=0 was set.
         self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true')
-        self.CORS_ORIGINS = None
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
@@ -23,16 +26,17 @@ class Config:
         self.DB_PORT = int(os.getenv('MYSQL_PORT', '3306'))
         self.DB_DATABASE = os.getenv('MYSQL_DATABASE')
 
-        if not all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
+        self.SQLALCHEMY_DATABASE_URI = None
+        if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
+            # Credentials are percent-encoded: a password containing @ / : or #
+            # would otherwise be parsed as part of the host.
+            self.SQLALCHEMY_DATABASE_URI = (
+                f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
+                f'{quote(self.DB_PASSWORD, safe="")}@'
+                f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
+            )
+        elif self.USES_SERVICES:
             raise ValueError("Missing required MySQL environment variables")
-
-        # Credentials are percent-encoded: a password containing @ / : or #
-        # would otherwise be parsed as part of the host.
-        self.SQLALCHEMY_DATABASE_URI = (
-            f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
-            f'{quote(self.DB_PASSWORD, safe="")}@'
-            f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
-        )
 
         # Redis configuration
         self.REDIS_ENABLED = True
@@ -42,13 +46,14 @@ class Config:
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
         self.REDIS_MAX_CONNECTIONS = 50
 
-        if not all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+        self.REDIS_URI = None
+        if all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+            self.REDIS_URI = (
+                f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
+                f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+            )
+        elif self.USES_SERVICES:
             raise ValueError("Missing required Redis environment variables")
-
-        self.REDIS_URI = (
-            f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
-            f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        )
 
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
@@ -83,12 +88,12 @@ class DevelopmentConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "development"
-        self.CORS_ORIGINS = ["http://localhost:5173"]
 
 
 class TestingConfig(Config):
     """Testing configuration"""
     __test__ = False
+    USES_SERVICES = False
 
     def __init__(self):
         super().__init__()
@@ -105,11 +110,6 @@ class IntegrationConfig(Config):
         super().__init__()
         self.FLASK_ENV = "integration"
         self.RATELIMIT_ENABLED = False
-        self.CORS_ORIGINS = [
-            "http://localhost:5173",
-            "https://localhost",
-            "https://localhost:8443",
-        ]
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
         self.JWT_COOKIE_SECURE = e2e_mode
         # CSRF protection is browser-only; disable it for API integration
@@ -142,7 +142,7 @@ def get_config():
     FLASK_ENV is the only switch. E2E_MODE deliberately cannot promote or
     demote a config class: previously E2E_MODE=true silently replaced
     ProductionConfig with a weaker one, so a single env var could disable
-    rate limiting and widen CORS on a production deployment.
+    rate limiting on a production deployment.
     """
     flask_env = os.getenv('FLASK_ENV', 'production')
 

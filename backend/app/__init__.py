@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -10,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import error_response
-from app.utils.redis_service import RedisService, get_redis_service
+from app.utils.redis_service import connect_redis, get_redis_service
 
 
 jwt = JWTManager()
@@ -41,27 +40,14 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # A Redis failure must not stop the app from booting; the blocklist loader
-    # below fails closed when there is no service.
+    # A Redis failure must not stop the app from booting; get_redis_service()
+    # retries later, and the blocklist loader below fails closed meanwhile.
     app.extensions["redis_service"] = None
     if app.config["REDIS_ENABLED"]:
-        try:
-            app.extensions["redis_service"] = RedisService(
-                host=app.config["REDIS_HOST"],
-                port=app.config["REDIS_PORT"],
-                db=int(app.config["REDIS_DB"]),
-                password=app.config["REDIS_PASSWORD"],
-                max_connections=app.config["REDIS_MAX_CONNECTIONS"]
-            )
-        except Exception:
-            app.logger.exception("Redis initialization failed")
+        connect_redis(app)
 
     if app.config["RATELIMIT_ENABLED"]:
         limiter.init_app(app)
-
-    if app.config["CORS_ORIGINS"]:
-        CORS(app, origins=app.config["CORS_ORIGINS"],
-             supports_credentials=True)
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
@@ -184,7 +170,8 @@ def create_app():
             status=500
         )
 
-    # Register blueprints
+    # Imported here, not at the top: the route modules import db and limiter
+    # from this package, so a module-level import would be circular.
     from app.routes import register_routes
     register_routes(app)
 

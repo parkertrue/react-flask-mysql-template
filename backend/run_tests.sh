@@ -107,9 +107,12 @@ done
 
 activate_venv
 
-# Load test environment variables for ALL test types
-# (Unit tests need these for config class instantiation tests)
-load_test_env
+# Unit tests need no environment: TestingConfig requires no MySQL/Redis
+# settings and conftest supplies a SECRET_KEY. Everything else connects to
+# the test containers, which .env.test describes.
+if [ "$TEST_TYPE" != "unit" ]; then
+    load_test_env
+fi
 
 case "$TEST_TYPE" in
     unit)

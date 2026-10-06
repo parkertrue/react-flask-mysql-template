@@ -1,5 +1,14 @@
+# Docker's default json-file driver never rotates, so on a long-running
+# server container logs grow until the disk fills. Every service uses this.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *logging
     image: mysql:8.0.44
     # Only the variables MySQL needs, interpolated from the --env-file passed
     # to docker compose, so SECRET_KEY and the Redis password stay out.
@@ -32,6 +41,7 @@ services:
           memory: 512m
 
   redis:
+    logging: *logging
     image: redis:8.4-alpine
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
@@ -66,6 +76,7 @@ services:
           memory: 128m
 
   backend:
+    logging: *logging
     build: ./backend
     env_file:
       - .env.prod
@@ -94,6 +105,7 @@ services:
           memory: 256m
 
   nginx:
+    logging: *logging
     build:
       context: .
       dockerfile: nginx/Dockerfile

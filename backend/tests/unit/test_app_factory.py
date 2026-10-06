@@ -1,9 +1,15 @@
+from unittest.mock import patch
+
 import pytest
+import redis
 from flask import abort, request
+from flask_jwt_extended import create_refresh_token, decode_token
 
 import app as app_module
 from app import create_app
 from app.config import TestingConfig
+from app.utils import redis_service
+from app.utils.redis_service import get_redis_service
 
 
 def build_app(monkeypatch, **overrides):
@@ -48,6 +54,60 @@ class TestProxyFix:
         app = build_app(monkeypatch, TRUSTED_PROXY_COUNT=0)
 
         assert remote_addr(app, '203.0.113.7') == '172.18.0.5'
+
+
+class TestRedisReconnect:
+    """A worker that boots while Redis is down must pick it up once it's back"""
+
+    @pytest.fixture
+    def redis_down_at_boot(self, monkeypatch):
+        clock = [1000.0]
+        monkeypatch.setattr(redis_service.time, 'monotonic', lambda: clock[0])
+        with patch('app.utils.redis_service.redis.Redis') as redis_class:
+            redis_class.return_value.ping.side_effect = redis.ConnectionError
+            app = build_app(
+                monkeypatch, REDIS_ENABLED=True, REDIS_HOST='localhost',
+                REDIS_DB='0', REDIS_PASSWORD='redispass')
+            yield app, redis_class, clock
+
+    def test_boot_failure_leaves_no_service(self, redis_down_at_boot):
+        app, _, _ = redis_down_at_boot
+
+        assert app.extensions['redis_service'] is None
+
+    def test_retries_after_interval(self, redis_down_at_boot):
+        app, redis_class, clock = redis_down_at_boot
+        redis_class.return_value.ping.side_effect = None
+        clock[0] += redis_service.RECONNECT_INTERVAL_SECONDS
+
+        with app.app_context():
+            service = get_redis_service()
+
+        assert service is not None
+        assert app.extensions['redis_service'] is service
+
+    def test_backs_off_between_attempts(self, redis_down_at_boot):
+        app, redis_class, clock = redis_down_at_boot
+        redis_class.return_value.ping.side_effect = None
+        clock[0] += redis_service.RECONNECT_INTERVAL_SECONDS - 1
+
+        with app.app_context():
+            assert get_redis_service() is None
+        assert redis_class.call_count == 1  # only the boot attempt
+
+    def test_refresh_fails_closed_while_down(self, redis_down_at_boot):
+        app, _, _ = redis_down_at_boot
+        with app.app_context():
+            token = create_refresh_token(identity='1')
+            csrf = decode_token(token)['csrf']
+        client = app.test_client()
+        client.set_cookie('refresh_token_cookie', token, path='/api/auth')
+
+        response = client.post(
+            '/api/auth/refresh', headers={'X-CSRF-REFRESH-TOKEN': csrf})
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
 
 
 class TestJsonErrors:

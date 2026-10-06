@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import RegisterRequest, LoginRequest
+from app.models import User
+from app.schemas.auth import EMAIL_MAX_LENGTH, RegisterRequest, LoginRequest
 
 
 class TestRegisterRequest:
@@ -257,13 +258,15 @@ class TestLoginRequest:
                 password='ValidPass123'
             )
 
-    def test_password_min_length(self):
-        """Schema should enforce minimum password length."""
+    def test_empty_password_rejected(self):
         with pytest.raises(ValidationError):
-            LoginRequest(
-                email='test@example.com',
-                password='short'
-            )
+            LoginRequest(email='test@example.com', password='')
+
+    def test_short_password_accepted(self):
+        """Passwords set under an older, looser policy must still log in"""
+        request = LoginRequest(email='test@example.com', password='short')
+
+        assert request.password == 'short'
 
     def test_password_max_length(self):
         """Schema should enforce maximum password length."""
@@ -320,6 +323,16 @@ class TestLoginRequest:
 
 class TestSchemaConsistency:
     """Test consistency between registration and login schemas."""
+
+    def test_email_limit_matches_column(self):
+        assert EMAIL_MAX_LENGTH == User.__table__.c.email.type.length
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    def test_email_longer_than_column_rejected(self, schema):
+        email = 'a' * (EMAIL_MAX_LENGTH - len('@example.com') + 1) + '@example.com'
+
+        with pytest.raises(ValidationError):
+            schema(email=email, password='ValidPass123')
 
     def test_both_accept_valid_credentials(self):
         """Valid credentials should work for both register and login."""

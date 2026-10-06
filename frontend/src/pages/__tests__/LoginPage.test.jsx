@@ -137,55 +137,21 @@ describe('LoginPage', () => {
       expect(screen.getByTestId('password-error')).toHaveTextContent(/required/i)
     })
 
-    it('should show error for short password', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'short' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('password-error')).toBeInTheDocument()
+    it('should not apply the registration password rules', async () => {
+      authService.loginUser.mockResolvedValue({
+        access_token: 'token',
+        refresh_csrf: 'csrf',
       })
-      expect(screen.getByTestId('password-error')).toHaveTextContent(/at least 8 characters/i)
-    })
+      renderWithAuth()
 
-    it('should show error for password without uppercase', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('password-error')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('password-error')).toHaveTextContent(/uppercase letter/i)
-    })
+      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } })
+      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'short' } })
+      fireEvent.submit(screen.getByTestId('login-form'))
 
-    it('should show error for password without number', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password' } })
-      fireEvent.submit(form)
-      
       await waitFor(() => {
-        expect(screen.getByTestId('password-error')).toBeInTheDocument()
+        expect(authService.loginUser).toHaveBeenCalledWith('user@example.com', 'short')
       })
-      expect(screen.getByTestId('password-error')).toHaveTextContent(/number/i)
+      expect(screen.queryByTestId('password-error')).not.toBeInTheDocument()
     })
 
     it('should clear email error when user types', async () => {
@@ -219,7 +185,6 @@ describe('LoginPage', () => {
       
       // Trigger error
       fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'short' } })
       fireEvent.submit(form)
       
       await waitFor(() => {

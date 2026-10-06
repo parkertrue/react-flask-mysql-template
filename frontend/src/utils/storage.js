@@ -14,7 +14,7 @@ const setOrRemoveItem = (key, value) => {
 
 // Access tokens are stored in localStorage (XSS-accessible). This is an accepted
 // risk mitigated by: short 15-min expiry, HttpOnly refresh cookie, CSP headers,
-// and server-side input sanitization. The refresh token itself is HttpOnly-only.
+// and React's output escaping. The refresh token itself is HttpOnly-only.
 export const storage = {
   // Access token
   getAccessToken: () => localStorage.getItem(KEYS.ACCESS_TOKEN),

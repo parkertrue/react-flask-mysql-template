@@ -13,17 +13,29 @@ from app.config import (
 
 STRONG_SECRET = 'x' * 32
 
+SERVICE_ENV = {
+    'MYSQL_USER': 'user',
+    'MYSQL_PASSWORD': 'pass',
+    'MYSQL_HOST': 'mysqlhost',
+    'MYSQL_DATABASE': 'db',
+    'REDIS_HOST': 'redishost',
+    'REDIS_DB': '0',
+    'REDIS_PASSWORD': 'redispass',
+}
+
 
 @pytest.fixture(autouse=True)
 def isolate_config_tests(monkeypatch):
-    """Clear optional env vars so tests see the documented defaults.
+    """Give every test the same environment, whatever the shell has loaded.
 
-    run_tests.sh loads .env.test, which sets non-default ports (3307/6380)
-    and may set FLASK_DEBUG or E2E_MODE. Tests that need a value set it
-    explicitly with monkeypatch.
+    Optional vars are cleared so tests see the documented defaults, and the
+    MySQL/Redis vars the non-testing configs require are set to placeholders.
+    Tests that need other values set or delete them with monkeypatch.
     """
     for var in ('MYSQL_PORT', 'REDIS_PORT', 'FLASK_DEBUG', 'E2E_MODE'):
         monkeypatch.delenv(var, raising=False)
+    for var, value in SERVICE_ENV.items():
+        monkeypatch.setenv(var, value)
 
 
 class TestConfigClasses:
@@ -59,8 +71,6 @@ class TestConfigClasses:
         config = DevelopmentConfig()
 
         assert config.FLASK_ENV == 'development'
-        assert hasattr(config, 'CORS_ORIGINS')
-        assert 'http://localhost:5173' in config.CORS_ORIGINS
         assert config.REDIS_ENABLED is True
         assert config.RATELIMIT_ENABLED is True
 
@@ -74,17 +84,12 @@ class TestConfigClasses:
         assert config.RATELIMIT_ENABLED is False
 
     def test_integration_config_attributes(self):
-        """IntegrationConfig should disable rate limiting and widen CORS"""
+        """IntegrationConfig should disable rate limiting"""
         config = IntegrationConfig()
 
         assert config.FLASK_ENV == 'integration'
         assert config.REDIS_ENABLED is True
         assert config.RATELIMIT_ENABLED is False
-        assert config.CORS_ORIGINS == [
-            "http://localhost:5173",
-            "https://localhost",
-            "https://localhost:8443",
-        ]
 
     def test_integration_config_without_e2e_mode(self, monkeypatch):
         """Without E2E_MODE, cookie security and CSRF are off for API tests"""
@@ -170,7 +175,6 @@ class TestGetConfigFactory:
         assert config.RATELIMIT_ENABLED is True
         assert config.REDIS_ENABLED is True
         assert config.JWT_COOKIE_SECURE is True
-        assert config.CORS_ORIGINS is None
 
     def test_get_config_production(self, monkeypatch):
         """get_config should return ProductionConfig for prod env"""
@@ -261,6 +265,26 @@ class TestGetConfigValidation:
             get_config()
 
         assert 'Redis' in str(exc_info.value)
+
+    def test_testing_config_needs_no_service_vars(self, monkeypatch):
+        """Unit tests use SQLite with Redis off, so need no MySQL/Redis settings"""
+        monkeypatch.setenv('FLASK_ENV', 'testing')
+        monkeypatch.setenv('SECRET_KEY', 'testsecret')
+        for var in SERVICE_ENV:
+            monkeypatch.delenv(var)
+
+        config = get_config()
+
+        assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
+        assert config.REDIS_URI is None
+
+    @pytest.mark.parametrize('config_class', [IntegrationConfig, ProductionConfig])
+    def test_service_configs_still_require_vars(self, monkeypatch, config_class):
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+        monkeypatch.delenv('MYSQL_HOST')
+
+        with pytest.raises(ValueError, match='MySQL'):
+            config_class()
 
     def test_get_config_requires_secret_key(self, monkeypatch):
         """get_config should raise error if SECRET_KEY missing"""

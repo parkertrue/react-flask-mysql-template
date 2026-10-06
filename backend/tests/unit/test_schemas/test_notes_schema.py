@@ -239,7 +239,7 @@ class TestNoteModel:
 
 
 class TestCreateNoteRequestSchema:
-    """Test suite for CreateNoteRequest Pydantic schema (includes sanitizer)."""
+    """Test suite for CreateNoteRequest Pydantic schema."""
 
     # --- valid input passes through ---
 
@@ -249,7 +249,7 @@ class TestCreateNoteRequestSchema:
         assert req.content == "Just a normal note"
 
     def test_valid_unicode_preserved(self):
-        """Unicode characters should survive sanitization untouched."""
+        """Unicode characters should be stored untouched."""
         text = "Unicode: 你好 مرحبا שלום 🎉"
         req = NoteCreateRequest(content=text)
         assert req.content == text
@@ -271,68 +271,21 @@ class TestCreateNoteRequestSchema:
         req = NoteCreateRequest(content="x")
         assert req.content == "x"
 
-    # --- sanitizer strips malicious content ---
+    # --- stored verbatim; React escapes it on output ---
 
-    def test_strips_script_tag(self):
-        """Script tags and their content must be removed."""
-        req = NoteCreateRequest(
-            content="<script>alert('xss')</script>Safe text"
-        )
-        assert "<script>" not in req.content
-        assert "alert" not in req.content
-        assert "Safe text" in req.content
+    @pytest.mark.parametrize('text', [
+        "use <b> for bold",
+        "<script>alert('xss')</script>",
+        "if a < b && b > c",
+        "Bob & Jane",
+    ])
+    def test_markup_stored_verbatim(self, text):
+        req = NoteCreateRequest(content=text)
+        assert req.content == text
 
-    def test_strips_event_handler_tag(self):
-        """Tags carrying event handlers must be removed; inner text kept."""
-        req = NoteCreateRequest(
-            content='<div onclick="evil()">Click me</div>'
-        )
-        assert "onclick" not in req.content
-        assert "<div" not in req.content
-        assert "Click me" in req.content
-
-    def test_strips_img_onerror(self):
-        """Void tags with event handlers must be removed entirely."""
-        with pytest.raises(ValueError):
-            NoteCreateRequest(
-                content='<img src=x onerror=alert(1)>'
-            )
-
-    def test_strips_javascript_protocol_keeps_text(self):
-        """Anchor tags are stripped; the visible link text is kept."""
-        req = NoteCreateRequest(
-            content="<a href='javascript:alert(1)'>Click</a>"
-        )
-        assert "javascript:" not in req.content
-        assert "<a " not in req.content
-        assert "Click" in req.content
-
-    def test_strips_style_tag(self):
-        """Style tags and their content must be removed."""
-        req = NoteCreateRequest(
-            content="<style>body{color:red}</style>Visible"
-        )
-        assert "<style>" not in req.content
-        assert "color:red" not in req.content
-        assert "Visible" in req.content
-
-    def test_strips_html_comment(self):
-        """HTML comments must be removed."""
-        req = NoteCreateRequest(
-            content="<!-- secret -->Public text"
-        )
-        assert "<!--" not in req.content
-        assert "secret" not in req.content
-        assert "Public text" in req.content
-
-    # --- null-byte removal ---
-
-    def test_removes_null_bytes(self):
-        """Null bytes are stripped before sanitization."""
-        req = NoteCreateRequest(content="Before\x00After")
-        assert "\x00" not in req.content
-        assert "Before" in req.content
-        assert "After" in req.content
+    def test_trims_surrounding_whitespace(self):
+        req = NoteCreateRequest(content="  padded  ")
+        assert req.content == "padded"
 
     # --- validation rejections (these must raise, not silently pass) ---
 
@@ -352,8 +305,7 @@ class TestCreateNoteRequestSchema:
             NoteCreateRequest(content="valid", extra_field="bad")
 
     def test_rejects_whitespace_only(self):
-        """Whitespace-only content is stripped to '' by the sanitizer,
-        which then violates min_length=1."""
+        """Whitespace-only content is trimmed to '', which violates min_length=1."""
         with pytest.raises(ValidationError):
             NoteCreateRequest(content="   ")
 
@@ -364,9 +316,3 @@ class TestCreateNoteRequestSchema:
     def test_rejects_newlines_only(self):
         with pytest.raises(ValidationError):
             NoteCreateRequest(content="\n\n\n")
-
-    def test_rejects_script_tag_only(self):
-        """A payload that is *only* a script tag sanitizes to '',
-        which violates min_length=1."""
-        with pytest.raises(ValidationError):
-            NoteCreateRequest(content="<script>alert(1)</script>")

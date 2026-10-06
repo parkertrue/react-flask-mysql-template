@@ -1,9 +1,13 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 import re
 
+# The users.email column's size. EmailStr alone allows up to 254 characters,
+# which MySQL would reject with a 500 instead of a validation error.
+EMAIL_MAX_LENGTH = 128
+
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=EMAIL_MAX_LENGTH)
     password: str = Field(min_length=8, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
@@ -21,7 +25,9 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+    email: EmailStr = Field(max_length=EMAIL_MAX_LENGTH)
+    # No strength rules: tightening RegisterRequest's must not lock out users
+    # whose existing passwords predate the change.
+    password: str = Field(min_length=1, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
