@@ -71,8 +71,6 @@ class TestConfigClasses:
         config = DevelopmentConfig()
 
         assert config.FLASK_ENV == 'development'
-        assert hasattr(config, 'CORS_ORIGINS')
-        assert 'http://localhost:5173' in config.CORS_ORIGINS
         assert config.REDIS_ENABLED is True
         assert config.RATELIMIT_ENABLED is True
 
@@ -86,17 +84,12 @@ class TestConfigClasses:
         assert config.RATELIMIT_ENABLED is False
 
     def test_integration_config_attributes(self):
-        """IntegrationConfig should disable rate limiting and widen CORS"""
+        """IntegrationConfig should disable rate limiting"""
         config = IntegrationConfig()
 
         assert config.FLASK_ENV == 'integration'
         assert config.REDIS_ENABLED is True
         assert config.RATELIMIT_ENABLED is False
-        assert config.CORS_ORIGINS == [
-            "http://localhost:5173",
-            "https://localhost",
-            "https://localhost:8443",
-        ]
 
     def test_integration_config_without_e2e_mode(self, monkeypatch):
         """Without E2E_MODE, cookie security and CSRF are off for API tests"""
@@ -182,7 +175,6 @@ class TestGetConfigFactory:
         assert config.RATELIMIT_ENABLED is True
         assert config.REDIS_ENABLED is True
         assert config.JWT_COOKIE_SECURE is True
-        assert config.CORS_ORIGINS is None
 
     def test_get_config_production(self, monkeypatch):
         """get_config should return ProductionConfig for prod env"""

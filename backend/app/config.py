@@ -18,7 +18,6 @@ class Config:
         # "0" is truthy, which would silently enable debug mode wherever
         # FLASK_DEBUG=0 was set.
         self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true')
-        self.CORS_ORIGINS = None
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
@@ -89,7 +88,6 @@ class DevelopmentConfig(Config):
     def __init__(self):
         super().__init__()
         self.FLASK_ENV = "development"
-        self.CORS_ORIGINS = ["http://localhost:5173"]
 
 
 class TestingConfig(Config):
@@ -112,11 +110,6 @@ class IntegrationConfig(Config):
         super().__init__()
         self.FLASK_ENV = "integration"
         self.RATELIMIT_ENABLED = False
-        self.CORS_ORIGINS = [
-            "http://localhost:5173",
-            "https://localhost",
-            "https://localhost:8443",
-        ]
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
         self.JWT_COOKIE_SECURE = e2e_mode
         # CSRF protection is browser-only; disable it for API integration
@@ -149,7 +142,7 @@ def get_config():
     FLASK_ENV is the only switch. E2E_MODE deliberately cannot promote or
     demote a config class: previously E2E_MODE=true silently replaced
     ProductionConfig with a weaker one, so a single env var could disable
-    rate limiting and widen CORS on a production deployment.
+    rate limiting on a production deployment.
     """
     flask_env = os.getenv('FLASK_ENV', 'production')
 

@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -49,10 +48,6 @@ def create_app():
 
     if app.config["RATELIMIT_ENABLED"]:
         limiter.init_app(app)
-
-    if app.config["CORS_ORIGINS"]:
-        CORS(app, origins=app.config["CORS_ORIGINS"],
-             supports_credentials=True)
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):

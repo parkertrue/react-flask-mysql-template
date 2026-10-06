@@ -114,7 +114,6 @@ def integration_app():
     - Reads MySQL/Redis connection details from environment
     - Connects to test services on ports 3307 (MySQL) and 6380 (Redis)
     - Disables rate limiting for test speed
-    - Enables CORS for testing
 
     Environment variables are loaded by run_tests.sh from .env.test. If running
     pytest directly, ensure .env.test is loaded first.
