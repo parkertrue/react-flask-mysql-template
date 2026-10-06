@@ -1,6 +1,11 @@
+import time
 import redis
 from typing import cast
-from flask import current_app
+from flask import Flask, current_app
+
+# How long to wait after a failed connection before trying again. Each attempt
+# can block a request for up to socket_connect_timeout while Redis is down.
+RECONNECT_INTERVAL_SECONDS = 5
 
 
 def get_redis_service() -> "RedisService | None":
@@ -9,7 +14,38 @@ def get_redis_service() -> "RedisService | None":
     Looked up per call rather than imported, so every app instance (one per
     gunicorn worker, several per test session) sees its own service.
     """
-    return current_app.extensions.get("redis_service")
+    service = current_app.extensions.get("redis_service")
+    if service is None and current_app.config["REDIS_ENABLED"]:
+        service = connect_redis(current_app)
+    return service
+
+
+def connect_redis(app: Flask) -> "RedisService | None":
+    """Build the app's RedisService, or return None and retry on a later call.
+
+    A worker that boots while Redis is unreachable would otherwise stay
+    without it for life; once connected, redis-py reconnects by itself.
+    """
+    now = time.monotonic()
+    if now < app.extensions.get("redis_retry_at", 0):
+        return None
+
+    try:
+        service = RedisService(
+            host=app.config["REDIS_HOST"],
+            port=app.config["REDIS_PORT"],
+            db=int(app.config["REDIS_DB"]),
+            password=app.config["REDIS_PASSWORD"],
+            max_connections=app.config["REDIS_MAX_CONNECTIONS"]
+        )
+    except Exception:
+        app.logger.exception(
+            "Redis connection failed; retrying in %ss", RECONNECT_INTERVAL_SECONDS)
+        app.extensions["redis_retry_at"] = now + RECONNECT_INTERVAL_SECONDS
+        return None
+
+    app.extensions["redis_service"] = service
+    return service
 
 
 class RedisService:

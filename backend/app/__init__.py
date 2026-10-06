@@ -10,7 +10,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import error_response
-from app.utils.redis_service import RedisService, get_redis_service
+from app.utils.redis_service import connect_redis, get_redis_service
 
 
 jwt = JWTManager()
@@ -41,20 +41,11 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
 
-    # A Redis failure must not stop the app from booting; the blocklist loader
-    # below fails closed when there is no service.
+    # A Redis failure must not stop the app from booting; get_redis_service()
+    # retries later, and the blocklist loader below fails closed meanwhile.
     app.extensions["redis_service"] = None
     if app.config["REDIS_ENABLED"]:
-        try:
-            app.extensions["redis_service"] = RedisService(
-                host=app.config["REDIS_HOST"],
-                port=app.config["REDIS_PORT"],
-                db=int(app.config["REDIS_DB"]),
-                password=app.config["REDIS_PASSWORD"],
-                max_connections=app.config["REDIS_MAX_CONNECTIONS"]
-            )
-        except Exception:
-            app.logger.exception("Redis initialization failed")
+        connect_redis(app)
 
     if app.config["RATELIMIT_ENABLED"]:
         limiter.init_app(app)
