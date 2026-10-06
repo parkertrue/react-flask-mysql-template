@@ -26,6 +26,8 @@ class RegisterRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: EmailStr = Field(max_length=EMAIL_MAX_LENGTH)
-    password: str = Field(min_length=8, max_length=128)
+    # No strength rules: tightening RegisterRequest's must not lock out users
+    # whose existing passwords predate the change.
+    password: str = Field(min_length=1, max_length=128)
 
     model_config = ConfigDict(extra="forbid")

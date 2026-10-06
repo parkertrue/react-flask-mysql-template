@@ -258,13 +258,15 @@ class TestLoginRequest:
                 password='ValidPass123'
             )
 
-    def test_password_min_length(self):
-        """Schema should enforce minimum password length."""
+    def test_empty_password_rejected(self):
         with pytest.raises(ValidationError):
-            LoginRequest(
-                email='test@example.com',
-                password='short'
-            )
+            LoginRequest(email='test@example.com', password='')
+
+    def test_short_password_accepted(self):
+        """Passwords set under an older, looser policy must still log in"""
+        request = LoginRequest(email='test@example.com', password='short')
+
+        assert request.password == 'short'
 
     def test_password_max_length(self):
         """Schema should enforce maximum password length."""
