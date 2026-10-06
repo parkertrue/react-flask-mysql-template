@@ -78,8 +78,17 @@ services:
   backend:
     logging: *logging
     build: ./backend
-    env_file:
-      - .env.prod
+    # Only what the app reads: interpolated from --env-file .env.prod, so
+    # MYSQL_ROOT_PASSWORD stays out. Hosts and FLASK_ENV are fixed by this file.
+    environment:
+      FLASK_ENV: production
+      MYSQL_HOST: db
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
     depends_on:
       db:
         condition: service_healthy

@@ -58,13 +58,17 @@ services:
   backend:
     container_name: backend_test
     build: ./backend
-    env_file:
-      - .env.test
+    # Only what the app reads, interpolated from --env-file .env.test. Hosts
+    # are service names and ports the defaults inside the Docker network.
     environment:
+      FLASK_ENV: integration
       MYSQL_HOST: db
-      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY}
       # This service only runs for Playwright, which needs the browser-facing
       # cookie settings: Secure cookies and CSRF protection on.
       E2E_MODE: "true"

@@ -5,10 +5,8 @@ __pycache__/
 # Node
 node_modules/
 
-# Environment Files
-.env.dev
+# Environment Files (.env.dev and .env.test are committed: throwaway values)
 .env.prod
-.env.test
 
 # Build output
 frontend/dist/

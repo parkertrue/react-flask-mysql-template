@@ -19,7 +19,6 @@ SERVICE_ENV = {
     'MYSQL_HOST': 'mysqlhost',
     'MYSQL_DATABASE': 'db',
     'REDIS_HOST': 'redishost',
-    'REDIS_DB': '0',
     'REDIS_PASSWORD': 'redispass',
 }
 
@@ -32,7 +31,7 @@ def isolate_config_tests(monkeypatch):
     MySQL/Redis vars the non-testing configs require are set to placeholders.
     Tests that need other values set or delete them with monkeypatch.
     """
-    for var in ('MYSQL_PORT', 'REDIS_PORT', 'FLASK_DEBUG', 'E2E_MODE'):
+    for var in ('MYSQL_PORT', 'REDIS_PORT', 'REDIS_DB', 'FLASK_DEBUG', 'E2E_MODE'):
         monkeypatch.delenv(var, raising=False)
     for var, value in SERVICE_ENV.items():
         monkeypatch.setenv(var, value)
@@ -257,7 +256,7 @@ class TestGetConfigValidation:
         monkeypatch.setenv('SECRET_KEY', 'testsecret')
 
         # Missing Redis vars
-        for var in ['REDIS_HOST', 'REDIS_DB', 'REDIS_PASSWORD']:
+        for var in ['REDIS_HOST', 'REDIS_PASSWORD']:
             if var in os.environ:
                 monkeypatch.delenv(var)
 
@@ -353,13 +352,15 @@ class TestConfigValues:
         monkeypatch.setenv('MYSQL_HOST', 'localhost')
         monkeypatch.setenv('MYSQL_DATABASE', 'test')
         monkeypatch.setenv('REDIS_HOST', 'localhost')
-        monkeypatch.setenv('REDIS_DB', '0')
+        monkeypatch.delenv('REDIS_DB', raising=False)
         monkeypatch.setenv('REDIS_PASSWORD', 'redispass')
         monkeypatch.setenv('SECRET_KEY', 'testsecret')
 
         config = get_config()
 
         assert config.REDIS_PORT == 6379
+        assert config.REDIS_DB == '0'
+        assert config.REDIS_URI == 'redis://:redispass@localhost:6379/0'
         assert config.REDIS_MAX_CONNECTIONS == 50
 
     def test_database_port_default(self, monkeypatch):

@@ -8,11 +8,16 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# Load environment variables from .env.dev
+# Load environment variables from .env.dev. A FLASK_DEBUG already set in the
+# shell wins over the file: FLASK_DEBUG=0 ./run_dev.sh
 echo "Loading environment variables from .env.dev"
+SHELL_FLASK_DEBUG="${FLASK_DEBUG-}"
 set -a
 source "$ENV_FILE"
 set +a
+if [ -n "$SHELL_FLASK_DEBUG" ]; then
+    FLASK_DEBUG="$SHELL_FLASK_DEBUG"
+fi
 
 # Activate virtual environment (cross-platform)
 if [ -z "${VIRTUAL_ENV}" ]; then

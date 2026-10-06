@@ -53,21 +53,19 @@ Make sure the following tools are installed before running the project:
 
 ## Environment Files
 
-Create these locally from the matching example (they are gitignored):
+| File | In git | Used by |
+|------|--------|---------|
+| `.env.dev` | Yes, throwaway values | Development (local backend + frontend, Docker DB + Redis on 127.0.0.1) |
+| `.env.test` | Yes, throwaway values | Integration and E2E tests |
+| `.env.prod` | No, create from `.env.prod.example` | Production (fully Dockerized) |
 
-| File | Copy from | Used by |
-|------|-----------|---------|
-| `.env.dev` | `.env.dev.example` | Development (local backend + frontend, Docker DB + Redis) |
-| `.env.test` | `.env.test.example` | Integration and E2E tests (usable as-is) |
-| `.env.prod` | `.env.prod.example` | Production (fully Dockerized) |
+Dev and test work as cloned. Production is the only file to create:
 
 ```bash
-cp .env.dev.example .env.dev
-cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Set strong, unique values for `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, and `SECRET_KEY` in `.env.dev` and `.env.prod`, with different credentials for each. Production refuses to start with a `SECRET_KEY` shorter than 32 characters. Generate values with:
+It holds only the six values that differ per deployment; hosts, ports and `FLASK_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters. Generate values with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -246,6 +244,8 @@ What this does:
 * Runs `flask db upgrade`
 * Starts the Flask app
 
+`.env.dev` turns the Flask debugger on. To run without it, override it from the shell: `FLASK_DEBUG=0 ./run_dev.sh`.
+
 ---
 
 ### Start Frontend (Dev)
@@ -297,7 +297,7 @@ Press `CTRL+C` in each terminal.
 
 # Testing
 
-Backend and frontend unit tests need no environment file. Integration and E2E tests need `.env.test` (see [Environment Files](#environment-files)).
+Backend and frontend unit tests need no environment file. Integration and E2E tests use the committed `.env.test` (see [Environment Files](#environment-files)).
 
 ## Backend Tests
 

@@ -6,7 +6,7 @@ Audit `.gitignore` and `.dockerignore` for completeness and consistency.
 
 **Verify required entries are present in both files**
 Check that the following are covered (where they exist in this project):
-- `.env.dev`, `.env.prod`, `.env.test`
+- `.env.prod` (gitignored; `.env.dev` and `.env.test` are committed on purpose and must still stay out of Docker build contexts)
 - `nginx/certs/`
 - `backend/.venv/`
 - `backend/.coverage`, `backend/.pytest_cache/`

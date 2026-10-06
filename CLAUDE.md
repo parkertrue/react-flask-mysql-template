@@ -10,7 +10,7 @@ It ships with **auth** (register/login/logout/refresh with rotating refresh toke
 
 ## Environment Setup
 
-Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by the integration and E2E suites; unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
+`.env.dev` and `.env.test` are committed with throwaway values (dev services bind to 127.0.0.1 only), so dev and test run as cloned. Only `.env.prod` is gitignored: copy it from `.env.prod.example`, which lists just the six per-deployment values (database name, user, passwords, `SECRET_KEY`); hosts, ports and `FLASK_ENV` are fixed in the compose files. Backend containers get an explicit `environment:` list rather than the whole env file, so `MYSQL_ROOT_PASSWORD` never reaches them. `FLASK_DEBUG=0 ./run_dev.sh` overrides the dev file's debug setting for one run. Unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
 
 ## Development Workflow
 

@@ -1,26 +1,31 @@
 Audit environment variable definitions and usage for completeness and correctness.
 
 **Read these files first:**
-- `.env.dev.example`, `.env.test.example`, `.env.prod.example`
-- `backend/app/config.py`
+- `.env.dev`, `.env.test` (committed, throwaway values), `.env.prod.example`
+- `backend/app/config.py`, `backend/wait_for_services.py`
+- The `environment:` blocks in `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml`
 
-**Every variable in the `.env.*.example` files must have:**
-- A corresponding `os.getenv()` call in `config.py`
-- A presence check (raises `ValueError` if missing) for variables that are required at runtime
-- Flag any variable listed in the `.env.*.example` files with no corresponding usage in `config.py`
+**Every variable in an env file must be read somewhere:**
+- By `config.py` / `wait_for_services.py` (`os.getenv()`), or interpolated by a compose file (`${VAR}`)
+- Flag any variable nothing reads, and any variable set to the same value as its code default (redundant)
 
-**Every variable used in `config.py` must appear in the `.env.*.example` files:**
-- Grep `backend/app/config.py` for all `os.getenv(` calls
-- For each variable found, verify it appears in the `.env.*.example` files
-- Flag any variable the app requires that is absent from an `.env.*.example` file (would silently break a new setup)
+**Every variable the app requires must reach it in each environment:**
+- Grep `config.py` for `os.getenv(` calls without a default
+- Dev: present in `.env.dev`. Integration tests: present in `.env.test`.
+- Prod and E2E: listed in the backend service's `environment:` block (`docker-compose.yml`, `docker-compose.test.yml`) and, unless fixed there, present in `.env.prod.example` / `.env.test`
+- `.env.prod.example` holds only per-deployment values; hosts, ports and `FLASK_ENV` belong in `docker-compose.yml`
+
+**Least privilege:**
+- Backend services must use an explicit `environment:` list, never `env_file:`, so `MYSQL_ROOT_PASSWORD` stays out of the backend container
 
 **TestingConfig correctness:**
 - `TestingConfig` sets `SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'` and `REDIS_ENABLED = False`
 - Verify that the base `Config.__init__()` required-variable checks do not break when running under `TestingConfig`
 - If `TestingConfig` inherits checks for Redis or DB variables that are irrelevant in test mode, flag this
 
-**`.env.*.example` content safety:**
-- Confirm the dev and prod examples contain only placeholder values (e.g., `your_password_here`); the test example holds throwaway test credentials by design
-- Flag any line that looks like a real credential, key, or token
+**Env file content safety:**
+- `.env.prod.example` contains only placeholder values (e.g., `your_password_here`)
+- `.env.dev` and `.env.test` hold obviously throwaway values by design; flag anything in them that looks like a real credential, key, or token
+- `.env.prod` is gitignored and not tracked (`git ls-files .env.prod` is empty)
 
 Report each finding with the variable name, the file where the issue exists, and a recommended fix.

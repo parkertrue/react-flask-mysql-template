@@ -3,7 +3,7 @@ Audit `README.md` for accuracy against the current state of the project. Read bo
 **What to read:**
 - `README.md`
 - `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml` (service names, ports, profiles)
-- `.env.dev.example`, `.env.test.example`, `.env.prod.example` (all required variables)
+- `.env.dev`, `.env.test`, `.env.prod.example` (all required variables)
 - `nginx/default.conf` (ports, SSL configuration)
 - `CLAUDE.md` (dev workflow commands, test commands)
 
@@ -12,7 +12,7 @@ Audit `README.md` for accuracy against the current state of the project. Read bo
 - Every command shown in the README (docker compose, npm, pytest, etc.) matches the actual scripts and flags used
 - Every service name and URL mentioned is accurate
 - The SSL/HTTPS Setup section reflects the current nginx and cert setup
-- The environment variable list matches the `.env.*.example` files
+- The environment variable list matches `.env.dev`, `.env.test` and `.env.prod.example`
 - Any architecture description matches the actual file structure
 
 **Sections most likely to drift:** SSL/HTTPS Setup, ports table, test commands, development workflow steps.
