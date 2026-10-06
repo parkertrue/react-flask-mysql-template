@@ -44,6 +44,7 @@ describe('RegisterPage', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   describe('rendering', () => {
@@ -362,6 +363,27 @@ describe('RegisterPage', () => {
         },
         { timeout: 3000 }
       )
+    })
+
+    it('should not navigate if the page is left before the redirect', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      authService.registerUser.mockResolvedValue({})
+
+      const { unmount } = renderWithAuth()
+
+      fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'user@example.com' } })
+      fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: 'Password123' } })
+      fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'Password123' } })
+      fireEvent.submit(screen.getByTestId('register-form'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('success-message')).toBeInTheDocument()
+      })
+
+      unmount()
+      vi.advanceTimersByTime(3000)
+
+      expect(mockNavigate).not.toHaveBeenCalled()
     })
 
     it('should show error message on registration failure', async () => {

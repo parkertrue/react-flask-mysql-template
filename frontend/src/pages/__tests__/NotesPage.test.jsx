@@ -310,24 +310,29 @@ describe('NotesPage', () => {
       const submitBtn = screen.getByTestId('note-submit')
 
       await user.type(input, 'Test note')
-      
-      // Click submit - don't await, we want to catch the loading state
-      user.click(submitBtn)
+      await user.click(submitBtn)
 
-      // The form should show "Adding..." text while loading
-      // Note: In the actual implementation, loading comes from useNotes hook
-      // which doesn't set loading:true during individual note creation
-      // This test needs to be adjusted to match actual behavior
-      
-      // Just verify the note creation was called
+      expect(createNote).toHaveBeenCalledWith('Test note')
+      expect(submitBtn).toHaveTextContent('Adding...')
+      expect(submitBtn).toBeDisabled()
+      expect(input).toBeDisabled()
+
+      resolveCreate({ id: 1, content: 'Test note' })
+
       await waitFor(() => {
-        expect(createNote).toHaveBeenCalledWith('Test note')
+        expect(submitBtn).toHaveTextContent('Add Note')
       })
+      expect(input).not.toBeDisabled()
+    })
 
-      // Resolve the promise to cleanup
-      if (resolveCreate) {
-        resolveCreate({ id: 1, content: 'Test note' })
-      }
+    it('should not show "Adding..." while the list is loading', () => {
+      fetchNotes.mockReturnValue(new Promise(() => {}))
+
+      renderNotesPage()
+
+      expect(screen.getByTestId('notes-loading')).toBeInTheDocument()
+      expect(screen.getByTestId('note-submit')).toHaveTextContent('Add Note')
+      expect(screen.getByTestId('note-input')).not.toBeDisabled()
     })
   })
 

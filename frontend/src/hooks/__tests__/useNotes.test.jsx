@@ -221,6 +221,46 @@ describe('useNotes', () => {
     })
   })
 
+  describe('submitting', () => {
+    beforeEach(() => {
+      storage.getAccessToken.mockReturnValue('token')
+      fetchNotes.mockResolvedValue([])
+    })
+
+    it('is true only while addNote is in flight, not during list loads', async () => {
+      let resolveCreate
+      createNote.mockReturnValue(new Promise(resolve => { resolveCreate = resolve }))
+
+      const { result } = renderHook(() => useNotes(), { wrapper })
+      expect(result.current.loading).toBe(true)
+      expect(result.current.submitting).toBe(false)
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      let pending
+      act(() => { pending = result.current.addNote('New') })
+      expect(result.current.submitting).toBe(true)
+      expect(result.current.loading).toBe(false)
+
+      await act(async () => {
+        resolveCreate({ id: 1, content: 'New' })
+        await pending
+      })
+      expect(result.current.submitting).toBe(false)
+    })
+
+    it('resets after a failed add', async () => {
+      createNote.mockRejectedValue(new Error('Failed'))
+      const { result } = renderHook(() => useNotes(), { wrapper })
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.addNote('New').catch(() => {})
+      })
+
+      expect(result.current.submitting).toBe(false)
+    })
+  })
+
   describe('authentication changes', () => {
     it('should clear notes when logged out', async () => {
       storage.getAccessToken.mockReturnValue('token')

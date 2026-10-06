@@ -7,6 +7,7 @@ export function useNotes() {
   const { isAuthenticated } = useAuth()
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
   const loadNotes = useCallback(async () => {
@@ -35,6 +36,7 @@ export function useNotes() {
   }, [isAuthenticated, loadNotes])
 
   const addNote = async (content) => {
+    setSubmitting(true)
     try {
       const newNote = await createNote(content)
       setNotes(prev => [...prev, newNote])
@@ -44,12 +46,15 @@ export function useNotes() {
       const errorMsg = getErrorMessage(err)
       setError(errorMsg)
       throw new Error(errorMsg, { cause: err })
+    } finally {
+      setSubmitting(false)
     }
   }
 
   return {
     notes,
     loading,
+    submitting,
     error,
     loadNotes,
     addNote
