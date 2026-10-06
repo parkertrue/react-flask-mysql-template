@@ -8,7 +8,6 @@ export default function NoteForm({ onSubmit, loading }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate note content
     const errors = validateNoteContent(content)
     if (errors.length > 0) {
       setError(errors[0])
@@ -29,7 +28,6 @@ export default function NoteForm({ onSubmit, loading }) {
     const value = e.target.value
     setContent(value)
     
-    // Clear error when user starts typing
     if (error) {
       setError('')
     }

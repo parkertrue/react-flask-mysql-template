@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
 
-  // Redirect if already logged in
   if (isAuthenticated) {
     return <Navigate to="/notes" replace />
   }
@@ -26,7 +25,6 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate inputs
     const emailErrors = validateEmail(email)
     const passwordErrors = validatePassword(password)
     

@@ -175,7 +175,8 @@ def create_app():
             status=500
         )
 
-    # Register blueprints
+    # Imported here, not at the top: the route modules import db and limiter
+    # from this package, so a module-level import would be circular.
     from app.routes import register_routes
     register_routes(app)
 

@@ -28,7 +28,6 @@ export default function RegisterPage() {
     return () => clearTimeout(timer)
   }, [success, navigate])
 
-  // Redirect if already logged in
   if (isAuthenticated) {
     return <Navigate to="/notes" replace />
   }
@@ -36,7 +35,6 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    // Validate all inputs
     const emailErrors = validateEmail(email)
     const passwordErrors = validatePassword(password)
     const matchErrors = validatePasswordMatch(password, confirmPassword)
