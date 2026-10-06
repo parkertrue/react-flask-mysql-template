@@ -1,7 +1,11 @@
 import json
+from unittest.mock import patch
+
 from sqlalchemy import select, func
+from werkzeug.security import check_password_hash
 
 from app.models import User
+from app.routes import auth as auth_routes
 
 
 class TestRegisterEndpoint:
@@ -303,6 +307,21 @@ class TestLoginEndpoint:
         assert response.status_code == 401
         data = json.loads(response.data)
         assert data['error']['code'] == 'INVALID_CREDENTIALS'
+
+    def test_login_nonexistent_user_still_hashes(self, client):
+        """Skipping the hash would make unknown emails measurably faster."""
+        payload = {
+            'email': 'nonexistent@example.com',
+            'password': 'SomePassword123'
+        }
+
+        with patch('app.routes.auth.check_password_hash',
+                   wraps=check_password_hash) as check:
+            response = client.post('/api/auth/login', json=payload)
+
+        assert response.status_code == 401
+        check.assert_called_once_with(
+            auth_routes._DUMMY_PASSWORD_HASH, 'SomePassword123')
 
     def test_login_invalid_email_format(self, client):
         """Invalid email format should return 422."""

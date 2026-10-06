@@ -11,6 +11,7 @@ from flask_jwt_extended import (
     get_csrf_token,
     decode_token
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db, limiter
 from app.models import User
@@ -20,6 +21,9 @@ from app.utils.redis_service import get_redis_service
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+
+# Same algorithm as User.set_password, so checking it costs the same.
+_DUMMY_PASSWORD_HASH = generate_password_hash("not-a-real-password")
 
 
 def _issue_tokens(user_id: int):
@@ -81,7 +85,12 @@ def login():
     stmt = select(User).where(User.email == payload.email)
     user = db.session.execute(stmt).scalar_one_or_none()
 
-    if not user or not user.check_password(payload.password):
+    if user is None:
+        # Hash anyway, so an unknown email takes as long as a wrong password
+        # and response timing doesn't reveal which emails are registered.
+        check_password_hash(_DUMMY_PASSWORD_HASH, payload.password)
+
+    if user is None or not user.check_password(payload.password):
         return error_response(
             code="INVALID_CREDENTIALS",
             message="Invalid email or password",
