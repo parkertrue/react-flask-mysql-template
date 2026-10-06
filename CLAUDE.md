@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A full-stack application template: React (Vite) frontend, Flask backend, MySQL database, Redis caching, Nginx reverse proxy. Three Docker Compose environments: dev, test, and production.
+A full-stack application template: React (Vite) frontend, Flask backend, MySQL database, Redis (refresh tokens and rate limits), Nginx reverse proxy. Three Docker Compose environments: dev, test, and production.
 
 It ships with **auth** (register/login/logout/refresh with rotating refresh tokens) and a minimal **notes** CRUD feature. The notes feature is a deliberately thin vertical slice — model, schema, routes, service, hook, components, tests — meant to be **replaced** by whatever the real app is. Use it as the worked example of how a feature is wired end to end, then delete it.
 
@@ -101,7 +101,7 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health`, `notes` (the example CRUD feature).
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (refresh-token allowlist + caching; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
+- **`utils/`** — Redis service (refresh-token allowlist; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it), error handlers, and the HTML sanitizer (`InputSanitizer.sanitize_text`). The sanitizer returns **plain text, not HTML-escaped text** — rely on the render layer (React escapes by default) for output safety.
 - **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)

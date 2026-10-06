@@ -17,7 +17,7 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 * **Frontend**: React (Vite)
 * **Backend**: Flask + SQLAlchemy + Alembic
 * **Database**: MySQL
-* **Cache/Sessions**: Redis
+* **Sessions/Rate limits**: Redis
 * **Reverse proxy (prod)**: Nginx
 * **Containers**: Docker / Docker Compose
 
