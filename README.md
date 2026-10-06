@@ -89,7 +89,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 
 Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs). For local production testing, set `SERVER_NAME=localhost` in `.env.prod`.
 
-On a server, keep the key readable only by root: `sudo chown root:root nginx/certs/*.pem && sudo chmod 600 nginx/certs/privkey.pem`. The nginx container runs with most capabilities dropped, so its root user can read the key only as the file's owner.
+On a server, keep the key private: `chmod 600 nginx/certs/privkey.pem` (openssl already creates it that way). The nginx container can still read it, whoever owns it on the host.
 
 ## Real Domain (Let's Encrypt)
 

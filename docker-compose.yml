@@ -202,12 +202,14 @@ services:
       # The domain this deployment serves; requests for any other host are
       # dropped (see nginx/templates/default.conf.template)
       NGINX_SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env.prod}
-    # The master process binds 80/443, owns its cache directories and
-    # switches workers to the nginx user; nothing else is needed.
+    # The master process binds 80/443, owns its cache directories, reads the
+    # TLS key (mode 600, whoever owns it on the host) and switches workers to
+    # the nginx user; nothing else is needed.
     cap_drop:
       - ALL
     cap_add:
       - CHOWN
+      - DAC_READ_SEARCH
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
