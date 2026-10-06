@@ -3,7 +3,9 @@ import NotesList from '../components/notes/NotesList'
 import NoteForm from '../components/notes/NoteForm'
 
 export default function NotesPage() {
-  const { notes, loading, submitting, error, addNote } = useNotes()
+  const {
+    notes, loading, loadingMore, hasMore, submitting, error, addNote, loadMore
+  } = useNotes()
 
   return (
     <div className="notes-page">
@@ -19,6 +21,18 @@ export default function NotesPage() {
         )}
 
         <NotesList notes={notes} loading={loading} />
+
+        {hasMore && !loading && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-block load-more"
+            data-testid="load-more"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading...' : 'Load more'}
+          </button>
+        )}
       </div>
     </div>
   )

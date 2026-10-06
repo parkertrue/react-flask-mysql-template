@@ -10,13 +10,15 @@ import { fetchNotes, createNote } from '../../api/services/notesService'
 vi.mock('../../utils/storage')
 vi.mock('../../api/services/notesService')
 
+const page = (notes, next_cursor = null) => ({ notes, next_cursor })
+
 describe('NotesPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue('valid-token')
     storage.getRefreshCsrf.mockReturnValue('csrf-token')
     storage.getEmail.mockReturnValue('user@example.com')
-    fetchNotes.mockResolvedValue([])
+    fetchNotes.mockResolvedValue(page([]))
   })
 
   const renderNotesPage = () => {
@@ -91,7 +93,7 @@ describe('NotesPage', () => {
         { id: 1, content: 'Note 1' },
         { id: 2, content: 'Note 2' }
       ]
-      fetchNotes.mockResolvedValue(mockNotes)
+      fetchNotes.mockResolvedValue(page(mockNotes))
 
       renderNotesPage()
 
@@ -102,7 +104,7 @@ describe('NotesPage', () => {
     })
 
     it('should display empty state when no notes', async () => {
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
 
       renderNotesPage()
 
@@ -131,7 +133,7 @@ describe('NotesPage', () => {
   describe('adding notes', () => {
     it('should add note when form is submitted', async () => {
       const newNote = { id: 1, content: 'New note' }
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockResolvedValue(newNote)
 
       const user = userEvent.setup()
@@ -154,7 +156,7 @@ describe('NotesPage', () => {
 
     it('should display newly added note in the list', async () => {
       const newNote = { id: 1, content: 'Brand new note' }
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockResolvedValue(newNote)
 
       const user = userEvent.setup()
@@ -181,7 +183,7 @@ describe('NotesPage', () => {
       ]
       const newNote = { id: 2, content: 'New note' }
 
-      fetchNotes.mockResolvedValue(existingNotes)
+      fetchNotes.mockResolvedValue(page(existingNotes))
       createNote.mockResolvedValue(newNote)
 
       const user = userEvent.setup()
@@ -205,7 +207,7 @@ describe('NotesPage', () => {
 
     it('should clear form input after successful submission', async () => {
       const newNote = { id: 1, content: 'Test note' }
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockResolvedValue(newNote)
 
       const user = userEvent.setup()
@@ -229,7 +231,7 @@ describe('NotesPage', () => {
     })
 
     it('should display error when note creation fails', async () => {
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockRejectedValue({
         response: {
           data: {
@@ -257,7 +259,7 @@ describe('NotesPage', () => {
     })
 
     it('should not clear input when creation fails', async () => {
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockRejectedValue({
         response: {
           data: {
@@ -289,7 +291,7 @@ describe('NotesPage', () => {
 
   describe('loading state during note creation', () => {
     it('should show form disabled state during creation', async () => {
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       
       // Create a slow promise to keep loading state active
       let resolveCreate
@@ -339,7 +341,7 @@ describe('NotesPage', () => {
   describe('error handling', () => {
     it('should clear error when successfully adding note after error', async () => {
       fetchNotes
-        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(page([]))
       
       createNote
         .mockRejectedValueOnce({
@@ -376,13 +378,61 @@ describe('NotesPage', () => {
     })
   })
 
+  describe('load more', () => {
+    it('is hidden when there is only one page', async () => {
+      fetchNotes.mockResolvedValue(page([{ id: 1, content: 'Only note' }]))
+
+      renderNotesPage()
+
+      await waitFor(() => {
+        expect(screen.getByText('Only note')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('load-more')).not.toBeInTheDocument()
+    })
+
+    it('loads the next page below the current one, then disappears', async () => {
+      fetchNotes
+        .mockResolvedValueOnce(page([{ id: 2, content: 'Newer note' }], 2))
+        .mockResolvedValueOnce(page([{ id: 1, content: 'Older note' }]))
+
+      const user = userEvent.setup()
+      renderNotesPage()
+
+      await user.click(await screen.findByTestId('load-more'))
+
+      await waitFor(() => {
+        expect(screen.getByText('Older note')).toBeInTheDocument()
+      })
+      expect(fetchNotes).toHaveBeenLastCalledWith(2)
+      const items = screen.getAllByTestId('note-item').map(el => el.textContent)
+      expect(items[0]).toContain('Newer note')
+      expect(items[1]).toContain('Older note')
+      expect(screen.queryByTestId('load-more')).not.toBeInTheDocument()
+    })
+
+    it('is disabled while the next page loads', async () => {
+      fetchNotes
+        .mockResolvedValueOnce(page([{ id: 2, content: 'Newer note' }], 2))
+        .mockReturnValueOnce(new Promise(() => {}))
+
+      const user = userEvent.setup()
+      renderNotesPage()
+
+      const button = await screen.findByTestId('load-more')
+      await user.click(button)
+
+      expect(button).toBeDisabled()
+      expect(button).toHaveTextContent('Loading...')
+    })
+  })
+
   describe('integration with useNotes hook', () => {
     it('should use notes from useNotes hook', async () => {
       const mockNotes = [
         { id: 1, content: 'Hook note 1' },
         { id: 2, content: 'Hook note 2' }
       ]
-      fetchNotes.mockResolvedValue(mockNotes)
+      fetchNotes.mockResolvedValue(page(mockNotes))
 
       renderNotesPage()
 
@@ -394,7 +444,7 @@ describe('NotesPage', () => {
 
     it('should pass addNote function to form', async () => {
       const newNote = { id: 1, content: 'From hook' }
-      fetchNotes.mockResolvedValue([])
+      fetchNotes.mockResolvedValue(page([]))
       createNote.mockResolvedValue(newNote)
 
       const user = userEvent.setup()

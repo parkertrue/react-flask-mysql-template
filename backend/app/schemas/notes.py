@@ -13,6 +13,12 @@ class NoteCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class NotesPageQuery(BaseModel):
+    """GET /api/notes query string: ?before=<next_cursor>&limit=<n>"""
+    before: int | None = Field(default=None, ge=1)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
 class NoteResponse(BaseModel):
     id: int
     user_id: int

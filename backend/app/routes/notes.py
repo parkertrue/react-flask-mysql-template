@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app import db
 from app.models import Note, User
-from app.schemas import NoteCreateRequest, NoteResponse
+from app.schemas import NoteCreateRequest, NoteResponse, NotesPageQuery
 
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
@@ -13,17 +13,29 @@ notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
 @notes_bp.route('', methods=['GET'])
 @jwt_required()
 def get_notes():
-    """Return all notes belonging to the current user"""
+    """Return one page of the current user's notes, newest first.
+
+    Cursor pagination: pass a page's next_cursor as ?before= to get the next
+    one. Unlike an offset, a cursor neither skips nor repeats notes when new
+    ones are added between pages, and every page costs the same: the user_id
+    index is ordered by id within each user.
+    """
+    query = NotesPageQuery.model_validate(request.args.to_dict())
     user_id = int(get_jwt_identity())
 
     stmt = select(Note).where(Note.user_id == user_id)
+    if query.before is not None:
+        stmt = stmt.where(Note.id < query.before)
+    # One extra row says whether another page follows
+    stmt = stmt.order_by(Note.id.desc()).limit(query.limit + 1)
     notes = db.session.execute(stmt).scalars().all()
 
-    response = [
-        NoteResponse.model_validate(note).model_dump()
-        for note in notes
-    ]
-    return jsonify(response), 200
+    page = notes[:query.limit]
+    next_cursor = page[-1].id if len(notes) > query.limit else None
+    return jsonify({
+        "notes": [NoteResponse.model_validate(note).model_dump() for note in page],
+        "next_cursor": next_cursor,
+    }), 200
 
 
 @notes_bp.route('', methods=['POST'])

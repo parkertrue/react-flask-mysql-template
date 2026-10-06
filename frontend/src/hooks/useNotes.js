@@ -6,7 +6,9 @@ import { useAuth } from './useAuth'
 export function useNotes() {
   const { isAuthenticated } = useAuth()
   const [notes, setNotes] = useState([])
+  const [nextCursor, setNextCursor] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
@@ -15,8 +17,9 @@ export function useNotes() {
     setError(null)
 
     try {
-      const data = await fetchNotes()
-      setNotes(data)
+      const page = await fetchNotes()
+      setNotes(page.notes)
+      setNextCursor(page.next_cursor)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -32,14 +35,34 @@ export function useNotes() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotes()
     // Drop this session's notes when it ends, so the next user never sees them
-    return () => setNotes([])
+    return () => {
+      setNotes([])
+      setNextCursor(null)
+    }
   }, [isAuthenticated, loadNotes])
+
+  const loadMore = async () => {
+    if (nextCursor === null) return
+    setLoadingMore(true)
+    try {
+      const page = await fetchNotes(nextCursor)
+      setNotes(prev => [...prev, ...page.notes])
+      setNextCursor(page.next_cursor)
+      setError(null)
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const addNote = async (content) => {
     setSubmitting(true)
     try {
       const newNote = await createNote(content)
-      setNotes(prev => [...prev, newNote])
+      // Newest first. The cursor points below the oldest loaded note, so the
+      // new one never turns up again on a later page.
+      setNotes(prev => [newNote, ...prev])
       setError(null)
       return newNote
     } catch (err) {
@@ -54,9 +77,12 @@ export function useNotes() {
   return {
     notes,
     loading,
+    loadingMore,
+    hasMore: nextCursor !== null,
     submitting,
     error,
     loadNotes,
+    loadMore,
     addNote
   }
 }

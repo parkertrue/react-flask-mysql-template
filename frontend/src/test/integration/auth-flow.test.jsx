@@ -139,7 +139,7 @@ describe('Authentication Flow Integration Tests', () => {
               { status: 401 }
             )
           }
-          return HttpResponse.json(mockNotes, { status: 200 })
+          return HttpResponse.json({ notes: mockNotes, next_cursor: null }, { status: 200 })
         })
       )
 
@@ -215,7 +215,7 @@ describe('Authentication Flow Integration Tests', () => {
 
       server.use(
         http.get('/api/notes', () => {
-          return HttpResponse.json([], { status: 200 })
+          return HttpResponse.json({ notes: [], next_cursor: null }, { status: 200 })
         }),
         http.post('/api/notes', async ({ request }) => {
           const body = await request.json()
@@ -269,7 +269,7 @@ describe('Authentication Flow Integration Tests', () => {
 
       server.use(
         http.get('/api/notes', () => {
-          return HttpResponse.json(mockNotes, { status: 200 })
+          return HttpResponse.json({ notes: mockNotes, next_cursor: null }, { status: 200 })
         })
       )
 
