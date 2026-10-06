@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import LogoutDropdown from '../LogoutDropdown'
-import { AuthProvider } from '../../../contexts/AuthContext'
+import { AuthProvider } from '../../../contexts/AuthProvider'
 import { storage } from '../../../utils/storage'
 import { logoutUser, logoutAllDevices } from '../../../api/services/authService'
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useAuth } from '../useAuth'
-import { AuthProvider } from '../../contexts/AuthContext'
+import { AuthProvider } from '../../contexts/AuthProvider'
 import { storage } from '../../utils/storage'
 
 vi.mock('../../utils/storage')

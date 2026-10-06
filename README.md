@@ -317,6 +317,7 @@ Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis
 From `frontend/`:
 
 ```bash
+npm run lint          # ESLint
 npm run test:run      # Run unit tests once
 npm run test          # Watch mode (auto re-runs on changes)
 npm run test:coverage # Generate coverage report (coverage/ folder)

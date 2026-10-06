@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useNotes } from '../useNotes'
+import { useAuth } from '../useAuth'
 import { fetchNotes, createNote } from '../../api/services/notesService'
-import { AuthProvider } from '../../contexts/AuthContext'
+import { AuthProvider } from '../../contexts/AuthProvider'
 import { storage } from '../../utils/storage'
 
 vi.mock('../../api/services/notesService')
@@ -225,18 +226,19 @@ describe('useNotes', () => {
       storage.getAccessToken.mockReturnValue('token')
       fetchNotes.mockResolvedValue([{ id: 1, content: 'Note' }])
 
-      const { result, rerender } = renderHook(() => useNotes(), { wrapper })
+      const { result } = renderHook(
+        () => ({ notes: useNotes(), auth: useAuth() }),
+        { wrapper }
+      )
 
       await waitFor(() => {
-        expect(result.current.notes).toHaveLength(1)
+        expect(result.current.notes.notes).toHaveLength(1)
       })
 
-      // Simulate logout
-      storage.getAccessToken.mockReturnValue(null)
-      rerender()
+      act(() => result.current.auth.logout())
 
-      // Notes should be cleared but the hook doesn't automatically refetch
-      // The clearing happens via the useEffect dependency on isAuthenticated
+      expect(result.current.notes.notes).toEqual([])
+      expect(fetchNotes).toHaveBeenCalledTimes(1)
     })
   })
 })

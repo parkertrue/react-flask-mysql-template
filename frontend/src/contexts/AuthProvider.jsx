@@ -1,7 +1,6 @@
-import { createContext, useState } from 'react'
+import { useState } from 'react'
 import { storage } from '../utils/storage'
-
-export const AuthContext = createContext(null)
+import { AuthContext } from './AuthContext'
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => storage.getAccessToken())

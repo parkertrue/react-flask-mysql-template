@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import NotesPage from '../NotesPage'
-import { AuthProvider } from '../../contexts/AuthContext'
+import { AuthProvider } from '../../contexts/AuthProvider'
 import { storage } from '../../utils/storage'
 import { fetchNotes, createNote } from '../../api/services/notesService'
 

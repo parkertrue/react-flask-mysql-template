@@ -20,8 +20,8 @@ export default function NoteForm({ onSubmit, loading }) {
     try {
       await onSubmit(content.trim())
       setContent('')
-    } catch (err) {
-      // Error handled by parent
+    } catch {
+      // The parent shows the error; keep the text so the user can retry
     }
   }
 

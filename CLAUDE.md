@@ -49,6 +49,7 @@ cd backend
 ### Frontend
 ```bash
 cd frontend
+npm run lint          # ESLint (CI fails on any finding)
 npm run test          # Watch mode
 npm run test:run      # Run once (CI)
 npm run test:coverage
@@ -105,7 +106,7 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 
 ### Frontend (`frontend/src/`)
 - **`api/`** — Centralized Axios instance + service modules (auth, health, notes). All backend calls go through here.
-- **`contexts/AuthContext`** — Global auth state (user, tokens, login/logout).
+- **`contexts/`** — `AuthProvider` holds global auth state (user, tokens, login/logout); `AuthContext` is the bare context, in its own file so fast refresh keeps working.
 - **`hooks/`** — `useAuth`, `useHealth`, `useNotes`.
 - **`utils/`** — `validation.js` (shared field validators), `storage.js` (token storage; see the comment there on the accepted localStorage XSS trade-off).
 - **`components/`** — `layout/` (Navbar, LogoutDropdown), `notes/` (the example feature). Each with co-located unit tests in `__tests__/`.
