@@ -26,11 +26,12 @@ auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 _DUMMY_PASSWORD_HASH = generate_password_hash("not-a-real-password")
 
 
-def _issue_tokens(user_id: int):
+def _issue_tokens(user_id: int, replaces: str | None = None):
     """Build a 200 response carrying a fresh access token and refresh cookie.
 
-    The new refresh token's JTI is recorded in Redis; the blocklist loader
-    treats any refresh token whose JTI is absent there as revoked.
+    The new refresh token's JTI is recorded in Redis, in place of the JTI in
+    `replaces` when rotating; the blocklist loader treats any refresh token
+    whose JTI is absent there as revoked.
     """
     access_token = create_access_token(identity=str(user_id))
     refresh_token = create_refresh_token(identity=str(user_id))
@@ -39,7 +40,8 @@ def _issue_tokens(user_id: int):
     if redis_service:
         jti = decode_token(refresh_token).get('jti')
         ttl = int(current_app.config["JWT_REFRESH_TOKEN_EXPIRES"].total_seconds())
-        if jti and not redis_service.store_refresh_token(user_id, jti, ttl_seconds=ttl):
+        if jti and not redis_service.store_refresh_token(
+                user_id, jti, ttl_seconds=ttl, replaces=replaces):
             raise RuntimeError("Failed to store refresh token in Redis")
 
     # Only advertise a CSRF token when cookie CSRF protection is actually on;
@@ -106,15 +108,7 @@ def login():
 def refresh():
     """Rotate: issue a new token pair and revoke the refresh token just used"""
     user_id = int(get_jwt_identity())
-    old_jti = get_jwt().get('jti')
-
-    response = _issue_tokens(user_id)
-
-    redis_service = get_redis_service()
-    if redis_service and old_jti:
-        redis_service.revoke_token(user_id, old_jti)
-
-    return response
+    return _issue_tokens(user_id, replaces=get_jwt().get('jti'))
 
 
 @auth_bp.route("/logout", methods=["POST"])

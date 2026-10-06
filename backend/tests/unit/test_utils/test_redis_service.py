@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from unittest.mock import patch, MagicMock
 import redis
@@ -125,124 +127,79 @@ class TestTokenManagement:
             return service
 
     def test_store_refresh_token_success(self, service):
-        """Should store refresh token successfully"""
-        service._client.setex.return_value = True
+        """Should return True once the transaction executes"""
+        pipe = service._client.pipeline.return_value
 
-        result = service.store_refresh_token(
-            user_id=1,
-            jti="test-jti-123",
-            ttl_seconds=3600
-        )
+        assert service.store_refresh_token(1, "test-jti", ttl_seconds=3600) is True
+        pipe.zadd.assert_called_once()
+        assert pipe.zadd.call_args[0][0] == "refresh_tokens:1"
+        pipe.zrem.assert_not_called()
+        pipe.expire.assert_called_once_with("refresh_tokens:1", 3600)
+        pipe.execute.assert_called_once()
 
-        assert result is True
-        service._client.setex.assert_called_once_with(
-            "refresh_token:1:test-jti-123",
-            3600,
-            "1"
-        )
+    def test_store_refresh_token_replaces_in_same_transaction(self, service):
+        """Rotation removes the old JTI inside the same MULTI/EXEC"""
+        pipe = service._client.pipeline.return_value
 
-    def test_store_refresh_token_default_ttl(self, service):
-        """Should use default TTL when not specified"""
-        service._client.setex.return_value = True
+        service.store_refresh_token(1, "new-jti", replaces="old-jti")
 
-        result = service.store_refresh_token(user_id=1, jti="test-jti-123")
-
-        assert result is True
-        # Default is 30 days = 2592000 seconds
-        service._client.setex.assert_called_once_with(
-            "refresh_token:1:test-jti-123",
-            2592000,
-            "1"
-        )
+        pipe.zrem.assert_called_once_with("refresh_tokens:1", "old-jti")
+        pipe.execute.assert_called_once()
 
     def test_store_refresh_token_error(self, service):
         """Should return False on Redis errors"""
-        service._client.setex.side_effect = redis.RedisError("Write failed")
+        service._client.pipeline.return_value.execute.side_effect = (
+            redis.RedisError("Write failed"))
 
-        result = service.store_refresh_token(1, "jti")
+        assert service.store_refresh_token(1, "jti") is False
 
-        assert result is False
+    def test_is_token_valid_when_unexpired(self, service):
+        service._client.zscore.return_value = time.time() + 60
 
-    def test_is_token_valid_exists(self, service):
-        """Should return True when token exists"""
-        service._client.exists.return_value = 1
+        assert service.is_token_valid(1, "test-jti") is True
+        service._client.zscore.assert_called_once_with("refresh_tokens:1", "test-jti")
 
-        result = service.is_token_valid(1, "test-jti")
+    def test_is_token_valid_when_expired(self, service):
+        """An entry not yet pruned must still be rejected once past its expiry"""
+        service._client.zscore.return_value = time.time() - 1
 
-        assert result is True
-        service._client.exists.assert_called_once_with(
-            "refresh_token:1:test-jti")
+        assert service.is_token_valid(1, "test-jti") is False
 
     def test_is_token_valid_not_exists(self, service):
-        """Should return False when token doesn't exist"""
-        service._client.exists.return_value = 0
+        service._client.zscore.return_value = None
 
-        result = service.is_token_valid(1, "test-jti")
-
-        assert result is False
+        assert service.is_token_valid(1, "test-jti") is False
 
     def test_is_token_valid_error(self, service):
-        """Should return False on Redis errors"""
-        service._client.exists.side_effect = redis.RedisError("Read failed")
+        service._client.zscore.side_effect = redis.RedisError("Read failed")
 
-        result = service.is_token_valid(1, "jti")
-
-        assert result is False
+        assert service.is_token_valid(1, "jti") is False
 
     def test_revoke_token_success(self, service):
-        """Should revoke token successfully"""
-        service._client.delete.return_value = 1
+        service._client.zrem.return_value = 1
 
-        result = service.revoke_token(1, "test-jti")
-
-        assert result is True
-        service._client.delete.assert_called_once_with(
-            "refresh_token:1:test-jti")
+        assert service.revoke_token(1, "test-jti") is True
+        service._client.zrem.assert_called_once_with("refresh_tokens:1", "test-jti")
 
     def test_revoke_token_not_found(self, service):
-        """Should return False when token not found"""
-        service._client.delete.return_value = 0
+        service._client.zrem.return_value = 0
 
-        result = service.revoke_token(1, "test-jti")
-
-        assert result is False
+        assert service.revoke_token(1, "test-jti") is False
 
     def test_revoke_token_error(self, service):
-        """Should return False on Redis errors"""
-        service._client.delete.side_effect = redis.RedisError("Delete failed")
+        service._client.zrem.side_effect = redis.RedisError("Delete failed")
 
-        result = service.revoke_token(1, "jti")
+        assert service.revoke_token(1, "jti") is False
 
-        assert result is False
+    def test_revoke_all_user_tokens_returns_live_count(self, service):
+        pipe = service._client.pipeline.return_value
+        pipe.execute.return_value = [3, 1]
 
-    def test_revoke_all_user_tokens_success(self, service):
-        """Should revoke all user tokens successfully"""
-        service._client.scan_iter.return_value = iter([
-            "refresh_token:1:jti1",
-            "refresh_token:1:jti2",
-            "refresh_token:1:jti3"
-        ])
-        service._client.delete.return_value = 3
-
-        count = service.revoke_all_user_tokens(1)
-
-        assert count == 3
-        service._client.scan_iter.assert_called_once_with("refresh_token:1:*")
-        service._client.delete.assert_called_once()
-
-    def test_revoke_all_user_tokens_no_tokens(self, service):
-        """Should return 0 when user has no tokens"""
-        service._client.scan_iter.return_value = iter([])
-
-        count = service.revoke_all_user_tokens(1)
-
-        assert count == 0
-        service._client.delete.assert_not_called()
+        assert service.revoke_all_user_tokens(1) == 3
+        pipe.delete.assert_called_once_with("refresh_tokens:1")
 
     def test_revoke_all_user_tokens_error(self, service):
-        """Should return 0 on Redis errors"""
-        service._client.scan_iter.side_effect = redis.RedisError("Scan failed")
+        service._client.pipeline.return_value.execute.side_effect = (
+            redis.RedisError("Failed"))
 
-        count = service.revoke_all_user_tokens(1)
-
-        assert count == 0
+        assert service.revoke_all_user_tokens(1) == 0

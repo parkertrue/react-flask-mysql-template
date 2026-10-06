@@ -48,6 +48,16 @@ def connect_redis(app: Flask) -> "RedisService | None":
     return service
 
 
+# Logging in on an 11th device ends the session that would expire soonest,
+# so one account can never grow its Redis footprint without bound.
+MAX_SESSIONS_PER_USER = 10
+
+
+def _tokens_key(user_id: int) -> str:
+    """One sorted set per user: member = refresh-token JTI, score = expiry time"""
+    return f"refresh_tokens:{user_id}"
+
+
 class RedisService:
     """Refresh-token allowlist in Redis.
 
@@ -79,41 +89,52 @@ class RedisService:
     def get_client(self) -> redis.Redis:
         return self._client
 
-    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int = 2592000) -> bool:
+    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int = 2592000,
+                            replaces: str | None = None) -> bool:
+        """Record a new refresh token, swapping out `replaces` in the same step.
+
+        Rotating in one transaction matters at the session cap: storing first
+        would evict another device's session to make room for this one.
+        """
+        key = _tokens_key(user_id)
+        now = time.time()
         try:
-            key = f"refresh_token:{user_id}:{jti}"
-            result = self._client.setex(key, ttl_seconds, "1")
-            return cast(bool, result)
+            pipe = self._client.pipeline()  # MULTI/EXEC: all or nothing
+            if replaces:
+                pipe.zrem(key, replaces)
+            pipe.zadd(key, {jti: now + ttl_seconds})
+            pipe.zremrangebyscore(key, "-inf", now)
+            # Keep the newest MAX_SESSIONS_PER_USER; the lowest scores expire first
+            pipe.zremrangebyrank(key, 0, -(MAX_SESSIONS_PER_USER + 1))
+            # The newest token expires last, so the key can go with it
+            pipe.expire(key, ttl_seconds)
+            pipe.execute()
+            return True
         except redis.RedisError:
             return False
 
     def is_token_valid(self, user_id: int, jti: str) -> bool:
         try:
-            key = f"refresh_token:{user_id}:{jti}"
-            result = self._client.exists(key)
-            return cast(int, result) > 0
+            expires_at = self._client.zscore(_tokens_key(user_id), jti)
+            return expires_at is not None and expires_at > time.time()
         except redis.RedisError:
             return False
 
     def revoke_token(self, user_id: int, jti: str) -> bool:
         try:
-            key = f"refresh_token:{user_id}:{jti}"
-            result = self._client.delete(key)
+            result = self._client.zrem(_tokens_key(user_id), jti)
             return cast(int, result) > 0
         except redis.RedisError:
             return False
 
     def revoke_all_user_tokens(self, user_id: int) -> int:
+        """Revoke every session the user has; returns how many were live"""
+        key = _tokens_key(user_id)
         try:
-            pattern = f"refresh_token:{user_id}:*"
-            # scan_iter, not keys: KEYS blocks the Redis event loop for the
-            # whole scan, which stalls every other client on a large keyspace.
-            keys = [key for key in self._client.scan_iter(pattern)]
-
-            if not keys:
-                return 0
-
-            result = self._client.delete(*keys)
-            return cast(int, result)
+            pipe = self._client.pipeline()
+            pipe.zcount(key, time.time(), "+inf")
+            pipe.delete(key)
+            live, _ = pipe.execute()
+            return cast(int, live)
         except redis.RedisError:
             return 0
