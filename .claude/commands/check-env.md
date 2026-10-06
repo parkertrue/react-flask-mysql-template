@@ -16,7 +16,7 @@ Audit environment variable definitions and usage for completeness and correctnes
 - `.env.prod.example` holds only per-deployment values; hosts, ports and `FLASK_ENV` belong in `docker-compose.yml`
 
 **Least privilege:**
-- Backend services must use an explicit `environment:` list, never `env_file:`, so `MYSQL_ROOT_PASSWORD` stays out of the backend container
+- Backend services must use an explicit `environment:` list, never `env_file:`, so `MYSQL_ROOT_PASSWORD` stays out of the backend container. Only the one-shot `migrate` service may receive it (as `MYSQL_PASSWORD`, with `MYSQL_USER: root`)
 
 **TestingConfig correctness:**
 - `TestingConfig` sets `SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'` and `REDIS_ENABLED = False`

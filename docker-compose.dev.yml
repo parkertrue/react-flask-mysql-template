@@ -1,7 +1,7 @@
 services:
   db:
     container_name: db_dev
-    image: mysql:8.0.44
+    image: mysql:8.4.11
     # Only the variables MySQL needs, interpolated from the --env-file passed
     # to docker compose, so SECRET_KEY and the Redis password stay out.
     environment:
@@ -32,14 +32,28 @@ services:
     image: redis:8.4-alpine
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
-    # noeviction: see docker-compose.yml
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --maxmemory 96mb
-      --maxmemory-policy noeviction
+    # noeviction and the ACL user: see docker-compose.yml
+    command:
+      - redis-server
+      - --user
+      - default
+      - "off"
+      - --user
+      - app
+      - "on"
+      - ">${REDIS_PASSWORD}"
+      - "~refresh_tokens:*"
+      - "~LIMITS:*"
+      - "+@all"
+      - "-@dangerous"
+      - --maxmemory
+      - 96mb
+      - --maxmemory-policy
+      - noeviction
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # redis-cli exits 0 even when AUTH fails, so look for the PONG itself;
+      # this also proves the app's credentials work
+      test: ["CMD-SHELL", "redis-cli --user app ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -4,7 +4,7 @@ Audit `README.md` for accuracy against the current state of the project. Read bo
 - `README.md`
 - `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.test.yml` (service names, ports, profiles)
 - `.env.dev`, `.env.test`, `.env.prod.example` (all required variables)
-- `nginx/default.conf` (ports, SSL configuration)
+- `nginx/templates/default.conf.template` (ports, SSL configuration)
 - `CLAUDE.md` (dev workflow commands, test commands)
 
 **What to check:**

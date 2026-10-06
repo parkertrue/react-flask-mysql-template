@@ -10,7 +10,7 @@ It ships with **auth** (register/login/logout/refresh with rotating refresh toke
 
 ## Environment Setup
 
-`.env.dev` and `.env.test` are committed with throwaway values (dev services bind to 127.0.0.1 only), so dev and test run as cloned. Only `.env.prod` is gitignored: copy it from `.env.prod.example`, which lists just the six per-deployment values (database name, user, passwords, `SECRET_KEY`); hosts, ports and `FLASK_ENV` are fixed in the compose files. Backend containers get an explicit `environment:` list rather than the whole env file, so `MYSQL_ROOT_PASSWORD` never reaches them. `FLASK_DEBUG=0 ./run_dev.sh` overrides the dev file's debug setting for one run. Unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
+`.env.dev` and `.env.test` are committed with throwaway values (dev services bind to 127.0.0.1 only), so dev and test run as cloned. Only `.env.prod` is gitignored: copy it from `.env.prod.example`, which lists just the seven per-deployment values (database name, user, passwords, `SECRET_KEY`, and `SERVER_NAME`, the domain nginx serves); hosts, ports and `FLASK_ENV` are fixed in the compose files. Backend containers get an explicit `environment:` list rather than the whole env file, so `MYSQL_ROOT_PASSWORD` never reaches the running app; only the one-shot `migrate` service holds it. Redis runs with its `default` user disabled; the app connects as the ACL user `app` (`REDIS_USERNAME`), which may touch only its own keys and no `@dangerous` command. `FLASK_DEBUG=0 ./run_dev.sh` overrides the dev file's debug setting for one run. Unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
 
 ## Development Workflow
 
@@ -98,11 +98,11 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 
 ### Backend (`backend/app/`)
 - **`__init__.py`** — App factory. Registers all Flask extensions (JWT, SQLAlchemy, Limiter, Redis) and blueprints. There is no CORS: the browser only ever calls a relative `/api`, which is same-origin in every environment (Vite's proxy in dev, nginx elsewhere). The JWT blocklist loader **fails closed**: if Redis is unavailable, every refresh token is treated as revoked rather than valid.
-- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder.
-- **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health`, `notes` (the example CRUD feature).
+- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder, and the example file's placeholder passwords. `MAX_CONTENT_LENGTH` caps request bodies at 16 KB (nginx enforces the same). Rate-limit counters fall back to per-worker memory while Redis is down.
+- **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health` (exempt from rate limits: the container healthcheck polls it every 10s), `notes` (the example CRUD feature; `GET` is cursor-paginated, newest first: `?before=<next_cursor>&limit=`, and the frontend's `useNotes` exposes `loadMore`/`hasMore`. Keep that pattern for any list that grows).
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (refresh-token allowlist; the app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it) and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
+- **`utils/`** — Redis service (refresh-token allowlist: one sorted set per user, JTI scored by expiry, at most `MAX_SESSIONS_PER_USER` = 10 with the oldest evicted; refresh swaps old for new in one transaction. The app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it) and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
 - **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)
@@ -121,7 +121,8 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **E2E tests**: Playwright against the full stack via `docker-compose.test.yml` with the `e2e` profile. Ignores self-signed TLS cert errors. E2E runs against the **test** stack, never the production compose file.
 
 ### Nginx (`nginx/`)
-- **`default.conf`** — HTTP→HTTPS redirect, TLS, SPA routing, `/api` proxy, per-IP `limit_req`. Upstream 5xx and rate-limit 429s get JSON bodies in the API's error shape, keeping the original status.
+- **`templates/default.conf.template`** — rendered at container start with `NGINX_SERVER_NAME` (prod compose sets it from `SERVER_NAME`; only `NGINX_*` variables are substituted). A catch-all server drops any other Host or a bare IP. HTTP→HTTPS redirect, TLS, SPA routing (HTML is `no-cache`), `/api` proxy, 16 KB body cap, per-IP `limit_req`/`limit_conn`. Upstream 5xx, 413 and 429s get JSON bodies in the API's error shape, keeping the original status.
+- **`nginx.conf`** — the `backend` upstream re-resolves through Docker's DNS, so a recreated backend container is picked up without restarting nginx.
 - **`security_headers.conf`** — shared security headers. Every location includes it, because a location that declares its own `add_header` inherits none from the server block.
 - **`templates/00-rate-limits.conf.template`** — rate-limit zones rendered from `NGINX_AUTH_RATE`/`NGINX_API_RATE` at container start. Production defaults are in `nginx/Dockerfile`; `docker-compose.test.yml` relaxes the auth rate for E2E.
 
@@ -129,8 +130,8 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 | File | Purpose |
 |------|---------|
 | `docker-compose.dev.yml` | Dev: MySQL + Redis only (backend/frontend run locally), bound to 127.0.0.1 |
-| `docker-compose.test.yml` | Test: isolated MySQL (3307) + Redis (6380); `e2e` profile adds backend + Nginx |
-| `docker-compose.yml` | Production: all services with resource limits and health checks |
+| `docker-compose.test.yml` | Test: isolated MySQL (3307) + Redis (6380); `e2e` profile adds migrate + backend + Nginx, hardened like production |
+| `docker-compose.yml` | Production: all services with resource limits, health checks, explicit stop grace periods and hardening (`no-new-privileges`, pids limits; backend read-only with no capabilities). MySQL/Redis on an `internal` network that nginx cannot reach. A one-shot `migrate` service applies migrations as root, then `backend/restrict_db_user.py` leaves `MYSQL_USER` with `SELECT, INSERT, UPDATE, DELETE` only; the backend starts after it succeeds. Gunicorn runs 2 gthread workers × 4 threads |
 
 ## Starting a New App From This Template
 
