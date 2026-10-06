@@ -188,12 +188,17 @@ def integration_client(integration_app, integration_db):
 def integration_redis(integration_app):
     """Integration test Redis - real Redis
 
-    Flushes the db after each test to keep tests isolated.
+    Deletes the app's keys after each test to keep tests isolated. FLUSHDB
+    is not an option: the app's ACL user may not run it.
     """
     with integration_app.app_context():
         redis_service = integration_app.extensions["redis_service"]
         yield redis_service
-        redis_service.get_client().flushdb()
+        client = redis_service.get_client()
+        for pattern in ('refresh_tokens:*', 'LIMITS:*'):
+            keys = list(client.scan_iter(pattern))
+            if keys:
+                client.delete(*keys)
 
 
 @pytest.fixture

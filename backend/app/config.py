@@ -51,13 +51,17 @@ class Config:
         self.REDIS_HOST = os.getenv('REDIS_HOST')
         self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
         self.REDIS_DB = os.getenv('REDIS_DB', '0')
+        # The compose files' Redis disables the all-powerful "default" user
+        # and gives the app its own ACL user, "app"
+        self.REDIS_USERNAME = os.getenv('REDIS_USERNAME', 'default')
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
         self.REDIS_MAX_CONNECTIONS = 50
 
         self.REDIS_URI = None
         if all([self.REDIS_HOST, self.REDIS_PASSWORD]):
             self.REDIS_URI = (
-                f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
+                f"redis://{quote(self.REDIS_USERNAME, safe='')}:"
+                f"{quote(self.REDIS_PASSWORD, safe='')}@"
                 f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
         elif self.USES_SERVICES:

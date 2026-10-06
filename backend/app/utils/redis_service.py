@@ -35,6 +35,7 @@ def connect_redis(app: Flask) -> "RedisService | None":
             host=app.config["REDIS_HOST"],
             port=app.config["REDIS_PORT"],
             db=int(app.config["REDIS_DB"]),
+            username=app.config["REDIS_USERNAME"],
             password=app.config["REDIS_PASSWORD"],
             max_connections=app.config["REDIS_MAX_CONNECTIONS"]
         )
@@ -65,12 +66,14 @@ class RedisService:
     anything else stored here must carry a TTL, or use a separate instance.
     """
 
-    def __init__(self, host: str, port: int, db: int, password: str, max_connections: int):
+    def __init__(self, host: str, port: int, db: int, password: str,
+                 max_connections: int, username: str = "default"):
         try:
             self._client = redis.Redis(
                 host=host,
                 port=port,
                 db=db,
+                username=username,
                 password=password,
                 decode_responses=True,
                 socket_connect_timeout=5,
