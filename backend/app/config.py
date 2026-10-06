@@ -4,6 +4,10 @@ from urllib.parse import quote
 
 MIN_SECRET_KEY_LENGTH = 32
 PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
+# .env.prod.example's values, which must never reach a deployment. The
+# root password is among them: the migrate service connects as root.
+PLACEHOLDER_PASSWORDS = {
+    "your_db_password_here", "your_redis_password_here", "your_root_password_here"}
 
 
 class Config:
@@ -18,6 +22,10 @@ class Config:
         # "0" is truthy, which would silently enable debug mode wherever
         # FLASK_DEBUG=0 was set.
         self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true')
+
+        # Every request body is a small JSON object; refuse anything larger
+        # than this before parsing it. nginx enforces the same cap.
+        self.MAX_CONTENT_LENGTH = 16 * 1024
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
@@ -58,6 +66,9 @@ class Config:
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
+        # If Redis is unreachable, count in each worker's memory until it is
+        # back, rather than failing every rate-limited request with a 500.
+        self.RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = True
 
         # Number of reverse proxies in front of Flask whose X-Forwarded-*
         # headers are trusted. 0 means REMOTE_ADDR is the client.
@@ -134,6 +145,11 @@ class ProductionConfig(Config):
             raise ValueError(
                 f"SECRET_KEY must be a random value of at least "
                 f"{MIN_SECRET_KEY_LENGTH} characters in production")
+
+        for name in ('MYSQL_PASSWORD', 'REDIS_PASSWORD'):
+            if os.getenv(name) in PLACEHOLDER_PASSWORDS:
+                raise ValueError(
+                    f"{name} is still the .env.prod.example placeholder")
 
 
 def get_config():

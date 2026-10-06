@@ -145,6 +145,14 @@ def create_app():
             status=405
         )
 
+    @app.errorhandler(413)
+    def payload_too_large(e):
+        return error_response(
+            code="PAYLOAD_TOO_LARGE",
+            message="Request body too large",
+            status=413
+        )
+
     @app.errorhandler(415)
     def unsupported_media_type(e):
         return error_response(
@@ -161,9 +169,10 @@ def create_app():
             status=429
         )
 
+    # No logging here: Flask logs the traceback of an unhandled exception
+    # before calling this handler.
     @app.errorhandler(500)
     def server_error(e):
-        app.logger.exception(e)
         return error_response(
             code="INTERNAL_ERROR",
             message="Something went wrong",

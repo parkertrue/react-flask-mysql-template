@@ -472,6 +472,19 @@ class TestProductionSecretKey:
 
         assert ProductionConfig().JWT_SECRET_KEY == STRONG_SECRET
 
+    @pytest.mark.parametrize('var, placeholder', [
+        ('MYSQL_PASSWORD', 'your_db_password_here'),
+        ('REDIS_PASSWORD', 'your_redis_password_here'),
+        # The migrate service passes the root password as MYSQL_PASSWORD
+        ('MYSQL_PASSWORD', 'your_root_password_here'),
+    ])
+    def test_rejects_placeholder_passwords(self, monkeypatch, var, placeholder):
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+        monkeypatch.setenv(var, placeholder)
+
+        with pytest.raises(ValueError, match=var):
+            ProductionConfig()
+
     def test_short_secret_allowed_outside_production(self, monkeypatch):
         monkeypatch.setenv('SECRET_KEY', 'short')
 
