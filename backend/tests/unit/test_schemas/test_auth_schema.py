@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import RegisterRequest, LoginRequest
+from app.models import User
+from app.schemas.auth import EMAIL_MAX_LENGTH, RegisterRequest, LoginRequest
 
 
 class TestRegisterRequest:
@@ -320,6 +321,16 @@ class TestLoginRequest:
 
 class TestSchemaConsistency:
     """Test consistency between registration and login schemas."""
+
+    def test_email_limit_matches_column(self):
+        assert EMAIL_MAX_LENGTH == User.__table__.c.email.type.length
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    def test_email_longer_than_column_rejected(self, schema):
+        email = 'a' * (EMAIL_MAX_LENGTH - len('@example.com') + 1) + '@example.com'
+
+        with pytest.raises(ValidationError):
+            schema(email=email, password='ValidPass123')
 
     def test_both_accept_valid_credentials(self):
         """Valid credentials should work for both register and login."""
