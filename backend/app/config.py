@@ -9,6 +9,10 @@ PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
 class Config:
     """Base configuration"""
 
+    # Whether MySQL and Redis settings are required. Only TestingConfig opts
+    # out: it runs on in-memory SQLite with Redis and rate limiting off.
+    USES_SERVICES = True
+
     def __init__(self):
         # Parse as a string: os.getenv always returns str, and the bare string
         # "0" is truthy, which would silently enable debug mode wherever
@@ -23,16 +27,17 @@ class Config:
         self.DB_PORT = int(os.getenv('MYSQL_PORT', '3306'))
         self.DB_DATABASE = os.getenv('MYSQL_DATABASE')
 
-        if not all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
+        self.SQLALCHEMY_DATABASE_URI = None
+        if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_DATABASE]):
+            # Credentials are percent-encoded: a password containing @ / : or #
+            # would otherwise be parsed as part of the host.
+            self.SQLALCHEMY_DATABASE_URI = (
+                f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
+                f'{quote(self.DB_PASSWORD, safe="")}@'
+                f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
+            )
+        elif self.USES_SERVICES:
             raise ValueError("Missing required MySQL environment variables")
-
-        # Credentials are percent-encoded: a password containing @ / : or #
-        # would otherwise be parsed as part of the host.
-        self.SQLALCHEMY_DATABASE_URI = (
-            f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
-            f'{quote(self.DB_PASSWORD, safe="")}@'
-            f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
-        )
 
         # Redis configuration
         self.REDIS_ENABLED = True
@@ -42,13 +47,14 @@ class Config:
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
         self.REDIS_MAX_CONNECTIONS = 50
 
-        if not all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+        self.REDIS_URI = None
+        if all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+            self.REDIS_URI = (
+                f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
+                f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+            )
+        elif self.USES_SERVICES:
             raise ValueError("Missing required Redis environment variables")
-
-        self.REDIS_URI = (
-            f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
-            f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        )
 
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
@@ -89,6 +95,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     """Testing configuration"""
     __test__ = False
+    USES_SERVICES = False
 
     def __init__(self):
         super().__init__()

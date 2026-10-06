@@ -297,7 +297,7 @@ Press `CTRL+C` in each terminal.
 
 # Testing
 
-All test suites need `.env.test` (see [Environment Files](#environment-files)).
+Backend and frontend unit tests need no environment file. Integration and E2E tests need `.env.test` (see [Environment Files](#environment-files)).
 
 ## Backend Tests
 

@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 from datetime import timedelta
@@ -5,6 +6,10 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app, db as _db
 from app.models import User, Note
+
+# Every config requires SECRET_KEY, including the ones tests build directly.
+# Integration runs get theirs from .env.test, which this does not override.
+os.environ.setdefault('SECRET_KEY', 'test-secret-key-0123456789abcdef')
 
 
 # ============================================================================
@@ -24,15 +29,9 @@ def app():
     Note: Config reads from environment, but TestingConfig overrides with
     in-memory SQLite regardless of MYSQL_* env vars.
     """
-    import os
-
     # Only set FLASK_ENV to trigger TestingConfig; everything else comes from
     # TestingConfig defaults or the ambient environment.
     os.environ['FLASK_ENV'] = 'testing'
-
-    # SECRET_KEY is required by the Config base class
-    if 'SECRET_KEY' not in os.environ:
-        os.environ['SECRET_KEY'] = 'test-secret-key-0123456789abcdef'
 
     app = create_app()
 
@@ -120,8 +119,6 @@ def integration_app():
     Environment variables are loaded by run_tests.sh from .env.test. If running
     pytest directly, ensure .env.test is loaded first.
     """
-    import os
-
     os.environ['FLASK_ENV'] = 'integration'
 
     required_vars = ['MYSQL_DATABASE', 'MYSQL_HOST', 'REDIS_HOST']

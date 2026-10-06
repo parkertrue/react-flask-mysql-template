@@ -65,7 +65,9 @@ class TestRedisReconnect:
         monkeypatch.setattr(redis_service.time, 'monotonic', lambda: clock[0])
         with patch('app.utils.redis_service.redis.Redis') as redis_class:
             redis_class.return_value.ping.side_effect = redis.ConnectionError
-            app = build_app(monkeypatch, REDIS_ENABLED=True)
+            app = build_app(
+                monkeypatch, REDIS_ENABLED=True, REDIS_HOST='localhost',
+                REDIS_DB='0', REDIS_PASSWORD='redispass')
             yield app, redis_class, clock
 
     def test_boot_failure_leaves_no_service(self, redis_down_at_boot):

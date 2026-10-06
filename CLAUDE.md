@@ -10,7 +10,7 @@ It ships with **auth** (register/login/logout/refresh with rotating refresh toke
 
 ## Environment Setup
 
-Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by every test suite, including unit tests via `run_tests.sh`.
+Copy `.env.dev.example`, `.env.test.example`, and `.env.prod.example` to `.env.dev`, `.env.test`, and `.env.prod` before running any environment. `.env.test` is needed by the integration and E2E suites; unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
 
 ## Development Workflow
 
