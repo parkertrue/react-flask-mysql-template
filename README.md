@@ -53,21 +53,19 @@ Make sure the following tools are installed before running the project:
 
 ## Environment Files
 
-Create these locally from the matching example (they are gitignored):
+| File | In git | Used by |
+|------|--------|---------|
+| `.env.dev` | Yes, throwaway values | Development (local backend + frontend, Docker DB + Redis on 127.0.0.1) |
+| `.env.test` | Yes, throwaway values | Integration and E2E tests |
+| `.env.prod` | No, create from `.env.prod.example` | Production (fully Dockerized) |
 
-| File | Copy from | Used by |
-|------|-----------|---------|
-| `.env.dev` | `.env.dev.example` | Development (local backend + frontend, Docker DB + Redis) |
-| `.env.test` | `.env.test.example` | Integration and E2E tests (usable as-is) |
-| `.env.prod` | `.env.prod.example` | Production (fully Dockerized) |
+Dev and test work as cloned. Production is the only file to create:
 
 ```bash
-cp .env.dev.example .env.dev
-cp .env.test.example .env.test
 cp .env.prod.example .env.prod
 ```
 
-Set strong, unique values for `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, and `SECRET_KEY` in `.env.dev` and `.env.prod`, with different credentials for each. Production refuses to start with a `SECRET_KEY` shorter than 32 characters. Generate values with:
+It holds only the seven values that differ per deployment (including `SERVER_NAME`, the domain nginx serves); hosts, ports and `FLASK_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters or with the example file's placeholder passwords. Generate values with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -89,7 +87,9 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -subj "/C=US/ST=California/L=San Francisco/O=Dev/CN=localhost"
 ```
 
-Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs).
+Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs). For local production testing, set `SERVER_NAME=localhost` in `.env.prod`.
+
+On a server, keep the key private: `chmod 600 nginx/certs/privkey.pem` (openssl already creates it that way). The nginx container can still read it, whoever owns it on the host.
 
 ## Real Domain (Let's Encrypt)
 
@@ -108,7 +108,7 @@ sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
      - /etc/letsencrypt:/etc/letsencrypt:ro
    ```
 
-4. In `nginx/default.conf`, set `server_name yourdomain.com www.yourdomain.com;` in both server blocks, and point the certificate at Certbot's paths:
+4. In `.env.prod`, set `SERVER_NAME=yourdomain.com www.yourdomain.com`. In `nginx/templates/default.conf.template`, point the certificate at Certbot's paths:
 
    ```nginx
    ssl_certificate      /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
@@ -132,7 +132,7 @@ Run your web application in a consistent, production-like environment.
 * Flask (Gunicorn) → Docker
 * React → Built & served by Nginx
 
-Only Nginx is published (ports 80 and 443); MySQL, Redis, and Flask are reachable only inside the Docker network.
+Only Nginx is published (ports 80 and 443). Nginx reaches only Flask; MySQL and Redis sit on an internal network with no outbound access, reachable only from Flask. Every container runs with `no-new-privileges`, Flask on a read-only filesystem with no Linux capabilities. Redis's `default` user is disabled; the app connects as an ACL user limited to its own keys, with dangerous commands (FLUSHALL, CONFIG, KEYS, ...) refused.
 
 ---
 
@@ -144,7 +144,7 @@ Requires `.env.prod` and a certificate in `nginx/certs/` (see above).
 docker compose --env-file .env.prod up --build
 ```
 
-The backend waits for MySQL and Redis, applies migrations, then starts Gunicorn. Nginx starts once the backend passes its health check.
+A one-shot `migrate` container applies migrations as the MySQL root user, restricts the app's database user to reading and writing rows (`backend/restrict_db_user.py`), and exits. The backend then starts Gunicorn with credentials that cannot change the schema, and nginx starts once the backend passes its health check. Local development (`run_dev.sh`) still migrates with the dev user directly.
 
 **When to rebuild:** frontend and backend code are both copied into their images, so rerun with `--build` after any code change.
 
@@ -246,6 +246,8 @@ What this does:
 * Runs `flask db upgrade`
 * Starts the Flask app
 
+`.env.dev` turns the Flask debugger on. To run without it, override it from the shell: `FLASK_DEBUG=0 ./run_dev.sh`.
+
 ---
 
 ### Start Frontend (Dev)
@@ -297,7 +299,7 @@ Press `CTRL+C` in each terminal.
 
 # Testing
 
-Backend and frontend unit tests need no environment file. Integration and E2E tests need `.env.test` (see [Environment Files](#environment-files)).
+Backend and frontend unit tests need no environment file. Integration and E2E tests use the committed `.env.test` (see [Environment Files](#environment-files)).
 
 ## Backend Tests
 

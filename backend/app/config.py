@@ -4,6 +4,10 @@ from urllib.parse import quote
 
 MIN_SECRET_KEY_LENGTH = 32
 PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
+# .env.prod.example's values, which must never reach a deployment. The
+# root password is among them: the migrate service connects as root.
+PLACEHOLDER_PASSWORDS = {
+    "your_db_password_here", "your_redis_password_here", "your_root_password_here"}
 
 
 class Config:
@@ -18,6 +22,10 @@ class Config:
         # "0" is truthy, which would silently enable debug mode wherever
         # FLASK_DEBUG=0 was set.
         self.FLASK_DEBUG = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true')
+
+        # Every request body is a small JSON object; refuse anything larger
+        # than this before parsing it. nginx enforces the same cap.
+        self.MAX_CONTENT_LENGTH = 16 * 1024
 
         # Database configuration
         self.DB_USER = os.getenv('MYSQL_USER')
@@ -42,14 +50,18 @@ class Config:
         self.REDIS_ENABLED = True
         self.REDIS_HOST = os.getenv('REDIS_HOST')
         self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
-        self.REDIS_DB = os.getenv('REDIS_DB')
+        self.REDIS_DB = os.getenv('REDIS_DB', '0')
+        # The compose files' Redis disables the all-powerful "default" user
+        # and gives the app its own ACL user, "app"
+        self.REDIS_USERNAME = os.getenv('REDIS_USERNAME', 'default')
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
         self.REDIS_MAX_CONNECTIONS = 50
 
         self.REDIS_URI = None
-        if all([self.REDIS_HOST, self.REDIS_DB, self.REDIS_PASSWORD]):
+        if all([self.REDIS_HOST, self.REDIS_PASSWORD]):
             self.REDIS_URI = (
-                f"redis://:{quote(self.REDIS_PASSWORD, safe='')}@"
+                f"redis://{quote(self.REDIS_USERNAME, safe='')}:"
+                f"{quote(self.REDIS_PASSWORD, safe='')}@"
                 f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
         elif self.USES_SERVICES:
@@ -58,6 +70,9 @@ class Config:
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
+        # If Redis is unreachable, count in each worker's memory until it is
+        # back, rather than failing every rate-limited request with a 500.
+        self.RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = True
 
         # Number of reverse proxies in front of Flask whose X-Forwarded-*
         # headers are trusted. 0 means REMOTE_ADDR is the client.
@@ -134,6 +149,11 @@ class ProductionConfig(Config):
             raise ValueError(
                 f"SECRET_KEY must be a random value of at least "
                 f"{MIN_SECRET_KEY_LENGTH} characters in production")
+
+        for name in ('MYSQL_PASSWORD', 'REDIS_PASSWORD'):
+            if os.getenv(name) in PLACEHOLDER_PASSWORDS:
+                raise ValueError(
+                    f"{name} is still the .env.prod.example placeholder")
 
 
 def get_config():

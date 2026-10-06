@@ -3,6 +3,8 @@ import json
 from datetime import datetime, timezone
 from sqlalchemy import select, func
 
+from app.models import Note
+
 
 class TestGetNotes:
     """Test suite for GET /api/notes endpoint."""
@@ -43,16 +45,14 @@ class TestGetNotes:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert data == {'notes': [], 'next_cursor': None}
 
     def test_get_notes_returns_user_notes(self, client, auth_headers, sample_notes):
         """GET /api/notes should return all notes for authenticated user."""
         response = client.get('/api/notes', headers=auth_headers)
 
         assert response.status_code == 200
-        data = json.loads(response.data)
-        assert isinstance(data, list)
+        data = json.loads(response.data)['notes']
         assert len(data) == 3
 
         # Verify note structure
@@ -68,7 +68,7 @@ class TestGetNotes:
         response = client.get('/api/notes', headers=auth_headers)
 
         assert response.status_code == 200
-        data = json.loads(response.data)
+        data = json.loads(response.data)['notes']
 
         # Should have 3 notes from sample_user, not the other_user_note
         assert len(data) == 3
@@ -82,7 +82,7 @@ class TestGetNotes:
         response = client.get('/api/notes', headers=auth_headers)
 
         assert response.status_code == 200
-        data = json.loads(response.data)
+        data = json.loads(response.data)['notes']
         assert len(data) == 1
 
         note = data[0]
@@ -95,7 +95,7 @@ class TestGetNotes:
         response = client.get('/api/notes', headers=auth_headers)
 
         assert response.status_code == 200
-        data = json.loads(response.data)
+        data = json.loads(response.data)['notes']
 
         note = data[0]
         assert 'created_at' in note
@@ -105,6 +105,78 @@ class TestGetNotes:
             datetime.fromisoformat(note['created_at'].replace('Z', '+00:00'))
         except ValueError:
             pytest.fail("created_at is not in valid ISO format")
+
+
+class TestNotesPagination:
+    """GET /api/notes pages newest first with a cursor"""
+
+    @pytest.fixture
+    def five_notes(self, db, sample_user):
+        notes = [Note(user_id=sample_user.id, content=f'Note {i}') for i in range(5)]
+        db.session.add_all(notes)
+        db.session.commit()
+        return [note.id for note in notes]
+
+    def get_page(self, client, auth_headers, query=''):
+        response = client.get(f'/api/notes{query}', headers=auth_headers)
+        assert response.status_code == 200
+        return response.get_json()
+
+    def test_newest_first(self, client, auth_headers, five_notes):
+        page = self.get_page(client, auth_headers)
+
+        assert [n['id'] for n in page['notes']] == five_notes[::-1]
+        assert page['next_cursor'] is None
+
+    def test_cursor_walks_every_note_exactly_once(
+            self, client, auth_headers, five_notes):
+        first = self.get_page(client, auth_headers, '?limit=2')
+        second = self.get_page(
+            client, auth_headers, f"?limit=2&before={first['next_cursor']}")
+        third = self.get_page(
+            client, auth_headers, f"?limit=2&before={second['next_cursor']}")
+
+        ids = [n['id'] for page in (first, second, third) for n in page['notes']]
+        assert ids == five_notes[::-1]
+        assert third['next_cursor'] is None
+
+    def test_notes_added_between_pages_do_not_shift_later_pages(
+            self, client, auth_headers, five_notes, db, sample_user):
+        first = self.get_page(client, auth_headers, '?limit=2')
+        db.session.add(Note(user_id=sample_user.id, content='Newer'))
+        db.session.commit()
+
+        second = self.get_page(
+            client, auth_headers, f"?limit=2&before={first['next_cursor']}")
+
+        assert [n['id'] for n in second['notes']] == five_notes[2:0:-1]
+
+    def test_exact_page_has_no_next_cursor(self, client, auth_headers, five_notes):
+        assert self.get_page(client, auth_headers, '?limit=5')['next_cursor'] is None
+
+    def test_default_page_size(self, client, auth_headers, db, sample_user):
+        db.session.add_all(
+            [Note(user_id=sample_user.id, content='n') for _ in range(25)])
+        db.session.commit()
+
+        page = self.get_page(client, auth_headers)
+
+        assert len(page['notes']) == 20
+        assert page['next_cursor'] is not None
+
+    def test_cursor_does_not_leak_other_users_notes(
+            self, client, auth_headers, five_notes, other_user_note):
+        page = self.get_page(client, auth_headers, f'?before={other_user_note.id + 1}')
+
+        assert other_user_note.id not in [n['id'] for n in page['notes']]
+
+    @pytest.mark.parametrize('query', [
+        '?limit=0', '?limit=101', '?limit=abc', '?before=0', '?before=x'])
+    def test_invalid_query_is_validation_error(self, client, auth_headers, query):
+        response = client.get(f'/api/notes{query}', headers=auth_headers)
+
+        assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
 
 
 class TestCreateNote:
@@ -144,8 +216,6 @@ class TestCreateNote:
     def test_create_note_persists_to_database(self, client, auth_headers,
                                               sample_user, db):
         """POST /api/notes should persist note to database."""
-        from app.models import Note
-
         initial_count = db.session.scalar(
             select(func.count()).select_from(Note)
         )
@@ -280,7 +350,7 @@ class TestCreateNote:
 
         # Verify all notes were created
         response = client.get('/api/notes', headers=auth_headers)
-        data = json.loads(response.data)
+        data = json.loads(response.data)['notes']
         assert len(data) == 3
 
     def test_create_note_sets_timestamp(self, client, auth_headers):
@@ -332,12 +402,12 @@ class TestCreateNote:
 
         # Each user should only see their own note
         response1_notes = client.get('/api/notes', headers=auth_headers)
-        user1_notes = json.loads(response1_notes.data)
+        user1_notes = json.loads(response1_notes.data)['notes']
         assert len(user1_notes) == 1
         assert user1_notes[0]['content'] == 'User 1 note'
 
         response2_notes = client.get('/api/notes', headers=second_auth_headers)
-        user2_notes = json.loads(response2_notes.data)
+        user2_notes = json.loads(response2_notes.data)['notes']
         assert len(user2_notes) == 1
         assert user2_notes[0]['content'] == 'User 2 note'
 
@@ -354,7 +424,7 @@ class TestNotesEdgeCases:
         # Verify notes exist
         response = client.get('/api/notes', headers=auth_headers)
         assert response.status_code == 200
-        assert len(json.loads(response.data)) == 3
+        assert len(json.loads(response.data)['notes']) == 3
 
     def test_create_note_with_special_characters(self, client, auth_headers):
         """POST /api/notes stores plain text: symbols that are not part of a
@@ -446,7 +516,7 @@ class TestNotesMarkup:
 
         assert created.status_code == 201
         assert created.get_json()['content'] == content
-        assert listed.get_json()[0]['content'] == content
+        assert listed.get_json()['notes'][0]['content'] == content
 
     def test_responses_are_json_not_html(self, client, auth_headers):
         """A browser must never sniff note content as a page"""

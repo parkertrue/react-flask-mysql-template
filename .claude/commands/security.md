@@ -24,12 +24,12 @@ You are a senior security engineer reviewing a Flask/React/MySQL/Redis project. 
 
 **Secrets & Credentials**
 - No hardcoded passwords, API keys, or tokens in any source file
-- `.env.dev`, `.env.prod`, `.env.test` not committed — check `.gitignore`
+- `.env.prod` not committed — check `.gitignore` and `git ls-files`; `.env.dev` and `.env.test` are committed by design and must hold only throwaway values
 - Redis URI includes password — confirm it is never logged in plaintext
 - Database URI includes password — confirm it is never logged in plaintext
 
 **Transport & Headers**
-- Nginx config at `nginx/default.conf`: verify `X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security`, `Content-Security-Policy` headers are present
+- Nginx config at `nginx/templates/default.conf.template` (headers themselves are in `nginx/security_headers.conf`): verify `X-Frame-Options`, `X-Content-Type-Options`, `Strict-Transport-Security`, `Content-Security-Policy` headers are present
 - `JWT_COOKIE_HTTPONLY = True`, `JWT_COOKIE_SAMESITE = 'Lax'` in base `Config` class
 - HTTPS enforced in production Nginx config; HTTP redirects to HTTPS
 
@@ -41,7 +41,9 @@ You are a senior security engineer reviewing a Flask/React/MySQL/Redis project. 
 
 **Docker**
 - Backend container does not run as root — check `backend/Dockerfile` for `USER` directive
-- No secrets passed as `ENV` in any Dockerfile (secrets should come from `docker-compose` `env_file`)
+- No secrets passed as `ENV` in any Dockerfile (secrets come from the compose `environment:` blocks, interpolated from `--env-file`)
+- Backend services list their variables explicitly rather than using `env_file:`, so `MYSQL_ROOT_PASSWORD` never reaches the app container; only the one-shot `migrate` service holds it, and `restrict_db_user.py` leaves the app's MySQL user with data privileges only
+- Redis: the `default` user is off and the app's ACL user excludes `@dangerous`; `command:` must stay a YAML list (as a single string, compose treats the `>` before the password as a redirect and drops the arguments after it)
 - Exposed ports in `docker-compose.yml` match what is actually needed
 
 Report every finding with severity (critical / high / medium / low), file path, line number, and a concrete fix. If something is correctly implemented, confirm it briefly. Do not skip any section.

@@ -10,25 +10,28 @@ describe('notesService', () => {
   })
 
   describe('fetchNotes', () => {
-    it('should call GET /notes', async () => {
-      const mockNotes = [
-        { id: 1, content: 'Note 1', created_at: '2024-01-01' },
-        { id: 2, content: 'Note 2', created_at: '2024-01-02' }
-      ]
-      api.get.mockResolvedValue({ data: mockNotes })
+    it('should GET the first page without a cursor', async () => {
+      const mockPage = {
+        notes: [
+          { id: 2, content: 'Note 2', created_at: '2024-01-02' },
+          { id: 1, content: 'Note 1', created_at: '2024-01-01' }
+        ],
+        next_cursor: null
+      }
+      api.get.mockResolvedValue({ data: mockPage })
 
       const result = await fetchNotes()
 
-      expect(api.get).toHaveBeenCalledWith('/notes')
-      expect(result).toEqual(mockNotes)
+      expect(api.get).toHaveBeenCalledWith('/notes', { params: { before: undefined } })
+      expect(result).toEqual(mockPage)
     })
 
-    it('should return empty array when no notes', async () => {
-      api.get.mockResolvedValue({ data: [] })
+    it('should pass the cursor as ?before=', async () => {
+      api.get.mockResolvedValue({ data: { notes: [], next_cursor: null } })
 
-      const result = await fetchNotes()
+      await fetchNotes(42)
 
-      expect(result).toEqual([])
+      expect(api.get).toHaveBeenCalledWith('/notes', { params: { before: 42 } })
     })
 
     it('should propagate errors from API', async () => {

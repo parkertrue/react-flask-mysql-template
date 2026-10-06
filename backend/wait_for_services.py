@@ -33,6 +33,7 @@ def redis_ready():
         client = redis.Redis(
             host=os.getenv("REDIS_HOST"),
             port=int(os.getenv("REDIS_PORT", "6379")),
+            username=os.getenv("REDIS_USERNAME", "default"),
             password=os.getenv("REDIS_PASSWORD"),
             db=int(os.getenv("REDIS_DB", "0")),
             socket_connect_timeout=2,

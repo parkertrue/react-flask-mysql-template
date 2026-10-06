@@ -1,7 +1,9 @@
 import { api } from '../api'
 
-export async function fetchNotes() {
-  const response = await api.get('/notes')
+// One page of notes, newest first: { notes, next_cursor }. Pass a page's
+// next_cursor to fetch the page after it; next_cursor is null on the last page.
+export async function fetchNotes(before) {
+  const response = await api.get('/notes', { params: { before } })
   return response.data
 }
 

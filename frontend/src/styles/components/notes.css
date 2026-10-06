@@ -67,6 +67,10 @@
   margin-left: 1rem;
 }
 
+.load-more {
+  margin-top: 1rem;
+}
+
 /* Empty and Loading States */
 .notes-loading,
 .notes-empty {

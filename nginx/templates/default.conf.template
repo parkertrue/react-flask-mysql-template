@@ -1,6 +1,18 @@
+# Rendered into /etc/nginx/conf.d/ at container start; NGINX_SERVER_NAME
+# comes from the environment (see nginx/Dockerfile and docker-compose.yml).
+
+# Any other Host, including a bare IP, gets no response. Otherwise the
+# client-controlled Host header would flow into redirects and request.host.
+server {
+    listen 80 default_server;
+    listen 443 ssl default_server;
+    ssl_reject_handshake on;
+    return 444;
+}
+
 server {
     listen 80;
-    server_name localhost;
+    server_name ${NGINX_SERVER_NAME};
 
     # Redirect everything to HTTPS
     location / {
@@ -11,7 +23,7 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name localhost;
+    server_name ${NGINX_SERVER_NAME};
 
     # TLS certificate and key
     ssl_certificate      /etc/nginx/certs/fullchain.pem;
@@ -28,9 +40,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Security limits
-    client_max_body_size 10M;
-    client_body_buffer_size 128k;
+    # Security limits. Every API body is a small JSON object; Flask's
+    # MAX_CONTENT_LENGTH enforces the same cap.
+    client_max_body_size 16k;
+    client_body_buffer_size 16k;
     client_header_buffer_size 1k;
     large_client_header_buffers 4 16k;
     
@@ -41,6 +54,7 @@ server {
 
     # Connection limiting
     limit_conn addr 10;
+    limit_conn_status 429;
 
     # Cache static assets
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
@@ -54,7 +68,10 @@ server {
     # Frontend - serve static files
     location / {
         try_files $uri $uri/ /index.html;
-        
+
+        # Revalidate HTML on every load: a cached index.html would point at
+        # hashed bundles that the next deploy deleted.
+        add_header Cache-Control "no-cache" always;
         include /etc/nginx/security_headers.conf;
 
         # Content Security Policy
@@ -134,7 +151,8 @@ server {
         return 200 '{"error":{"code":"INTERNAL_ERROR","message":"Something went wrong"}}';
     }
 
-    # limit_req rejections, in the same JSON shape as the backend's own 429
+    # limit_req and limit_conn rejections, in the same JSON shape as the
+    # backend's own 429
     error_page 429 /rate_limited.json;
 
     location = /rate_limited.json {
@@ -142,5 +160,14 @@ server {
         default_type application/json;
         include /etc/nginx/security_headers.conf;
         return 200 '{"error":{"code":"RATE_LIMITED","message":"Too many requests, please try again later"}}';
+    }
+
+    error_page 413 /too_large.json;
+
+    location = /too_large.json {
+        internal;
+        default_type application/json;
+        include /etc/nginx/security_headers.conf;
+        return 200 '{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body too large"}}';
     }
 }

@@ -3,8 +3,6 @@ set -e
 
 python wait_for_services.py
 
-echo "Running database migrations..."
-flask db upgrade
-
-echo "Starting application..."
+# Migrations are not run here: the compose files' one-shot migrate service
+# runs them with admin credentials the app's own container never holds.
 exec "$@"

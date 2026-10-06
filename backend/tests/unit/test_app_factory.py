@@ -115,6 +115,7 @@ class TestJsonErrors:
 
     @pytest.mark.parametrize('status, code', [
         (400, 'BAD_REQUEST'),
+        (413, 'PAYLOAD_TOO_LARGE'),
         (415, 'UNSUPPORTED_MEDIA_TYPE'),
         (429, 'RATE_LIMITED'),
     ])
@@ -143,3 +144,25 @@ class TestJsonErrors:
 
         assert response.status_code == 415
         assert response.get_json()['error']['code'] == 'UNSUPPORTED_MEDIA_TYPE'
+
+    def test_oversized_body_is_rejected_before_parsing(self, client):
+        response = client.post(
+            '/api/auth/login', json={'email': 'a@b.com', 'password': 'x' * 20000})
+
+        assert response.status_code == 413
+        assert response.get_json()['error']['code'] == 'PAYLOAD_TOO_LARGE'
+
+    def test_unhandled_exception_is_json_and_logged_once(self, monkeypatch, caplog):
+        app = build_app(monkeypatch)
+        app.config['PROPAGATE_EXCEPTIONS'] = False
+
+        @app.route('/_crash')
+        def crash():
+            raise RuntimeError('boom')
+
+        response = app.test_client().get('/_crash')
+
+        assert response.status_code == 500
+        assert response.get_json()['error']['code'] == 'INTERNAL_ERROR'
+        tracebacks = [r for r in caplog.records if r.exc_info]
+        assert len(tracebacks) == 1

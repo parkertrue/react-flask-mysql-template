@@ -19,7 +19,6 @@ SERVICE_ENV = {
     'MYSQL_HOST': 'mysqlhost',
     'MYSQL_DATABASE': 'db',
     'REDIS_HOST': 'redishost',
-    'REDIS_DB': '0',
     'REDIS_PASSWORD': 'redispass',
 }
 
@@ -32,7 +31,8 @@ def isolate_config_tests(monkeypatch):
     MySQL/Redis vars the non-testing configs require are set to placeholders.
     Tests that need other values set or delete them with monkeypatch.
     """
-    for var in ('MYSQL_PORT', 'REDIS_PORT', 'FLASK_DEBUG', 'E2E_MODE'):
+    for var in ('MYSQL_PORT', 'REDIS_PORT', 'REDIS_DB', 'REDIS_USERNAME',
+                'FLASK_DEBUG', 'E2E_MODE'):
         monkeypatch.delenv(var, raising=False)
     for var, value in SERVICE_ENV.items():
         monkeypatch.setenv(var, value)
@@ -63,8 +63,8 @@ class TestConfigClasses:
         assert config.REDIS_PASSWORD == 'redispass'
         assert config.JWT_SECRET_KEY == 'testsecret'
         assert config.SQLALCHEMY_DATABASE_URI == "mysql+pymysql://test:test@localhost:3306/test"
-        assert config.REDIS_URI == "redis://:redispass@localhost:6379/0"
-        assert config.RATELIMIT_STORAGE_URI == "redis://:redispass@localhost:6379/0"
+        assert config.REDIS_URI == "redis://default:redispass@localhost:6379/0"
+        assert config.RATELIMIT_STORAGE_URI == "redis://default:redispass@localhost:6379/0"
 
     def test_development_config_attributes(self):
         """DevelopmentConfig should have correct attributes"""
@@ -139,8 +139,8 @@ class TestGetConfigFactory:
         assert isinstance(config, DevelopmentConfig)
         assert config.FLASK_ENV == 'development'
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://testuser:testpass@testhost:3306/testdb'
-        assert config.REDIS_URI == 'redis://:redispass@redishost:6379/1'
-        assert config.RATELIMIT_STORAGE_URI == 'redis://:redispass@redishost:6379/1'
+        assert config.REDIS_URI == 'redis://default:redispass@redishost:6379/1'
+        assert config.RATELIMIT_STORAGE_URI == 'redis://default:redispass@redishost:6379/1'
 
     def test_get_config_testing(self, monkeypatch):
         """get_config should return TestingConfig for testing env"""
@@ -193,8 +193,8 @@ class TestGetConfigFactory:
         assert isinstance(config, ProductionConfig)
         assert config.FLASK_ENV == 'production'
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://produser:prodpass@prodhost:3306/proddb'
-        assert config.REDIS_URI == 'redis://:prodredispass@prodredis:6379/0'
-        assert config.RATELIMIT_STORAGE_URI == 'redis://:prodredispass@prodredis:6379/0'
+        assert config.REDIS_URI == 'redis://default:prodredispass@prodredis:6379/0'
+        assert config.RATELIMIT_STORAGE_URI == 'redis://default:prodredispass@prodredis:6379/0'
 
     def test_get_config_invalid_env(self, monkeypatch):
         """get_config should raise error for invalid FLASK_ENV"""
@@ -257,7 +257,7 @@ class TestGetConfigValidation:
         monkeypatch.setenv('SECRET_KEY', 'testsecret')
 
         # Missing Redis vars
-        for var in ['REDIS_HOST', 'REDIS_DB', 'REDIS_PASSWORD']:
+        for var in ['REDIS_HOST', 'REDIS_PASSWORD']:
             if var in os.environ:
                 monkeypatch.delenv(var)
 
@@ -353,13 +353,15 @@ class TestConfigValues:
         monkeypatch.setenv('MYSQL_HOST', 'localhost')
         monkeypatch.setenv('MYSQL_DATABASE', 'test')
         monkeypatch.setenv('REDIS_HOST', 'localhost')
-        monkeypatch.setenv('REDIS_DB', '0')
+        monkeypatch.delenv('REDIS_DB', raising=False)
         monkeypatch.setenv('REDIS_PASSWORD', 'redispass')
         monkeypatch.setenv('SECRET_KEY', 'testsecret')
 
         config = get_config()
 
         assert config.REDIS_PORT == 6379
+        assert config.REDIS_DB == '0'
+        assert config.REDIS_URI == 'redis://default:redispass@localhost:6379/0'
         assert config.REDIS_MAX_CONNECTIONS == 50
 
     def test_database_port_default(self, monkeypatch):
@@ -393,7 +395,7 @@ class TestConfigValues:
         config = get_config()
 
         assert config.RATELIMIT_STORAGE_URI == config.REDIS_URI
-        assert config.RATELIMIT_STORAGE_URI == 'redis://:redispass@redishost:6379/2'
+        assert config.RATELIMIT_STORAGE_URI == 'redis://default:redispass@redishost:6379/2'
 
 
 class TestConfigInheritance:
@@ -471,6 +473,19 @@ class TestProductionSecretKey:
 
         assert ProductionConfig().JWT_SECRET_KEY == STRONG_SECRET
 
+    @pytest.mark.parametrize('var, placeholder', [
+        ('MYSQL_PASSWORD', 'your_db_password_here'),
+        ('REDIS_PASSWORD', 'your_redis_password_here'),
+        # The migrate service passes the root password as MYSQL_PASSWORD
+        ('MYSQL_PASSWORD', 'your_root_password_here'),
+    ])
+    def test_rejects_placeholder_passwords(self, monkeypatch, var, placeholder):
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+        monkeypatch.setenv(var, placeholder)
+
+        with pytest.raises(ValueError, match=var):
+            ProductionConfig()
+
     def test_short_secret_allowed_outside_production(self, monkeypatch):
         monkeypatch.setenv('SECRET_KEY', 'short')
 
@@ -483,6 +498,7 @@ class TestConnectionUris:
     def test_special_characters_are_encoded(self, monkeypatch):
         monkeypatch.setenv('MYSQL_USER', 'app')
         monkeypatch.setenv('MYSQL_PASSWORD', 'p@ss/w:rd#1')
+        monkeypatch.setenv('REDIS_USERNAME', 'app:1')
         monkeypatch.setenv('REDIS_PASSWORD', 'r@dis/pw')
 
         config = DevelopmentConfig()
@@ -492,3 +508,10 @@ class TestConnectionUris:
         assert make_url(config.SQLALCHEMY_DATABASE_URI).password == 'p@ss/w:rd#1'
         assert make_url(config.SQLALCHEMY_DATABASE_URI).host == config.DB_HOST
         assert parse_url(config.REDIS_URI)['password'] == 'r@dis/pw'
+        assert parse_url(config.REDIS_URI)['username'] == 'app:1'
+
+    def test_redis_user_defaults_to_the_default_user(self, monkeypatch):
+        monkeypatch.delenv('REDIS_USERNAME', raising=False)
+
+        from redis.connection import parse_url
+        assert parse_url(DevelopmentConfig().REDIS_URI)['username'] == 'default'
