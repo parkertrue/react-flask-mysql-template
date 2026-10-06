@@ -423,7 +423,7 @@ class TestNotesEdgeCases:
         assert 'Line 2' in data['content']
 
     def test_create_note_whitespace_only_rejected(self, client, auth_headers):
-        """Whitespace-only content sanitizes to '' and fails min_length."""
+        """Whitespace-only content is trimmed to '' and fails min_length."""
         payload = {'content': '   '}
 
         response = client.post(
@@ -434,173 +434,25 @@ class TestNotesEdgeCases:
 
         assert response.status_code == 422
 
-    def test_create_note_null_bytes_removed(self, client, auth_headers):
-        """Null bytes are stripped; remaining text is stored normally."""
-        payload = {'content': 'Before\x00After'}
+class TestNotesMarkup:
+    """Notes are plain text stored verbatim; React escapes them on output."""
 
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
+    def test_markup_round_trips_unchanged(self, client, auth_headers):
+        content = "<script>alert('xss')</script> & <b>bold</b>"
 
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert '\x00' not in data['content']
-        assert 'Before' in data['content']
-        assert 'After' in data['content']
+        created = client.post(
+            '/api/notes', data=json.dumps({'content': content}), headers=auth_headers)
+        listed = client.get('/api/notes', headers=auth_headers)
 
+        assert created.status_code == 201
+        assert created.get_json()['content'] == content
+        assert listed.get_json()[0]['content'] == content
 
-class TestNotesXSS:
-    """Verify that every common XSS vector is neutralised at the API level.
+    def test_responses_are_json_not_html(self, client, auth_headers):
+        """A browser must never sniff note content as a page"""
+        client.post('/api/notes', data=json.dumps({'content': '<b>x</b>'}),
+                    headers=auth_headers)
 
-    Each test POSTs a known attack payload and asserts that the response
-    contains neither the dangerous markup nor any executable fragment.
-    """
+        response = client.get('/api/notes', headers=auth_headers)
 
-    def test_script_tag_stripped(self, client, auth_headers):
-        """<script> tags and their contents must not reach the database."""
-        payload = {'content': "<script>alert('xss')</script>Safe text"}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert '<script>' not in data['content']
-        assert 'alert' not in data['content']
-        assert 'Safe text' in data['content']
-
-    def test_script_tag_only_returns_422(self, client, auth_headers):
-        """A payload that is entirely a script tag sanitizes to empty,
-        which violates min_length and must be rejected."""
-        payload = {'content': "<script>alert('xss')</script>"}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 422
-
-    def test_event_handler_stripped(self, client, auth_headers):
-        """Tags with event-handler attributes are removed; text survives."""
-        payload = {'content': '<div onclick="evil()">Click me</div>'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert 'onclick' not in data['content']
-        assert '<div' not in data['content']
-        assert 'Click me' in data['content']
-
-    def test_img_onerror_stripped(self, client, auth_headers):
-        """Void tags with onerror handlers are removed entirely."""
-        payload = {'content': 'Before <img src=x onerror=alert(1)> After'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert 'onerror' not in data['content']
-        assert '<img' not in data['content']
-        assert 'Before' in data['content']
-        assert 'After' in data['content']
-
-    def test_svg_onload_stripped(self, client, auth_headers):
-        """SVG tags with onload are removed entirely."""
-        payload = {'content': 'Text <svg onload=alert(1)> more'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert 'onload' not in data['content']
-        assert '<svg' not in data['content']
-
-    def test_javascript_protocol_stripped(self, client, auth_headers):
-        """Anchor tags with javascript: hrefs are stripped; text kept."""
-        payload = {'content': "<a href='javascript:alert(1)'>Click</a>"}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert 'javascript:' not in data['content']
-        assert '<a ' not in data['content']
-        assert 'Click' in data['content']
-
-    def test_style_tag_stripped(self, client, auth_headers):
-        """Style tags and their content are removed."""
-        payload = {'content': '<style>body{color:red}</style>Visible'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert '<style>' not in data['content']
-        assert 'color:red' not in data['content']
-        assert 'Visible' in data['content']
-
-    def test_html_comment_stripped(self, client, auth_headers):
-        """HTML comments are removed; surrounding text kept."""
-        payload = {'content': '<!-- secret -->Public text'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert '<!--' not in data['content']
-        assert 'secret' not in data['content']
-        assert 'Public text' in data['content']
-
-    def test_nested_script_obfuscation_stripped(self, client, auth_headers):
-        """Common obfuscation: nesting a script tag inside itself.
-        nh3 strips the inner <script>...</script> block.  Text fragments
-        outside that tag survive as plain text but contain no executable
-        markup — the critical security property is that no tags remain."""
-        payload = {'content': '<scr<script>ipt>alert(1)</script>ipt> Safe'}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        # No executable markup survives
-        assert '<script>' not in data['content']
-        assert 'onerror' not in data['content']
-        assert 'onclick' not in data['content']
-        # Visible safe text is preserved
-        assert 'Safe' in data['content']
+        assert response.mimetype == 'application/json'

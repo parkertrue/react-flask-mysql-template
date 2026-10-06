@@ -134,6 +134,16 @@ describe('NotesList', () => {
       expect(screen.getByText('Note with <brackets>')).toBeInTheDocument()
     })
 
+    it('should render markup as text, never as HTML', () => {
+      const notes = [{ id: 1, content: '<img src=x onerror="window.pwned=1"><b>bold</b>' }]
+
+      const { container } = render(<NotesList notes={notes} loading={false} />)
+
+      expect(screen.getByText(notes[0].content)).toBeInTheDocument()
+      expect(container.querySelector('img')).toBeNull()
+      expect(container.querySelector('b')).toBeNull()
+    })
+
     it('should render notes with emojis', () => {
       const emojiNotes = [
         { id: 1, content: 'Happy note 😊' },
