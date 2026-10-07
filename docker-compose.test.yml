@@ -66,9 +66,10 @@ services:
     mem_limit: 128m
     cpus: 0.25
 
-  # Same as docker-compose.yml. One-shot: applies migrations as root, then leaves MYSQL_USER with data
-  # rights only (backend/restrict_db_user.py), and exits. The backend starts
-  # once it succeeds, holding credentials that cannot change the schema.
+  # Same as docker-compose.yml. One-shot: applies migrations as root, then
+  # leaves MYSQL_USER with data rights only (backend/restrict_db_user.py), and
+  # exits. The backend starts once it succeeds, holding credentials that
+  # cannot change the schema.
   migrate:
     container_name: migrate_test
     build: ./backend
