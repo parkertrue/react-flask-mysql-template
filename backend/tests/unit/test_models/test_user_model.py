@@ -265,7 +265,7 @@ class TestUserEdgeCases:
         """Email at max length should work."""
         # Max length is 128 chars
         local_part = 'a' * 119  # Max local part
-        long_email = f"{local_part}@test.com"
+        long_email = f'{local_part}@test.com'
 
         if len(long_email) <= 128:
             user = User(email=long_email)
@@ -277,7 +277,7 @@ class TestUserEdgeCases:
 
     def test_user_with_special_email_chars(self, db):
         """Email with valid special characters should work."""
-        special_email = "user+tag@sub-domain.example.com"
+        special_email = 'user+tag@sub-domain.example.com'
         user = User(email=special_email)
         user.set_password('Password123')
         db.session.add(user)

@@ -14,7 +14,7 @@ export default defineConfig({
     exclude: [
       'node_modules/',
       '**/e2e/', 
-      '**/*.config.{js,mjs}',
+      '**/*.config.js',
       '**/*.css'
     ],
     coverage: {
@@ -24,7 +24,7 @@ export default defineConfig({
         'node_modules/',
         '**/e2e/', 
         'src/test/',
-        '**/*.config.{js,mjs}',
+        '**/*.config.js',
         '**/main.jsx',
         '**/*.css'
       ]

@@ -104,7 +104,7 @@ class TestGetNotes:
         try:
             datetime.fromisoformat(note['created_at'].replace('Z', '+00:00'))
         except ValueError:
-            pytest.fail("created_at is not in valid ISO format")
+            pytest.fail('created_at is not in valid ISO format')
 
 
 class TestNotesPagination:
@@ -237,7 +237,7 @@ class TestCreateNote:
 
         # Verify the note exists with correct data
         note = db.session.execute(
-            select(Note).where(Note.content == "Persisted note")
+            select(Note).where(Note.content == 'Persisted note')
         ).scalar_one_or_none()
 
         assert note is not None

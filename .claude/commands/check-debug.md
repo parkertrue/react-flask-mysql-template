@@ -14,7 +14,7 @@ Grep for:
 
 **Debug configuration**
 - Check `backend/app/config.py`: confirm `FLASK_DEBUG = False` in `ProductionConfig` and that no other config class sets it to `True` unexpectedly
-- Check `docker-compose.yml`: confirm no `FLASK_DEBUG=true` or `FLASK_ENV=development` in the production compose file
+- Check `docker-compose.yml`: confirm no `FLASK_DEBUG=true` or `APP_ENV=development` in the production compose file
 - Check `nginx/nginx.conf` and `nginx/templates/default.conf.template`: confirm no `error_log` set to `debug` level
 
 Report every finding with file:line. For each `print()` block, note whether it is a single line or a multi-line debug block.

@@ -1,4 +1,8 @@
-# Errors only (pyflakes and syntax): catches real bugs such as unused imports
-# and undefined names, without restyling code. Widen `select` if you want more.
+# Errors (pyflakes and syntax) catch real bugs such as unused imports and
+# undefined names. The one style rule, Q, keeps quotes consistent: single for
+# strings, double for docstrings. Widen `select` if you want more.
 [lint]
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "Q"]
+
+[lint.flake8-quotes]
+inline-quotes = "single"

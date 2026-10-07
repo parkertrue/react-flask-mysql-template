@@ -65,7 +65,7 @@ Dev and test work as cloned. Production is the only file to create:
 cp .env.prod.example .env.prod
 ```
 
-It holds only the seven values that differ per deployment (including `SERVER_NAME`, the domain nginx serves); hosts, ports and `FLASK_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters or with the example file's placeholder passwords. Generate values with:
+It holds only the seven values that differ per deployment (including `SERVER_NAME`, the domain nginx serves); hosts, ports and `APP_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters or with the example file's placeholder passwords. Generate values with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
@@ -356,8 +356,8 @@ npm run test:e2e:ui               # Interactive mode
 
 GitHub Actions (`.github/workflows/`):
 
-* **Tests** runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
-* **Integration & E2E** runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
+* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
+* **Integration & E2E** (`integration-e2e.yml`) runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
 
 Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
 
@@ -381,7 +381,7 @@ To stop a failing check from merging, require these status checks on `main` (Set
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/{models,schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
+1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
 2. Update the `Note` fixtures in `backend/tests/conftest.py`.
 3. Update the note-length validators in `frontend/src/utils/validation.js`.
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.

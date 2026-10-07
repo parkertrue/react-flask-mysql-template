@@ -7,7 +7,7 @@ import { useContext } from 'react'
 
 vi.mock('../../utils/storage')
 
-describe('AuthContext', () => {
+describe('AuthProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue(null)

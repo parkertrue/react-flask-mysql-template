@@ -54,7 +54,7 @@ class TestRegisterEndpoint:
 
         # Verify user exists with correct email
         user = db.session.execute(
-            select(User).where(User.email == "dbuser@example.com")
+            select(User).where(User.email == 'dbuser@example.com')
         ).scalar_one_or_none()
         assert user is not None
         assert user.email == 'dbuser@example.com'
@@ -75,7 +75,7 @@ class TestRegisterEndpoint:
         assert response.status_code == 201
 
         user = db.session.execute(
-            select(User).where(User.email == "hashtest@example.com")
+            select(User).where(User.email == 'hashtest@example.com')
         ).scalar_one()
 
         assert user.password_hash != 'PlainTextPass123'
@@ -640,7 +640,7 @@ class TestSignInWithoutRedis:
         assert 'Set-Cookie' not in response.headers
 
     def test_login_when_redis_is_down(self, app, client, sample_user, monkeypatch):
-        monkeypatch.setitem(app.config, 'REDIS_ENABLED', True)
+        monkeypatch.setitem(app.config, 'USES_SERVICES', True)
         # Stops get_redis_service() from trying to connect for real
         monkeypatch.setitem(app.extensions, 'redis_retry_at', float('inf'))
 

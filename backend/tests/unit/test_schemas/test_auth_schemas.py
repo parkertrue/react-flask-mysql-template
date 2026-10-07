@@ -2,7 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.models import User
-from app.schemas.auth import EMAIL_MAX_LENGTH, RegisterRequest, LoginRequest
+from app.models.user import EMAIL_MAX_LENGTH
+from app.schemas.auth import RegisterRequest, LoginRequest
 
 
 class TestRegisterRequest:

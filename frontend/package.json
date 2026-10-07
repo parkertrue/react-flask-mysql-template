@@ -2,11 +2,12 @@
   "name": "react-flask-template-frontend",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
     "lint": "eslint .",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 5173",
+    "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",

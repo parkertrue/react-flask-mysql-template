@@ -2,14 +2,13 @@ import { test, expect } from '@playwright/test'
 import { createHmac, randomUUID } from 'crypto'
 import { readFileSync } from 'fs'
 import path from 'path'
-
-const TEST_PASSWORD = 'SecurePass123'
+import { TEST_PASSWORD, login, uniqueEmail } from './helpers'
 
 // The E2E backend signs tokens with SECRET_KEY from .env.test, so the test can
 // mint an access token that is validly signed but already expired: exactly
 // what the browser holds once the real 15-minute token lapses.
 function expiredAccessToken() {
-  const env = readFileSync(path.join(__dirname, '..', '..', '.env.test'), 'utf8')
+  const env = readFileSync(path.join(import.meta.dirname, '..', '..', '.env.test'), 'utf8')
   const secret = env.match(/^SECRET_KEY=(.*)$/m)[1].trim()
   const now = Math.floor(Date.now() / 1000)
   const encode = obj => Buffer.from(JSON.stringify(obj)).toString('base64url')
@@ -27,16 +26,14 @@ async function expireAccessToken(page) {
 }
 
 test('an expired session refreshes repeatedly, and logout revokes it', async ({ page }) => {
-  const email = `e2e-refresh-${randomUUID()}@example.com`
+  const email = uniqueEmail('e2e-refresh')
   const register = await page.request.post('/api/auth/register', {
     data: { email, password: TEST_PASSWORD },
   })
   expect(register.status()).toBe(201)
 
   await page.goto('/login')
-  await page.getByLabel(/email/i).fill(email)
-  await page.getByLabel(/password/i).fill(TEST_PASSWORD)
-  await page.getByRole('button', { name: /login/i }).click()
+  await login(page, email)
   await expect(page.getByRole('heading', { name: /my notes/i })).toBeVisible()
 
   // Each refresh rotates the refresh token and its CSRF value. The second

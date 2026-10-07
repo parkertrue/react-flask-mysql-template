@@ -6,12 +6,13 @@ services:
   db:
     image: mysql:8.4.11
     # Only the variables MySQL needs, interpolated from the --env-file passed
-    # to docker compose, so SECRET_KEY and the Redis password stay out.
+    # to docker compose, so SECRET_KEY and the Redis password stay out. The
+    # keys are the MySQL image's own names; the app reads DB_* everywhere.
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     healthcheck:
       # ping exits 0 whenever the server is up, even if auth fails, so no
       # credentials need to appear in the process list
@@ -65,7 +66,7 @@ services:
     cpus: 0.25
 
   # Same as docker-compose.yml. One-shot: applies migrations as root, then
-  # leaves MYSQL_USER with data rights only (backend/restrict_db_user.py), and
+  # leaves DB_USER with data rights only (backend/restrict_db_user.py), and
   # exits. The backend starts once it succeeds, holding credentials that
   # cannot change the schema.
   migrate:
@@ -79,12 +80,12 @@ services:
       - /tmp
     command: ["sh", "-c", "flask db upgrade && python restrict_db_user.py"]
     environment:
-      FLASK_ENV: integration
-      MYSQL_HOST: db
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: root
-      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      APP_MYSQL_USER: ${MYSQL_USER}
+      APP_ENV: integration
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: root
+      DB_PASSWORD: ${DB_ROOT_PASSWORD}
+      APP_DB_USER: ${DB_USER}
       REDIS_HOST: redis
       REDIS_USERNAME: app
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -111,11 +112,11 @@ services:
     # Only what the app reads, interpolated from --env-file .env.test. Hosts
     # are service names and ports the defaults inside the Docker network.
     environment:
-      FLASK_ENV: integration
-      MYSQL_HOST: db
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      APP_ENV: integration
+      DB_HOST: db
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       REDIS_USERNAME: app
       REDIS_PASSWORD: ${REDIS_PASSWORD}

@@ -10,7 +10,7 @@ It ships with **auth** (register/login/logout/refresh with rotating refresh toke
 
 ## Environment Setup
 
-`.env.dev` and `.env.test` are committed with throwaway values (dev services bind to 127.0.0.1 only), so dev and test run as cloned. Only `.env.prod` is gitignored: copy it from `.env.prod.example`, which lists just the seven per-deployment values (database name, user, passwords, `SECRET_KEY`, and `SERVER_NAME`, the domain nginx serves); hosts, ports and `FLASK_ENV` are fixed in the compose files. Backend containers get an explicit `environment:` list rather than the whole env file, so `MYSQL_ROOT_PASSWORD` never reaches the running app; only the one-shot `migrate` service holds it. Redis runs with its `default` user disabled; the app connects as the ACL user `app` (`REDIS_USERNAME`), which may touch only its own keys and no `@dangerous` command. `FLASK_DEBUG=0 ./run_dev.sh` overrides the dev file's debug setting for one run. Unit tests need no env file (`TestingConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
+`.env.dev` and `.env.test` are committed with throwaway values (dev services bind to 127.0.0.1 only), so dev and test run as cloned. Only `.env.prod` is gitignored: copy it from `.env.prod.example`, which lists just the seven per-deployment values (database name, user, passwords, `SECRET_KEY`, and `SERVER_NAME`, the domain nginx serves); hosts, ports and `APP_ENV` are fixed in the compose files. Backend containers get an explicit `environment:` list rather than the whole env file, so `DB_ROOT_PASSWORD` never reaches the running app; only the one-shot `migrate` service holds it. Redis runs with its `default` user disabled; the app connects as the ACL user `app` (`REDIS_USERNAME`), which may touch only its own keys and no `@dangerous` command. `FLASK_DEBUG=0 ./run_dev.sh` overrides the dev file's debug setting for one run. Unit tests need no env file (`UnitTestConfig` requires no MySQL/Redis settings, and `tests/conftest.py` supplies `SECRET_KEY`).
 
 ## Development Workflow
 
@@ -46,7 +46,7 @@ cd backend
 ./run_tests.sh combined          # All tests with merged coverage report
 ./run_tests.sh unit --verbose    # Verbose output
 ./run_tests.sh unit --no-coverage
-ruff check .                     # Lint (errors only; CI fails on any finding)
+ruff check .                     # Lint (errors + quote style; CI fails on any finding)
 ```
 
 ### Frontend
@@ -100,11 +100,11 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 
 ### Backend (`backend/app/`)
 - **`__init__.py`** — App factory. Registers all Flask extensions (JWT, SQLAlchemy, Limiter, Redis) and blueprints. There is no CORS: the browser only ever calls a relative `/api`, which is same-origin in every environment (Vite's proxy in dev, nginx elsewhere). The JWT blocklist loader **fails closed**: if Redis is unavailable, every refresh token is treated as revoked rather than valid.
-- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `TestingConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `FLASK_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder, and the example file's placeholder passwords. `MAX_CONTENT_LENGTH` caps request bodies at 16 KB (nginx enforces the same). Rate-limit counters fall back to per-worker memory while Redis is down.
+- **`config.py`** — Config classes per environment (`DevelopmentConfig`, `UnitTestConfig`, `IntegrationConfig`, `ProductionConfig`). Controls DB URI, Redis usage, rate limiting, JWT settings, and `TRUSTED_PROXY_COUNT` (Production trusts one proxy, nginx, so rate limits key on the real client IP). `APP_ENV` is the only switch that selects a config class — no other env var may promote or demote one. `ProductionConfig` rejects a `SECRET_KEY` under 32 characters or equal to the template placeholder, and the example file's placeholder passwords. `MAX_CONTENT_LENGTH` caps request bodies at 16 KB (nginx enforces the same). Rate-limit counters fall back to per-worker memory while Redis is down.
 - **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health` (unlimited, like every route without its own limit: only login, register and refresh declare one, since a per-IP quota on the whole API would lock out users sharing an address), `notes` (the example CRUD feature; `GET` is cursor-paginated, newest first: `?before=<next_cursor>&limit=`, and the frontend's `useNotes` exposes `loadMore`/`hasMore`. Keep that pattern for any list that grows).
-- **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
-- **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (refresh-token allowlist: one sorted set per user, JTI scored by expiry, at most `MAX_SESSIONS_PER_USER` = 10 with the oldest evicted; refresh swaps old for new in one transaction. The app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it). The app's and the rate limiter's Redis clients share `CLIENT_OPTIONS` (2s timeouts, one immediate retry) so a Redis outage fails fast instead of hanging requests, and login/refresh answer 503 when the new refresh token cannot be recorded and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
+- **`models/`** — SQLAlchemy ORM models, one singular module per model (`user.py` → `User`, `note.py` → `Note`). Auth logic lives on the User model. A column's size is a named constant beside it (`EMAIL_MAX_LENGTH`, `NOTE_MAX_LENGTH`) that the schemas import; migrations keep literal sizes, since each is a snapshot.
+- **`schemas/`** — Pydantic schemas for request validation. Schema and route modules are named after the API resource (`auth`, `notes` → `/api/notes`).
+- **`utils/`** — Redis service (refresh-token allowlist: one sorted set per user, JTI scored by expiry, at most `MAX_SESSIONS_PER_USER` = 10 with the oldest evicted; refresh swaps old for new in one transaction. The app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it). The app's and the rate limiter's Redis clients share `REDIS_CLIENT_OPTIONS` (2s timeouts, one immediate retry) so a Redis outage fails fast instead of hanging requests, and login/refresh answer 503 when the new refresh token cannot be recorded. `errors.py` holds `error_response`, which builds the `{"error": {"code", "message"}}` body that every route and the error handlers in `__init__.py` return. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
 - **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)
@@ -114,10 +114,10 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`utils/`** — `validation.js` (shared field validators), `storage.js` (token storage; see the comment there on the accepted localStorage XSS trade-off).
 - **`components/`** — `layout/` (Navbar, LogoutDropdown), `notes/` (the example feature). Each with co-located unit tests in `__tests__/`.
 - **`pages/`** — `HomePage`, `LoginPage`, `RegisterPage`, `NotesPage`.
-- **`e2e/`** — Playwright tests for full user journeys.
+- **`e2e/`** — Playwright tests for full user journeys. Shared steps (register, log in, unique emails) live in `e2e/helpers.js`.
 
 ### Test Architecture
-- **Backend unit tests** (`tests/unit/`): `TestingConfig` uses SQLite in-memory, disables Redis and rate limiting. Route tests live here too — they need no real services. Refresh-cookie routes (`/refresh`, `/logout`, `/logout-all`) fail closed without Redis, so their tests use the `fake_redis` fixture. Fixtures in `tests/conftest.py`.
+- **Backend unit tests** (`tests/unit/`): `UnitTestConfig` uses SQLite in-memory, disables Redis and rate limiting. Route tests live here too — they need no real services. Refresh-cookie routes (`/refresh`, `/logout`, `/logout-all`) fail closed without Redis, so their tests use the `fake_redis` fixture. Fixtures in `tests/conftest.py`.
 - **Backend integration tests** (`tests/integration/`): `IntegrationConfig` connects to real MySQL (port 3307) and Redis (port 6380) from `docker-compose.test.yml`, via the `integration_*` fixtures. Reserve these for behavior that genuinely needs a real service.
 - **Frontend unit tests**: Vitest + jsdom. Most tests `vi.mock` the service modules; `api/__tests__/api.test.js` (interceptors, token refresh) and `test/integration/auth-flow.test.jsx` run MSW servers against the real Axios client. Setup in `src/test/setup.js`.
 - **E2E tests**: Playwright against the full stack via `docker-compose.test.yml` with the `e2e` profile. Ignores self-signed TLS cert errors. E2E runs against the **test** stack, never the production compose file.
@@ -135,11 +135,27 @@ Each file names its own Compose project (`app_dev`, `app_test`, `app`), so the s
 |------|---------|
 | `docker-compose.dev.yml` | Dev: MySQL + Redis only (backend/frontend run locally), bound to 127.0.0.1 |
 | `docker-compose.test.yml` | Test: isolated MySQL (3307) + Redis (6380); `e2e` profile adds migrate + backend + Nginx, hardened like production |
-| `docker-compose.yml` | Production: all services with resource limits, health checks, explicit stop grace periods and hardening (`no-new-privileges`, pids limits; backend read-only with no capabilities). MySQL/Redis on an `internal` network that nginx cannot reach. A one-shot `migrate` service applies migrations as root, then `backend/restrict_db_user.py` leaves `MYSQL_USER` with `SELECT, INSERT, UPDATE, DELETE` only; the backend starts after it succeeds. Gunicorn runs 2 gthread workers × 4 threads |
+| `docker-compose.yml` | Production: all services with resource limits, health checks, explicit stop grace periods and hardening (`no-new-privileges`, pids limits; backend read-only with no capabilities). MySQL/Redis on an `internal` network that nginx cannot reach. A one-shot `migrate` service applies migrations as root, then `backend/restrict_db_user.py` leaves `DB_USER` with `SELECT, INSERT, UPDATE, DELETE` only; the backend starts after it succeeds. Gunicorn runs 2 gthread workers × 4 threads |
+
+## Naming Conventions
+
+How each environment's names line up. Production gets the bare name; every other environment adds a suffix.
+
+| Environment | Env file | `APP_ENV` | Config class | Compose project | Database |
+|---|---|---|---|---|---|
+| Development | `.env.dev` | `development` | `DevelopmentConfig` | `app_dev` | `appdb_dev` |
+| Unit tests | none | `unit` | `UnitTestConfig` | none | in-memory SQLite |
+| Integration tests | `.env.test` | `integration` | `IntegrationConfig` | `app_test` | `appdb_test` |
+| E2E | `.env.test` | `integration`, plus `E2E_MODE=true` | `IntegrationConfig` | `app_test` (`e2e` profile) | `appdb_test` |
+| Production | `.env.prod` | `production` | `ProductionConfig` | `app` | `appdb` (set per deployment) |
+
+- **Env vars:** the app reads `DB_*` for the database and `REDIS_*` for Redis. `MYSQL_*` appears only inside the compose `db` services, as the MySQL image's own keys. The app's database and Redis users are both `app` in dev and test.
+- **`.env.prod`, not `.env`:** Compose reads a `.env` in the project directory automatically, so production values in a bare `.env` would leak into every dev and test command.
+- **Singular for one thing, plural for a collection.** Model classes and model modules are singular (`Note`, `models/note.py`); tables are plural (`notes`). Names that handle one item are singular (`NoteForm`, `NoteCreateRequest`, `NoteResponse`); names that handle many are plural (`NotesList`, `NotesListQuery`, `NotesPage`). Route and schema modules take the API resource's name (`notes` for `/api/notes`), and test files are named after the module they test (`test_notes_schemas.py`).
 
 ## Starting a New App From This Template
 
-1. Replace the notes slice: `backend/app/{models,schemas,routes}/notes.py`, `backend/migrations/versions/0002_notes.py`, `frontend/src/{api/services,hooks,components,pages}` notes files, and their tests.
+1. Replace the notes slice: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, `backend/migrations/versions/0002_notes.py`, `frontend/src/{api/services,hooks,components,pages}` notes files, and their tests.
 2. Update `Note` references in `backend/tests/conftest.py` fixtures.
 3. Update `frontend/src/utils/validation.js` (the note-length validators).
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage`/`RegisterPage`.

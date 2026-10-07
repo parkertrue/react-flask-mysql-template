@@ -10,17 +10,22 @@ import time
 import pymysql
 import redis
 
-TIMEOUT_SECONDS = int(os.getenv("WAIT_FOR_SERVICES_TIMEOUT", "60"))
+TIMEOUT_SECONDS = int(os.getenv('WAIT_FOR_SERVICES_TIMEOUT', '60'))
+
+# Checked up front: a missing value would otherwise look like a service that
+# never comes up, and the loop below would wait out the whole timeout.
+REQUIRED = ('DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD',
+            'REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD')
 
 
 def mysql_ready():
     try:
         pymysql.connect(
-            host=os.getenv("MYSQL_HOST"),
-            port=int(os.getenv("MYSQL_PORT", "3306")),
-            user=os.getenv("MYSQL_USER"),
-            password=os.getenv("MYSQL_PASSWORD"),
-            database=os.getenv("MYSQL_DATABASE"),
+            host=os.environ['DB_HOST'],
+            port=int(os.getenv('DB_PORT', '3306')),
+            user=os.environ['DB_USER'],
+            password=os.environ['DB_PASSWORD'],
+            database=os.environ['DB_NAME'],
             connect_timeout=2,
         ).close()
         return True
@@ -31,11 +36,11 @@ def mysql_ready():
 def redis_ready():
     try:
         client = redis.Redis(
-            host=os.getenv("REDIS_HOST"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
-            username=os.getenv("REDIS_USERNAME", "default"),
-            password=os.getenv("REDIS_PASSWORD"),
-            db=int(os.getenv("REDIS_DB", "0")),
+            host=os.environ['REDIS_HOST'],
+            port=int(os.getenv('REDIS_PORT', '6379')),
+            username=os.environ['REDIS_USERNAME'],
+            password=os.environ['REDIS_PASSWORD'],
+            db=int(os.getenv('REDIS_DB', '0')),
             socket_connect_timeout=2,
         )
         client.ping()
@@ -46,12 +51,16 @@ def redis_ready():
 
 
 def main():
+    missing = [name for name in REQUIRED if not os.getenv(name)]
+    if missing:
+        sys.exit(f"Missing required environment variables: {', '.join(missing)}")
+
     deadline = time.monotonic() + TIMEOUT_SECONDS
     while True:
-        waiting = [name for name, ready in (("MySQL", mysql_ready), ("Redis", redis_ready))
+        waiting = [name for name, ready in (('MySQL', mysql_ready), ('Redis', redis_ready))
                    if not ready()]
         if not waiting:
-            print("Database and Redis are up")
+            print('Database and Redis are up')
             return
         if time.monotonic() > deadline:
             print(f"Gave up after {TIMEOUT_SECONDS}s waiting for: {', '.join(waiting)}",
@@ -61,5 +70,5 @@ def main():
         time.sleep(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

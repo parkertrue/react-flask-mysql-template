@@ -13,51 +13,51 @@ RECONNECT_INTERVAL_SECONDS = 5
 # default retries a failed command 10 times with backoff, so every request
 # would hang for ~30s while Redis is down. One immediate retry is enough to
 # replace a connection Redis closed; after that, fail fast.
-CLIENT_OPTIONS = {
-    "socket_connect_timeout": 2,
-    "socket_timeout": 2,
-    "retry": Retry(NoBackoff(), 1),
+REDIS_CLIENT_OPTIONS = {
+    'socket_connect_timeout': 2,
+    'socket_timeout': 2,
+    'retry': Retry(NoBackoff(), 1),
 }
 
 
-def get_redis_service() -> "RedisService | None":
+def get_redis_service() -> 'RedisService | None':
     """The current app's RedisService, or None if Redis is disabled or down.
 
     Looked up per call rather than imported, so every app instance (one per
     gunicorn worker, several per test session) sees its own service.
     """
-    service = current_app.extensions.get("redis_service")
-    if service is None and current_app.config["REDIS_ENABLED"]:
+    service = current_app.extensions.get('redis_service')
+    if service is None and current_app.config['USES_SERVICES']:
         service = connect_redis(current_app)
     return service
 
 
-def connect_redis(app: Flask) -> "RedisService | None":
+def connect_redis(app: Flask) -> 'RedisService | None':
     """Build the app's RedisService, or return None and retry on a later call.
 
     A worker that boots while Redis is unreachable would otherwise stay
     without it for life; once connected, redis-py reconnects by itself.
     """
     now = time.monotonic()
-    if now < app.extensions.get("redis_retry_at", 0):
+    if now < app.extensions.get('redis_retry_at', 0):
         return None
 
     try:
         service = RedisService(
-            host=app.config["REDIS_HOST"],
-            port=app.config["REDIS_PORT"],
-            db=int(app.config["REDIS_DB"]),
-            username=app.config["REDIS_USERNAME"],
-            password=app.config["REDIS_PASSWORD"],
-            max_connections=app.config["REDIS_MAX_CONNECTIONS"]
+            host=app.config['REDIS_HOST'],
+            port=app.config['REDIS_PORT'],
+            db=app.config['REDIS_DB'],
+            username=app.config['REDIS_USERNAME'],
+            password=app.config['REDIS_PASSWORD'],
+            max_connections=app.config['REDIS_MAX_CONNECTIONS']
         )
     except Exception:
         app.logger.exception(
-            "Redis connection failed; retrying in %ss", RECONNECT_INTERVAL_SECONDS)
-        app.extensions["redis_retry_at"] = now + RECONNECT_INTERVAL_SECONDS
+            'Redis connection failed; retrying in %ss', RECONNECT_INTERVAL_SECONDS)
+        app.extensions['redis_retry_at'] = now + RECONNECT_INTERVAL_SECONDS
         return None
 
-    app.extensions["redis_service"] = service
+    app.extensions['redis_service'] = service
     return service
 
 
@@ -68,7 +68,7 @@ MAX_SESSIONS_PER_USER = 10
 
 def _tokens_key(user_id: int) -> str:
     """One sorted set per user: member = refresh-token JTI, score = expiry time"""
-    return f"refresh_tokens:{user_id}"
+    return f'refresh_tokens:{user_id}'
 
 
 class RedisService:
@@ -78,8 +78,8 @@ class RedisService:
     anything else stored here must carry a TTL, or use a separate instance.
     """
 
-    def __init__(self, host: str, port: int, db: int, password: str,
-                 max_connections: int, username: str = "default"):
+    def __init__(self, host: str, port: int, db: int, username: str, password: str,
+                 max_connections: int):
         try:
             self._client = redis.Redis(
                 host=host,
@@ -90,15 +90,15 @@ class RedisService:
                 decode_responses=True,
                 health_check_interval=30,
                 max_connections=max_connections,
-                **CLIENT_OPTIONS,
+                **REDIS_CLIENT_OPTIONS,
             )
 
             self._client.ping()
 
         except redis.RedisError as e:
-            raise RuntimeError(f"Failed to connect to Redis: {e}")
+            raise RuntimeError(f'Failed to connect to Redis: {e}')
         except Exception as e:
-            raise RuntimeError(f"Redis initialization failed: {e}")
+            raise RuntimeError(f'Redis initialization failed: {e}')
 
     def get_client(self) -> redis.Redis:
         return self._client
@@ -117,7 +117,7 @@ class RedisService:
             if replaces:
                 pipe.zrem(key, replaces)
             pipe.zadd(key, {jti: now + ttl_seconds})
-            pipe.zremrangebyscore(key, "-inf", now)
+            pipe.zremrangebyscore(key, '-inf', now)
             # Keep the newest MAX_SESSIONS_PER_USER; the lowest scores expire first
             pipe.zremrangebyrank(key, 0, -(MAX_SESSIONS_PER_USER + 1))
             # The newest token expires last, so the key can go with it
@@ -146,7 +146,7 @@ class RedisService:
         key = _tokens_key(user_id)
         try:
             pipe = self._client.pipeline()
-            pipe.zcount(key, time.time(), "+inf")
+            pipe.zcount(key, time.time(), '+inf')
             pipe.delete(key)
             live, _ = pipe.execute()
             return cast(int, live)

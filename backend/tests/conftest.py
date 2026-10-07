@@ -20,18 +20,18 @@ os.environ.setdefault('SECRET_KEY', 'test-secret-key-0123456789abcdef')
 def app():
     """Unit test app - fast SQLite in-memory, no real services needed
 
-    Uses TestingConfig which:
-    - Sets FLASK_ENV=testing
+    Uses UnitTestConfig which:
+    - Sets APP_ENV=unit
     - Uses SQLite in-memory (no MySQL needed)
     - Disables Redis
     - Disables rate limiting
 
-    Note: Config reads from environment, but TestingConfig overrides with
-    in-memory SQLite regardless of MYSQL_* env vars.
+    Note: Config reads from environment, but UnitTestConfig overrides with
+    in-memory SQLite regardless of DB_* env vars.
     """
-    # Only set FLASK_ENV to trigger TestingConfig; everything else comes from
-    # TestingConfig defaults or the ambient environment.
-    os.environ['FLASK_ENV'] = 'testing'
+    # Only set APP_ENV to trigger UnitTestConfig; everything else comes from
+    # UnitTestConfig defaults or the ambient environment.
+    os.environ['APP_ENV'] = 'unit'
 
     app = create_app()
 
@@ -47,10 +47,10 @@ def db(app):
         from sqlalchemy import event
         from sqlalchemy.engine import Engine
 
-        @event.listens_for(Engine, "connect")
+        @event.listens_for(Engine, 'connect')
         def set_sqlite_pragma(dbapi_conn, connection_record):
             cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute('PRAGMA foreign_keys=ON')
             cursor.close()
 
         _db.create_all()
@@ -94,13 +94,13 @@ class FakeRedisService:
 def fake_redis(app):
     """Give the unit app a Redis token store.
 
-    TestingConfig disables Redis, and without it the blocklist loader fails
+    UnitTestConfig disables Redis, and without it the blocklist loader fails
     closed, so every refresh-cookie route would return 401.
     """
     fake = FakeRedisService()
-    app.extensions["redis_service"] = fake
+    app.extensions['redis_service'] = fake
     yield fake
-    app.extensions["redis_service"] = None
+    app.extensions['redis_service'] = None
 
 
 # ============================================================================
@@ -119,14 +119,14 @@ def integration_app():
     Environment variables are loaded by run_tests.sh from .env.test. If running
     pytest directly, ensure .env.test is loaded first.
     """
-    os.environ['FLASK_ENV'] = 'integration'
+    os.environ['APP_ENV'] = 'integration'
 
-    required_vars = ['MYSQL_DATABASE', 'MYSQL_HOST', 'REDIS_HOST']
+    required_vars = ['DB_NAME', 'DB_HOST', 'REDIS_HOST']
     missing = [v for v in required_vars if v not in os.environ]
     if missing:
         raise RuntimeError(
-            f"Missing required environment variables: {missing}\n"
-            f"Make sure to run tests with ./run_tests.sh which loads .env.test"
+            f'Missing required environment variables: {missing}\n'
+            f'Make sure to run tests with ./run_tests.sh which loads .env.test'
         )
 
     app = create_app()
@@ -156,10 +156,10 @@ def integration_app():
         # IntegrationConfig enables Redis, so a missing service means it failed
         # to connect in create_app(). Fail here rather than let every
         # Redis-backed test skip and the suite report green.
-        if app.extensions["redis_service"] is None:
+        if app.extensions['redis_service'] is None:
             raise RuntimeError(
-                "Redis failed to initialise; see the log above. Make sure "
-                "docker-compose.test.yml services are healthy.")
+                'Redis failed to initialise; see the log above. Make sure '
+                'docker-compose.test.yml services are healthy.')
 
         yield app
 
@@ -192,7 +192,7 @@ def integration_redis(integration_app):
     is not an option: the app's ACL user may not run it.
     """
     with integration_app.app_context():
-        redis_service = integration_app.extensions["redis_service"]
+        redis_service = integration_app.extensions['redis_service']
         yield redis_service
         client = redis_service.get_client()
         for pattern in ('refresh_tokens:*', 'LIMITS:*'):

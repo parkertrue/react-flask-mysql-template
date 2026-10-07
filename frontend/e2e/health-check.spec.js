@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { TEST_PASSWORD, uniqueEmail } from './helpers'
 
 test.describe('System Health Check', () => {
   test('API health endpoint is accessible', async ({ page }) => {
@@ -31,8 +32,8 @@ test.describe('System Health Check', () => {
   test('registration API returns JSON through nginx', async ({ request }) => {
     const response = await request.post('/api/auth/register', {
       data: {
-        email: `api-test-${Date.now()}@example.com`,
-        password: 'SecurePass123'
+        email: uniqueEmail('api-test'),
+        password: TEST_PASSWORD
       },
     })
 

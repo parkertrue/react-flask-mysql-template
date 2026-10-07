@@ -7,14 +7,14 @@ from flask_jwt_extended import create_refresh_token, decode_token
 
 import app as app_module
 from app import create_app
-from app.config import TestingConfig
+from app.config import UnitTestConfig
 from app.utils import redis_service
 from app.utils.redis_service import get_redis_service
 
 
 def build_app(monkeypatch, **overrides):
-    """A fresh app from TestingConfig with some settings overridden."""
-    config = TestingConfig()
+    """A fresh app from UnitTestConfig with some settings overridden."""
+    config = UnitTestConfig()
     for key, value in overrides.items():
         setattr(config, key, value)
     monkeypatch.setattr(app_module, 'get_config', lambda: config)
@@ -66,8 +66,8 @@ class TestRedisReconnect:
         with patch('app.utils.redis_service.redis.Redis') as redis_class:
             redis_class.return_value.ping.side_effect = redis.ConnectionError
             app = build_app(
-                monkeypatch, REDIS_ENABLED=True, REDIS_HOST='localhost',
-                REDIS_DB='0', REDIS_PASSWORD='redispass')
+                monkeypatch, USES_SERVICES=True, REDIS_HOST='localhost',
+                REDIS_DB=0, REDIS_USERNAME='app', REDIS_PASSWORD='redispass')
             yield app, redis_class, clock
 
     def test_boot_failure_leaves_no_service(self, redis_down_at_boot):

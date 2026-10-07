@@ -107,7 +107,7 @@ done
 
 activate_venv
 
-# Unit tests need no environment: TestingConfig requires no MySQL/Redis
+# Unit tests need no environment: UnitTestConfig requires no MySQL/Redis
 # settings and conftest supplies a SECRET_KEY. Everything else connects to
 # the test containers, which .env.test describes.
 if [ "$TEST_TYPE" != "unit" ]; then

@@ -4,13 +4,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app import db
 
+# The schemas validate against this, so an over-long email is a 422, not a
+# database error. frontend/src/utils/validation.js mirrors it.
+EMAIL_MAX_LENGTH = 128
+
 
 class User(db.Model):
-    __tablename__ = "users"
+    __tablename__ = 'users'
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(
-        db.String(128),
+        db.String(EMAIL_MAX_LENGTH),
         unique=True,
         nullable=False,
         index=True

@@ -1,47 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { randomUUID } from 'crypto'
-
-const generateTestEmail = () => `e2e-crud-${randomUUID()}@example.com`
-const TEST_PASSWORD = 'SecurePass123'
+import { registerAndLogin } from './helpers'
 
 test.describe('Notes CRUD Operations', () => {
-  let testEmail
   let context
   let page
 
+  // One account, registered and logged in once, for every test here
   test.beforeAll(async ({ browser }) => {
-    testEmail = generateTestEmail()
     context = await browser.newContext({ ignoreHTTPSErrors: true })
     page = await context.newPage()
-
-    // Setup: Register and login once for all tests
-    await page.goto('/')
-    
-    // Navigate to register - use the primary "Get Started" button
-    await page.getByRole('link', { name: /get started/i }).click()
-    
-    // Register new user
-    await page.getByLabel(/email/i).fill(testEmail)
-    await page.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-    await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-    await page.getByRole('button', { name: /register|creating account/i }).click()
-
-    // Wait for redirect to login (registration successful)
-    await expect(page).toHaveURL(/\/login/, { timeout: 10000 })
-
-    // Login
-    await page.getByLabel(/email/i).fill(testEmail)
-    await page.getByLabel(/password/i).fill(TEST_PASSWORD)
-    
-    // Wait for login button to be enabled
-    const loginButton = page.getByRole('button', { name: /login|logging in/i })
-    await expect(loginButton).toBeEnabled({ timeout: 5000 })
-    
-    // Click and wait for navigation
-    await Promise.all([
-      page.waitForURL(/\/notes/, { timeout: 15000 }),
-      loginButton.click()
-    ])
+    await registerAndLogin(page, 'e2e-crud')
   })
 
   test.afterAll(async () => {
@@ -58,10 +26,10 @@ test.describe('Notes CRUD Operations', () => {
       
       // Wait for React to update button state (client-side validation)
       const addButton = page.getByRole('button', { name: /create|add note/i })
-      await expect(addButton).toBeEnabled({ timeout: 5000 })
+      await expect(addButton).toBeEnabled()
       
       await addButton.click()
-      await expect(page.getByText(noteText)).toBeVisible({ timeout: 5000 })
+      await expect(page.getByText(noteText)).toBeVisible()
     }
   })
 
@@ -71,7 +39,7 @@ test.describe('Notes CRUD Operations', () => {
     const noteInput = page.locator('textarea, input[type="text"]').first()
     await noteInput.fill(originalText)
     await page.getByRole('button', { name: /create|add note/i }).click()
-    await expect(page.getByText(originalText)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(originalText)).toBeVisible()
 
     // Find and click edit button for this note
     // Look for edit button near the note text
@@ -92,7 +60,7 @@ test.describe('Notes CRUD Operations', () => {
       await page.getByRole('button', { name: /save|update/i }).click()
 
       // Verify update
-      await expect(page.getByText(updatedText)).toBeVisible({ timeout: 5000 })
+      await expect(page.getByText(updatedText)).toBeVisible()
       await expect(page.getByText(originalText)).not.toBeVisible()
     }
   })
@@ -103,7 +71,7 @@ test.describe('Notes CRUD Operations', () => {
     const noteInput = page.locator('textarea, input[type="text"]').first()
     await noteInput.fill(noteText)
     await page.getByRole('button', { name: /create|add note/i }).click()
-    await expect(page.getByText(noteText)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(noteText)).toBeVisible()
 
     // Find and click delete button for this note
     const noteContainer = page.locator(`text=${noteText}`).locator('..')
@@ -124,7 +92,7 @@ test.describe('Notes CRUD Operations', () => {
       }
 
       // Verify note is removed
-      await expect(page.getByText(noteText)).not.toBeVisible({ timeout: 5000 })
+      await expect(page.getByText(noteText)).not.toBeVisible()
     }
   })
 
@@ -149,13 +117,13 @@ test.describe('Notes CRUD Operations', () => {
     await expect(addButton).toBeEnabled({ timeout: 2000 })
     
     await addButton.click()
-    await expect(page.getByText(persistentNote)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(persistentNote)).toBeVisible()
 
     // Reload page
     await page.reload()
 
     // Verify note still exists
-    await expect(page.getByText(persistentNote)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(persistentNote)).toBeVisible()
   })
 
   test('notes are private to user', async ({ browser }) => {
@@ -164,58 +132,23 @@ test.describe('Notes CRUD Operations', () => {
     const testPage = await testContext.newPage()
     
     try {
-      const firstUserEmail = `first-user-${randomUUID()}@example.com`
-      
-      // Register first user
-      await testPage.goto('/register')
-      await testPage.getByLabel(/email/i).fill(firstUserEmail)
-      await testPage.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-      await testPage.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-      await testPage.getByRole('button', { name: /register|creating account/i }).click()
-      await expect(testPage).toHaveURL(/\/login/, { timeout: 10000 })
-
-      // Login first user
-      await testPage.getByLabel(/email/i).fill(firstUserEmail)
-      await testPage.getByLabel(/password/i).fill(TEST_PASSWORD)
-      const loginButton1 = testPage.getByRole('button', { name: /login|logging in/i })
-      await expect(loginButton1).toBeEnabled({ timeout: 5000 })
-      await Promise.all([
-        testPage.waitForURL(/\/notes/, { timeout: 15000 }),
-        loginButton1.click()
-      ])
+      await registerAndLogin(testPage, 'first-user')
 
       // Create a note as first user
       const firstUserNote = `Private note ${Date.now()}`
       const noteInput = testPage.locator('textarea, input[type="text"]').first()
       await noteInput.fill(firstUserNote)
       const addButton = testPage.getByRole('button', { name: /create|add note/i })
-      await expect(addButton).toBeEnabled({ timeout: 5000 })
+      await expect(addButton).toBeEnabled()
       await addButton.click()
-      await expect(testPage.getByText(firstUserNote)).toBeVisible({ timeout: 5000 })
+      await expect(testPage.getByText(firstUserNote)).toBeVisible()
 
       // Logout first user
       await testPage.getByRole('button', { name: /logout/i }).click()
       await testPage.getByText(/logout this device/i).click()
       await testPage.waitForURL(/\/(login)?$/, { timeout: 10000 })
 
-      // Register second user
-      const secondUserEmail = `second-user-${randomUUID()}@example.com`
-      await testPage.goto('/register')
-      await testPage.getByLabel(/email/i).fill(secondUserEmail)
-      await testPage.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-      await testPage.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-      await testPage.getByRole('button', { name: /register|creating account/i }).click()
-      await expect(testPage).toHaveURL(/\/login/, { timeout: 10000 })
-
-      // Login second user
-      await testPage.getByLabel(/email/i).fill(secondUserEmail)
-      await testPage.getByLabel(/password/i).fill(TEST_PASSWORD)
-      const loginButton2 = testPage.getByRole('button', { name: /login|logging in/i })
-      await expect(loginButton2).toBeEnabled({ timeout: 5000 })
-      await Promise.all([
-        testPage.waitForURL(/\/notes/, { timeout: 15000 }),
-        loginButton2.click()
-      ])
+      await registerAndLogin(testPage, 'second-user')
 
       // Verify first user's note is NOT visible to second user
       await expect(testPage.getByText(firstUserNote)).not.toBeVisible()
