@@ -33,8 +33,8 @@ def get_notes():
     page = notes[:query.limit]
     next_cursor = page[-1].id if len(notes) > query.limit else None
     return jsonify({
-        "notes": [NoteResponse.model_validate(note).model_dump() for note in page],
-        "next_cursor": next_cursor,
+        'notes': [NoteResponse.model_validate(note).model_dump() for note in page],
+        'next_cursor': next_cursor,
     }), 200
 
 

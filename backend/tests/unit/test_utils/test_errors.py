@@ -9,21 +9,21 @@ class TestErrorResponse:
     def test_error_response_basic(self):
         """error_response should return tuple with dict and status."""
         response, status = error_response(
-            code="TEST_ERROR",
-            message="Test error message",
+            code='TEST_ERROR',
+            message='Test error message',
             status=400
         )
 
         assert status == 400
         data = json.loads(response.data)
-        assert data['error']['code'] == "TEST_ERROR"
-        assert data['error']['message'] == "Test error message"
+        assert data['error']['code'] == 'TEST_ERROR'
+        assert data['error']['message'] == 'Test error message'
 
     def test_error_response_structure(self):
         """error_response should have consistent structure."""
         response, status = error_response(
-            code="VALIDATION_ERROR",
-            message="Validation failed",
+            code='VALIDATION_ERROR',
+            message='Validation failed',
             status=422
         )
 
@@ -36,18 +36,18 @@ class TestErrorResponse:
     def test_error_response_different_status_codes(self):
         """error_response should work with various status codes."""
         test_cases = [
-            (400, "Bad Request"),
-            (401, "Unauthorized"),
-            (403, "Forbidden"),
-            (404, "Not Found"),
-            (409, "Conflict"),
-            (422, "Unprocessable Entity"),
-            (500, "Internal Server Error"),
+            (400, 'Bad Request'),
+            (401, 'Unauthorized'),
+            (403, 'Forbidden'),
+            (404, 'Not Found'),
+            (409, 'Conflict'),
+            (422, 'Unprocessable Entity'),
+            (500, 'Internal Server Error'),
         ]
 
         for status_code, message in test_cases:
             response, status = error_response(
-                code=f"ERROR_{status_code}",
+                code=f'ERROR_{status_code}',
                 message=message,
                 status=status_code
             )

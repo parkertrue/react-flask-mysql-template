@@ -10,7 +10,7 @@ class NoteCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=256)
 
     # Trimmed before the length checks, so whitespace-only notes are rejected
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
 
 
 class NotesPageQuery(BaseModel):

@@ -10,7 +10,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr = Field(max_length=EMAIL_MAX_LENGTH)
     password: str = Field(min_length=8, max_length=128)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid')
 
     @field_validator('password')
     @classmethod
@@ -30,4 +30,4 @@ class LoginRequest(BaseModel):
     # whose existing passwords predate the change.
     password: str = Field(min_length=1, max_length=128)
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra='forbid')

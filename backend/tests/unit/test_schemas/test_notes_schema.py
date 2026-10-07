@@ -217,7 +217,7 @@ class TestNoteModel:
 
     def test_note_with_unicode(self, db, sample_user):
         """Note should handle Unicode characters."""
-        unicode_content = "Unicode: 你好 مرحبا שלום 🎉"
+        unicode_content = 'Unicode: 你好 مرحبا שלום 🎉'
         note = Note(user_id=sample_user.id, content=unicode_content)
         db.session.add(note)
         db.session.commit()
@@ -245,74 +245,74 @@ class TestCreateNoteRequestSchema:
 
     def test_valid_plain_text_unchanged(self):
         """Plain text with no HTML should not be modified."""
-        req = NoteCreateRequest(content="Just a normal note")
-        assert req.content == "Just a normal note"
+        req = NoteCreateRequest(content='Just a normal note')
+        assert req.content == 'Just a normal note'
 
     def test_valid_unicode_preserved(self):
         """Unicode characters should be stored untouched."""
-        text = "Unicode: 你好 مرحبا שלום 🎉"
+        text = 'Unicode: 你好 مرحبا שלום 🎉'
         req = NoteCreateRequest(content=text)
         assert req.content == text
 
     def test_valid_newlines_preserved(self):
         """Newline characters are plain text and must be kept."""
-        text = "Line 1\nLine 2\nLine 3"
+        text = 'Line 1\nLine 2\nLine 3'
         req = NoteCreateRequest(content=text)
         assert req.content == text
 
     def test_valid_exactly_256_chars(self):
         """Boundary: exactly max_length should be accepted."""
-        text = "a" * 256
+        text = 'a' * 256
         req = NoteCreateRequest(content=text)
         assert len(req.content) == 256
 
     def test_valid_single_char(self):
         """Boundary: single character (min_length) should be accepted."""
-        req = NoteCreateRequest(content="x")
-        assert req.content == "x"
+        req = NoteCreateRequest(content='x')
+        assert req.content == 'x'
 
     # --- stored verbatim; React escapes it on output ---
 
     @pytest.mark.parametrize('text', [
-        "use <b> for bold",
+        'use <b> for bold',
         "<script>alert('xss')</script>",
-        "if a < b && b > c",
-        "Bob & Jane",
+        'if a < b && b > c',
+        'Bob & Jane',
     ])
     def test_markup_stored_verbatim(self, text):
         req = NoteCreateRequest(content=text)
         assert req.content == text
 
     def test_trims_surrounding_whitespace(self):
-        req = NoteCreateRequest(content="  padded  ")
-        assert req.content == "padded"
+        req = NoteCreateRequest(content='  padded  ')
+        assert req.content == 'padded'
 
     # --- validation rejections (these must raise, not silently pass) ---
 
     def test_rejects_empty_string(self):
         """Empty content violates min_length=1."""
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="")
+            NoteCreateRequest(content='')
 
     def test_rejects_over_256_chars(self):
         """Content longer than 256 chars violates max_length."""
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="x" * 257)
+            NoteCreateRequest(content='x' * 257)
 
     def test_rejects_extra_fields(self):
         """extra='forbid' must reject unknown keys."""
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="valid", extra_field="bad")
+            NoteCreateRequest(content='valid', extra_field='bad')
 
     def test_rejects_whitespace_only(self):
         """Whitespace-only content is trimmed to '', which violates min_length=1."""
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="   ")
+            NoteCreateRequest(content='   ')
 
     def test_rejects_tabs_only(self):
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="\t\t\t")
+            NoteCreateRequest(content='\t\t\t')
 
     def test_rejects_newlines_only(self):
         with pytest.raises(ValidationError):
-            NoteCreateRequest(content="\n\n\n")
+            NoteCreateRequest(content='\n\n\n')

@@ -15,28 +15,28 @@ import sys
 
 import pymysql
 
-DATA_PRIVILEGES = "SELECT, INSERT, UPDATE, DELETE"
+DATA_PRIVILEGES = 'SELECT, INSERT, UPDATE, DELETE'
 # Every other database-level privilege that the image's GRANT ALL included
 SCHEMA_PRIVILEGES = (
-    "ALTER, ALTER ROUTINE, CREATE, CREATE ROUTINE, CREATE TEMPORARY TABLES, "
-    "CREATE VIEW, DROP, EVENT, EXECUTE, INDEX, LOCK TABLES, REFERENCES, "
-    "SHOW VIEW, TRIGGER"
+    'ALTER, ALTER ROUTINE, CREATE, CREATE ROUTINE, CREATE TEMPORARY TABLES, '
+    'CREATE VIEW, DROP, EVENT, EXECUTE, INDEX, LOCK TABLES, REFERENCES, '
+    'SHOW VIEW, TRIGGER'
 )
 
 
 def main():
-    database = os.environ["MYSQL_DATABASE"]
+    database = os.environ['MYSQL_DATABASE']
     # Identifiers cannot be passed as query parameters, so only allow names
     # that are safe to put between backticks
-    if not re.fullmatch(r"\w+", database):
-        sys.exit(f"Refusing unexpected database name: {database!r}")
-    app_user = os.environ["APP_MYSQL_USER"]
+    if not re.fullmatch(r'\w+', database):
+        sys.exit(f'Refusing unexpected database name: {database!r}')
+    app_user = os.environ['APP_MYSQL_USER']
 
     connection = pymysql.connect(
-        host=os.environ["MYSQL_HOST"],
-        port=int(os.getenv("MYSQL_PORT", "3306")),
-        user=os.environ["MYSQL_USER"],
-        password=os.environ["MYSQL_PASSWORD"],
+        host=os.environ['MYSQL_HOST'],
+        port=int(os.getenv('MYSQL_PORT', '3306')),
+        user=os.environ['MYSQL_USER'],
+        password=os.environ['MYSQL_PASSWORD'],
     )
     with connection, connection.cursor() as cursor:
         # Grant before revoking: a backend still serving from the previous
@@ -47,8 +47,8 @@ def main():
         cursor.execute(
             f"REVOKE IF EXISTS {SCHEMA_PRIVILEGES} ON `{database}`.* FROM %s@'%%'",
             (app_user,))
-    print(f"{app_user} restricted to {DATA_PRIVILEGES} on {database}")
+    print(f'{app_user} restricted to {DATA_PRIVILEGES} on {database}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

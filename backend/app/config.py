@@ -5,11 +5,11 @@ from urllib.parse import quote
 from app.utils.redis_service import CLIENT_OPTIONS as REDIS_CLIENT_OPTIONS
 
 MIN_SECRET_KEY_LENGTH = 32
-PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
+PLACEHOLDER_SECRET_KEYS = {'your_secret_key_here'}
 # .env.prod.example's values, which must never reach a deployment. The
 # root password is among them: the migrate service connects as root.
 PLACEHOLDER_PASSWORDS = {
-    "your_db_password_here", "your_redis_password_here", "your_root_password_here"}
+    'your_db_password_here', 'your_redis_password_here', 'your_root_password_here'}
 
 
 class Config:
@@ -46,7 +46,7 @@ class Config:
                 f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}'
             )
         elif self.USES_SERVICES:
-            raise ValueError("Missing required MySQL environment variables")
+            raise ValueError('Missing required MySQL environment variables')
 
         # Redis configuration
         self.REDIS_ENABLED = True
@@ -67,7 +67,7 @@ class Config:
                 f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
         elif self.USES_SERVICES:
-            raise ValueError("Missing required Redis environment variables")
+            raise ValueError('Missing required Redis environment variables')
 
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
@@ -95,10 +95,10 @@ class Config:
         # in the login/refresh response body, so no readable CSRF cookie is set.
         self.JWT_COOKIE_CSRF_PROTECT = True
         self.JWT_CSRF_IN_COOKIES = False
-        self.JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-REFRESH-TOKEN"
+        self.JWT_REFRESH_CSRF_HEADER_NAME = 'X-CSRF-REFRESH-TOKEN'
 
         if not self.JWT_SECRET_KEY:
-            raise ValueError("SECRET_KEY environment variable not set")
+            raise ValueError('SECRET_KEY environment variable not set')
 
 
 class DevelopmentConfig(Config):
@@ -106,7 +106,7 @@ class DevelopmentConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.FLASK_ENV = "development"
+        self.FLASK_ENV = 'development'
 
 
 class TestingConfig(Config):
@@ -116,7 +116,7 @@ class TestingConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.FLASK_ENV = "testing"
+        self.FLASK_ENV = 'testing'
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
         self.REDIS_ENABLED = False
         self.RATELIMIT_ENABLED = False
@@ -127,7 +127,7 @@ class IntegrationConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.FLASK_ENV = "integration"
+        self.FLASK_ENV = 'integration'
         self.RATELIMIT_ENABLED = False
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
         self.JWT_COOKIE_SECURE = e2e_mode
@@ -141,7 +141,7 @@ class ProductionConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.FLASK_ENV = "production"
+        self.FLASK_ENV = 'production'
         self.FLASK_DEBUG = False
         self.JWT_COOKIE_SECURE = True
         self.TRUSTED_PROXY_COUNT = 1  # nginx
@@ -151,13 +151,13 @@ class ProductionConfig(Config):
         if (len(self.JWT_SECRET_KEY) < MIN_SECRET_KEY_LENGTH
                 or self.JWT_SECRET_KEY in PLACEHOLDER_SECRET_KEYS):
             raise ValueError(
-                f"SECRET_KEY must be a random value of at least "
-                f"{MIN_SECRET_KEY_LENGTH} characters in production")
+                f'SECRET_KEY must be a random value of at least '
+                f'{MIN_SECRET_KEY_LENGTH} characters in production')
 
         for name in ('MYSQL_PASSWORD', 'REDIS_PASSWORD'):
             if os.getenv(name) in PLACEHOLDER_PASSWORDS:
                 raise ValueError(
-                    f"{name} is still the .env.prod.example placeholder")
+                    f'{name} is still the .env.prod.example placeholder')
 
 
 def get_config():
@@ -170,7 +170,7 @@ def get_config():
     """
     flask_env = os.getenv('FLASK_ENV', 'production')
 
-    if flask_env not in ["development", "testing", "integration", "production"]:
+    if flask_env not in ['development', 'testing', 'integration', 'production']:
         raise ValueError(
             f'FLASK_ENV must be one of: development, testing, integration, '
             f'production. Got: {flask_env}')

@@ -62,9 +62,9 @@ class TestConfigClasses:
         assert config.REDIS_DB == '0'
         assert config.REDIS_PASSWORD == 'redispass'
         assert config.JWT_SECRET_KEY == 'testsecret'
-        assert config.SQLALCHEMY_DATABASE_URI == "mysql+pymysql://test:test@localhost:3306/test"
-        assert config.REDIS_URI == "redis://default:redispass@localhost:6379/0"
-        assert config.RATELIMIT_STORAGE_URI == "redis://default:redispass@localhost:6379/0"
+        assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://test:test@localhost:3306/test'
+        assert config.REDIS_URI == 'redis://default:redispass@localhost:6379/0'
+        assert config.RATELIMIT_STORAGE_URI == 'redis://default:redispass@localhost:6379/0'
 
     def test_development_config_attributes(self):
         """DevelopmentConfig should have correct attributes"""

@@ -58,7 +58,7 @@ def test_app_user_keeps_data_access(probe_user):
     with _probe(probe_user) as conn, conn.cursor() as cursor:
         cursor.execute("INSERT INTO users (email, password_hash) VALUES ('p@x.com', 'h')")
         cursor.execute("UPDATE users SET password_hash = 'h2' WHERE email = 'p@x.com'")
-        cursor.execute("SELECT COUNT(*) FROM users")
+        cursor.execute('SELECT COUNT(*) FROM users')
         cursor.execute("DELETE FROM users WHERE email = 'p@x.com'")
 
 
@@ -83,7 +83,7 @@ def test_running_twice_is_harmless(probe_user):
     restrict_db_user.main()
 
     with _probe(probe_user) as conn, conn.cursor() as cursor:
-        cursor.execute("SHOW GRANTS")
+        cursor.execute('SHOW GRANTS')
         grants = ' '.join(row[0] for row in cursor.fetchall())
     assert 'SELECT, INSERT, UPDATE, DELETE' in grants
     assert 'CREATE' not in grants and 'DROP' not in grants

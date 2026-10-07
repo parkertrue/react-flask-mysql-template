@@ -2,4 +2,4 @@
 from .auth import User
 from .notes import Note
 
-__all__ = ["User", "Note"]
+__all__ = ['User', 'Note']
