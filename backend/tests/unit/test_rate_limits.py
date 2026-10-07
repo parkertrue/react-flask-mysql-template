@@ -62,8 +62,12 @@ def test_each_client_has_its_own_bucket(limited_app):
     assert login(client, '198.51.100.9').status_code == 401
 
 
-def test_health_is_never_rate_limited(limited_app):
-    """The container healthcheck polls every 10s from one address"""
+def test_unlimited_routes_have_no_per_ip_quota(limited_app):
+    """Only routes that declare a limit have one.
+
+    A default quota would fail the container healthcheck, which polls every
+    10s from one address, and lock out every user behind a shared NAT.
+    """
     client = limited_app.test_client()
 
     statuses = {client.get('/api/health').status_code for _ in range(250)}

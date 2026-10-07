@@ -265,14 +265,12 @@ class TestLoginEndpoint:
 
         assert response.status_code == 200
 
-        # Check for Set-Cookie header
         cookies = response.headers.getlist('Set-Cookie')
-        assert len(cookies) > 0
-
-        # Should have refresh token cookie
-        refresh_cookie = any(
-            'refresh_token_cookie' in cookie for cookie in cookies)
-        assert refresh_cookie
+        # Only the refresh cookie, HttpOnly. The CSRF value travels in the
+        # body, so no script-readable CSRF cookie is set.
+        assert len(cookies) == 1
+        assert cookies[0].startswith('refresh_token_cookie=')
+        assert 'HttpOnly' in cookies[0]
 
     def test_login_wrong_password(self, client, sample_user):
         """Wrong password should return 401."""
@@ -469,7 +467,6 @@ class TestLogoutEndpoint:
         assert fake_redis.tokens == set()
         cleared = response.headers.getlist('Set-Cookie')
         assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
-        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
 
     def test_refresh_after_logout_is_rejected(self, client, sample_user, fake_redis):
         csrf = login(client)
@@ -491,7 +488,6 @@ class TestLogoutEndpoint:
         assert response.status_code == 200
         cleared = response.headers.getlist('Set-Cookie')
         assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
-        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
         assert client.get_cookie('refresh_token_cookie', path='/api/auth') is None
 
     def test_clear_cookies_needs_no_token(self, client):
