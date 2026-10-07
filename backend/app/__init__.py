@@ -44,7 +44,7 @@ def create_app():
     # A Redis failure must not stop the app from booting; get_redis_service()
     # retries later, and the blocklist loader below fails closed meanwhile.
     app.extensions['redis_service'] = None
-    if app.config['REDIS_ENABLED']:
+    if app.config['USES_SERVICES']:
         connect_redis(app)
 
     if app.config['RATELIMIT_ENABLED']:

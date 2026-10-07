@@ -640,7 +640,7 @@ class TestSignInWithoutRedis:
         assert 'Set-Cookie' not in response.headers
 
     def test_login_when_redis_is_down(self, app, client, sample_user, monkeypatch):
-        monkeypatch.setitem(app.config, 'REDIS_ENABLED', True)
+        monkeypatch.setitem(app.config, 'USES_SERVICES', True)
         # Stops get_redis_service() from trying to connect for real
         monkeypatch.setitem(app.extensions, 'redis_retry_at', float('inf'))
 

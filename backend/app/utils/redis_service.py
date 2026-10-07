@@ -13,7 +13,7 @@ RECONNECT_INTERVAL_SECONDS = 5
 # default retries a failed command 10 times with backoff, so every request
 # would hang for ~30s while Redis is down. One immediate retry is enough to
 # replace a connection Redis closed; after that, fail fast.
-CLIENT_OPTIONS = {
+REDIS_CLIENT_OPTIONS = {
     'socket_connect_timeout': 2,
     'socket_timeout': 2,
     'retry': Retry(NoBackoff(), 1),
@@ -27,7 +27,7 @@ def get_redis_service() -> 'RedisService | None':
     gunicorn worker, several per test session) sees its own service.
     """
     service = current_app.extensions.get('redis_service')
-    if service is None and current_app.config['REDIS_ENABLED']:
+    if service is None and current_app.config['USES_SERVICES']:
         service = connect_redis(current_app)
     return service
 
@@ -46,7 +46,7 @@ def connect_redis(app: Flask) -> 'RedisService | None':
         service = RedisService(
             host=app.config['REDIS_HOST'],
             port=app.config['REDIS_PORT'],
-            db=int(app.config['REDIS_DB']),
+            db=app.config['REDIS_DB'],
             username=app.config['REDIS_USERNAME'],
             password=app.config['REDIS_PASSWORD'],
             max_connections=app.config['REDIS_MAX_CONNECTIONS']
@@ -78,8 +78,8 @@ class RedisService:
     anything else stored here must carry a TTL, or use a separate instance.
     """
 
-    def __init__(self, host: str, port: int, db: int, password: str,
-                 max_connections: int, username: str = 'default'):
+    def __init__(self, host: str, port: int, db: int, username: str, password: str,
+                 max_connections: int):
         try:
             self._client = redis.Redis(
                 host=host,
@@ -90,7 +90,7 @@ class RedisService:
                 decode_responses=True,
                 health_check_interval=30,
                 max_connections=max_connections,
-                **CLIENT_OPTIONS,
+                **REDIS_CLIENT_OPTIONS,
             )
 
             self._client.ping()

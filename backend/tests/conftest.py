@@ -20,18 +20,18 @@ os.environ.setdefault('SECRET_KEY', 'test-secret-key-0123456789abcdef')
 def app():
     """Unit test app - fast SQLite in-memory, no real services needed
 
-    Uses TestingConfig which:
-    - Sets FLASK_ENV=testing
+    Uses UnitTestConfig which:
+    - Sets APP_ENV=unit
     - Uses SQLite in-memory (no MySQL needed)
     - Disables Redis
     - Disables rate limiting
 
-    Note: Config reads from environment, but TestingConfig overrides with
-    in-memory SQLite regardless of MYSQL_* env vars.
+    Note: Config reads from environment, but UnitTestConfig overrides with
+    in-memory SQLite regardless of DB_* env vars.
     """
-    # Only set FLASK_ENV to trigger TestingConfig; everything else comes from
-    # TestingConfig defaults or the ambient environment.
-    os.environ['FLASK_ENV'] = 'testing'
+    # Only set APP_ENV to trigger UnitTestConfig; everything else comes from
+    # UnitTestConfig defaults or the ambient environment.
+    os.environ['APP_ENV'] = 'unit'
 
     app = create_app()
 
@@ -94,7 +94,7 @@ class FakeRedisService:
 def fake_redis(app):
     """Give the unit app a Redis token store.
 
-    TestingConfig disables Redis, and without it the blocklist loader fails
+    UnitTestConfig disables Redis, and without it the blocklist loader fails
     closed, so every refresh-cookie route would return 401.
     """
     fake = FakeRedisService()
@@ -119,9 +119,9 @@ def integration_app():
     Environment variables are loaded by run_tests.sh from .env.test. If running
     pytest directly, ensure .env.test is loaded first.
     """
-    os.environ['FLASK_ENV'] = 'integration'
+    os.environ['APP_ENV'] = 'integration'
 
-    required_vars = ['MYSQL_DATABASE', 'MYSQL_HOST', 'REDIS_HOST']
+    required_vars = ['DB_NAME', 'DB_HOST', 'REDIS_HOST']
     missing = [v for v in required_vars if v not in os.environ]
     if missing:
         raise RuntimeError(

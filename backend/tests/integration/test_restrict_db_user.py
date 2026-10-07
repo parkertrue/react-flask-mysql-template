@@ -1,6 +1,6 @@
 """restrict_db_user.py against real MySQL, on a throwaway user.
 
-The suite's own MYSQL_USER keeps its privileges: integration fixtures create
+The suite's own DB_USER keeps its privileges: integration fixtures create
 and drop tables with it.
 """
 import os
@@ -16,8 +16,8 @@ PROBE_PASSWORD = 'probe-password-123'
 
 def _connect(user, password, database=None):
     return pymysql.connect(
-        host=os.environ['MYSQL_HOST'],
-        port=int(os.getenv('MYSQL_PORT', '3306')),
+        host=os.environ['DB_HOST'],
+        port=int(os.getenv('DB_PORT', '3306')),
         user=user,
         password=password,
         database=database,
@@ -28,8 +28,8 @@ def _connect(user, password, database=None):
 @pytest.fixture
 def probe_user(integration_db, monkeypatch):
     """A user with GRANT ALL on the database, as the MySQL image creates"""
-    database = os.environ['MYSQL_DATABASE']
-    root = _connect('root', os.environ['MYSQL_ROOT_PASSWORD'])
+    database = os.environ['DB_NAME']
+    root = _connect('root', os.environ['DB_ROOT_PASSWORD'])
     with root.cursor() as cursor:
         cursor.execute("DROP USER IF EXISTS %s@'%%'", (PROBE_USER,))
         cursor.execute(
@@ -37,9 +37,9 @@ def probe_user(integration_db, monkeypatch):
         cursor.execute(f"GRANT ALL ON `{database}`.* TO %s@'%%'", (PROBE_USER,))
 
     # The migrate service's environment: admin credentials, app user to restrict
-    monkeypatch.setenv('MYSQL_USER', 'root')
-    monkeypatch.setenv('MYSQL_PASSWORD', os.environ['MYSQL_ROOT_PASSWORD'])
-    monkeypatch.setenv('APP_MYSQL_USER', PROBE_USER)
+    monkeypatch.setenv('DB_USER', 'root')
+    monkeypatch.setenv('DB_PASSWORD', os.environ['DB_ROOT_PASSWORD'])
+    monkeypatch.setenv('APP_DB_USER', PROBE_USER)
 
     yield database
 
@@ -90,8 +90,8 @@ def test_running_twice_is_harmless(probe_user):
 
 
 def test_rejects_an_unsafe_database_name(monkeypatch):
-    monkeypatch.setenv('MYSQL_DATABASE', 'app`; DROP DATABASE x; --')
-    monkeypatch.setenv('APP_MYSQL_USER', PROBE_USER)
+    monkeypatch.setenv('DB_NAME', 'app`; DROP DATABASE x; --')
+    monkeypatch.setenv('APP_DB_USER', PROBE_USER)
 
     with pytest.raises(SystemExit):
         restrict_db_user.main()

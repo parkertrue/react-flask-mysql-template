@@ -21,6 +21,7 @@ class TestRedisServiceInitialization:
                 host='localhost',
                 port=6379,
                 db=0,
+                username='app',
                 password='testpass',
                 max_connections=50
             )
@@ -39,6 +40,7 @@ class TestRedisServiceInitialization:
                 host='redishost',
                 port=6380,
                 db=2,
+                username='app',
                 password='mypassword',
                 max_connections=100
             )
@@ -49,6 +51,7 @@ class TestRedisServiceInitialization:
             assert call_kwargs['host'] == 'redishost'
             assert call_kwargs['port'] == 6380
             assert call_kwargs['db'] == 2
+            assert call_kwargs['username'] == 'app'
             assert call_kwargs['password'] == 'mypassword'
             assert call_kwargs['max_connections'] == 100
 
@@ -65,6 +68,7 @@ class TestRedisServiceInitialization:
                     host='localhost',
                     port=6379,
                     db=0,
+                    username='app',
                     password='testpass',
                     max_connections=50
                 )
@@ -81,6 +85,7 @@ class TestRedisServiceInitialization:
                     host='localhost',
                     port=6379,
                     db=0,
+                    username='app',
                     password='testpass',
                     max_connections=50
                 )
@@ -98,6 +103,7 @@ class TestRedisServiceInitialization:
                 host='localhost',
                 port=6379,
                 db=0,
+                username='app',
                 password='testpass',
                 max_connections=50
             )
@@ -121,6 +127,7 @@ class TestTokenManagement:
                 host='localhost',
                 port=6379,
                 db=0,
+                username='app',
                 password='testpass',
                 max_connections=50
             )
@@ -224,7 +231,7 @@ class TestFailFastWhenRedisIsDown:
 
     def test_app_client_retries_once(self):
         def make():
-            return RedisService(host='localhost', port=6379, db=0,
+            return RedisService(host='localhost', port=6379, db=0, username='app',
                                 password='x', max_connections=5)._client
 
         assert self.count_connection_attempts(make) == 2
@@ -233,9 +240,10 @@ class TestFailFastWhenRedisIsDown:
         """Flask-Limiter hands RATELIMIT_STORAGE_OPTIONS to redis.from_url"""
         from app.config import DevelopmentConfig
         monkeypatch.setenv('SECRET_KEY', 'x' * 32)
-        for name, value in {'MYSQL_USER': 'u', 'MYSQL_PASSWORD': 'p',
-                            'MYSQL_HOST': 'h', 'MYSQL_DATABASE': 'd',
-                            'REDIS_HOST': 'localhost', 'REDIS_PASSWORD': 'p'}.items():
+        for name, value in {'DB_USER': 'u', 'DB_PASSWORD': 'p',
+                            'DB_HOST': 'h', 'DB_NAME': 'd',
+                            'REDIS_HOST': 'localhost', 'REDIS_USERNAME': 'app',
+                            'REDIS_PASSWORD': 'p'}.items():
             monkeypatch.setenv(name, value)
         config = DevelopmentConfig()
 

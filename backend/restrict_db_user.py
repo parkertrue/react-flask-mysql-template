@@ -1,13 +1,13 @@
 """Leave the app's MySQL user with data rights only, once migrations are done.
 
-The MySQL image grants MYSQL_USER every privilege on the database. The
+The MySQL image grants the app's user every privilege on the database. The
 migrate service in docker-compose.yml runs this as root after
 `flask db upgrade`, narrowing that user to what the running app needs, so a
 compromised backend can read and write rows but never drop or alter tables.
 Safe to run on every deploy, including against databases created before it.
 
-Reads MYSQL_HOST/PORT/DATABASE and the admin MYSQL_USER/MYSQL_PASSWORD like
-app/config.py; APP_MYSQL_USER names the user to restrict.
+Reads DB_HOST/PORT/NAME and the admin DB_USER/DB_PASSWORD like
+app/config.py; APP_DB_USER names the user to restrict.
 """
 import os
 import re
@@ -25,18 +25,18 @@ SCHEMA_PRIVILEGES = (
 
 
 def main():
-    database = os.environ['MYSQL_DATABASE']
+    database = os.environ['DB_NAME']
     # Identifiers cannot be passed as query parameters, so only allow names
     # that are safe to put between backticks
     if not re.fullmatch(r'\w+', database):
         sys.exit(f'Refusing unexpected database name: {database!r}')
-    app_user = os.environ['APP_MYSQL_USER']
+    app_user = os.environ['APP_DB_USER']
 
     connection = pymysql.connect(
-        host=os.environ['MYSQL_HOST'],
-        port=int(os.getenv('MYSQL_PORT', '3306')),
-        user=os.environ['MYSQL_USER'],
-        password=os.environ['MYSQL_PASSWORD'],
+        host=os.environ['DB_HOST'],
+        port=int(os.getenv('DB_PORT', '3306')),
+        user=os.environ['DB_USER'],
+        password=os.environ['DB_PASSWORD'],
     )
     with connection, connection.cursor() as cursor:
         # Grant before revoking: a backend still serving from the previous

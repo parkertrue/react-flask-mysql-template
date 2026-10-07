@@ -65,7 +65,7 @@ Dev and test work as cloned. Production is the only file to create:
 cp .env.prod.example .env.prod
 ```
 
-It holds only the seven values that differ per deployment (including `SERVER_NAME`, the domain nginx serves); hosts, ports and `FLASK_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters or with the example file's placeholder passwords. Generate values with:
+It holds only the seven values that differ per deployment (including `SERVER_NAME`, the domain nginx serves); hosts, ports and `APP_ENV` are fixed in `docker-compose.yml`. Set strong, unique values for every password and `SECRET_KEY`. Production refuses to start with a `SECRET_KEY` shorter than 32 characters or with the example file's placeholder passwords. Generate values with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"

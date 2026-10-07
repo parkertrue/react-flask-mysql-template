@@ -40,7 +40,7 @@ def _issue_tokens(user_id: int, replaces: str | None = None):
     # would end silently once the access token expires. Refuse up front.
     # Only unit tests run with Redis disabled and no store at all.
     redis_service = get_redis_service()
-    if redis_service is not None or current_app.config['REDIS_ENABLED']:
+    if redis_service is not None or current_app.config['USES_SERVICES']:
         jti = decode_token(refresh_token)['jti']
         ttl = int(current_app.config['JWT_REFRESH_TOKEN_EXPIRES'].total_seconds())
         if redis_service is None or not redis_service.store_refresh_token(
