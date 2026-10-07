@@ -114,7 +114,7 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`utils/`** — `validation.js` (shared field validators), `storage.js` (token storage; see the comment there on the accepted localStorage XSS trade-off).
 - **`components/`** — `layout/` (Navbar, LogoutDropdown), `notes/` (the example feature). Each with co-located unit tests in `__tests__/`.
 - **`pages/`** — `HomePage`, `LoginPage`, `RegisterPage`, `NotesPage`.
-- **`e2e/`** — Playwright tests for full user journeys.
+- **`e2e/`** — Playwright tests for full user journeys. Shared steps (register, log in, unique emails) live in `e2e/helpers.js`.
 
 ### Test Architecture
 - **Backend unit tests** (`tests/unit/`): `UnitTestConfig` uses SQLite in-memory, disables Redis and rate limiting. Route tests live here too — they need no real services. Refresh-cookie routes (`/refresh`, `/logout`, `/logout-all`) fail closed without Redis, so their tests use the `fake_redis` fixture. Fixtures in `tests/conftest.py`.

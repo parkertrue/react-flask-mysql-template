@@ -1,15 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { randomUUID } from 'crypto'
-
-// Generate truly unique email for each test run
-const generateTestEmail = () => `e2e-test-${randomUUID()}@example.com`
-const TEST_PASSWORD = 'SecurePass123'
+import { TEST_PASSWORD, login, register, submitRegistration, uniqueEmail } from './helpers'
 
 test.describe('Critical User Journey', () => {
   let testEmail
 
   test.beforeEach(() => {
-    testEmail = generateTestEmail()
+    testEmail = uniqueEmail('e2e-test')
   })
 
   test('complete user journey: register → login → create note → logout', async ({ page }) => {
@@ -34,18 +30,7 @@ test.describe('Critical User Journey', () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 })
 
     // 3. Login with newly created account
-    await page.getByLabel(/email/i).fill(testEmail)
-    await page.getByLabel(/password/i).fill(TEST_PASSWORD)
-    
-    // Wait for login button to be enabled and ready
-    const loginButton = page.getByRole('button', { name: /login|logging in/i })
-    await expect(loginButton).toBeEnabled({ timeout: 5000 })
-    
-    // Click and wait for navigation
-    await Promise.all([
-      page.waitForURL(/\/notes/, { timeout: 15000 }),
-      loginButton.click()
-    ])
+    await login(page, testEmail)
     await expect(page.getByRole('heading', { name: /my notes/i })).toBeVisible()
 
     // 4. Create a note
@@ -55,7 +40,7 @@ test.describe('Critical User Journey', () => {
     await page.getByRole('button', { name: /create|add note/i }).click()
 
     // Verify note appears in list
-    await expect(page.getByText(noteContent)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(noteContent)).toBeVisible()
 
     // 5. Verify session persistence (page refresh)
     await page.reload()
@@ -72,7 +57,7 @@ test.describe('Critical User Journey', () => {
     
     // Verify user is logged out by checking they can't access notes
     await page.goto('/notes')
-    await expect(page).toHaveURL(/\/login/, { timeout: 5000 })
+    await expect(page).toHaveURL(/\/login/)
   })
 
   test('cannot access protected routes without authentication', async ({ page }) => {
@@ -92,34 +77,21 @@ test.describe('Critical User Journey', () => {
     await page.getByRole('button', { name: /login|logging in/i }).click()
 
     // Should show error message (wait for it to appear)
-    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible()
     
     // Should still be on login page
     await expect(page).toHaveURL(/\/login/)
   })
 
   test('registration with existing email shows error', async ({ page }) => {
-    // First, register a user
-    const existingEmail = `existing-${randomUUID()}@example.com`
-    
-    await page.goto('/register')
-    await page.getByLabel(/email/i).fill(existingEmail)
-    await page.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-    await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-    await page.getByRole('button', { name: /register|creating account/i }).click()
-    
-    // The redirect only happens after the API returned 201
-    await expect(page).toHaveURL(/\/login/, { timeout: 10000 })
-    
+    const existingEmail = uniqueEmail('existing')
+    await register(page, existingEmail)
+
     // Try to register again with same email
-    await page.goto('/register')
-    await page.getByLabel(/email/i).fill(existingEmail)
-    await page.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-    await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-    await page.getByRole('button', { name: /register|creating account/i }).click()
+    await submitRegistration(page, existingEmail)
     
     // Should show error about email already existing
-    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible()
     await expect(page).toHaveURL(/\/register/)
   })
 })

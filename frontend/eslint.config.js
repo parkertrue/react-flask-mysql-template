@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'playwright-report', 'test-results']),
   {
-    files: ['**/*.{js,jsx,mjs}'],
+    files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,
@@ -23,7 +23,7 @@ export default defineConfig([
   },
   {
     // Build and test tooling runs under Node, not in the browser
-    files: ['*.config.{js,mjs}', 'e2e/**'],
+    files: ['*.config.js', 'e2e/**'],
     languageOptions: {
       globals: globals.node,
     },
