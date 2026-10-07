@@ -129,10 +129,12 @@ server {
 
     # Replace upstream 5xx bodies (including nginx's own 502/504 HTML when the
     # backend is down) with the API's JSON error shape. No "=" on error_page,
-    # so the client still receives the original status code.
+    # so the client still receives the original status code. 503 is left out:
+    # nginx never sends one here (its limits answer 429), and the backend's
+    # own 503 already carries a JSON message worth showing the user.
     proxy_intercept_errors on;
 
-    error_page 500 502 503 504 /error.json;
+    error_page 500 502 504 /error.json;
 
     location = /error.json {
         internal;
