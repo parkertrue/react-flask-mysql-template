@@ -139,6 +139,18 @@ Each file names its own Compose project (`app_dev`, `app_test`, `app`), so the s
 
 ## Naming Conventions
 
+How each environment's names line up. Production gets the bare name; every other environment adds a suffix.
+
+| Environment | Env file | `APP_ENV` | Config class | Compose project | Database |
+|---|---|---|---|---|---|
+| Development | `.env.dev` | `development` | `DevelopmentConfig` | `app_dev` | `appdb_dev` |
+| Unit tests | none | `unit` | `UnitTestConfig` | none | in-memory SQLite |
+| Integration tests | `.env.test` | `integration` | `IntegrationConfig` | `app_test` | `appdb_test` |
+| E2E | `.env.test` | `integration`, plus `E2E_MODE=true` | `IntegrationConfig` | `app_test` (`e2e` profile) | `appdb_test` |
+| Production | `.env.prod` | `production` | `ProductionConfig` | `app` | `appdb` (set per deployment) |
+
+- **Env vars:** the app reads `DB_*` for the database and `REDIS_*` for Redis. `MYSQL_*` appears only inside the compose `db` services, as the MySQL image's own keys. The app's database and Redis users are both `app` in dev and test.
+- **`.env.prod`, not `.env`:** Compose reads a `.env` in the project directory automatically, so production values in a bare `.env` would leak into every dev and test command.
 - **Singular for one thing, plural for a collection.** Model classes and model modules are singular (`Note`, `models/note.py`); tables are plural (`notes`). Names that handle one item are singular (`NoteForm`, `NoteCreateRequest`, `NoteResponse`); names that handle many are plural (`NotesList`, `NotesListQuery`, `NotesPage`). Route and schema modules take the API resource's name (`notes` for `/api/notes`), and test files are named after the module they test (`test_notes_schemas.py`).
 
 ## Starting a New App From This Template
