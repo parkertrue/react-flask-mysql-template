@@ -381,7 +381,7 @@ To stop a failing check from merging, require these status checks on `main` (Set
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/{models,schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
+1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
 2. Update the `Note` fixtures in `backend/tests/conftest.py`.
 3. Update the note-length validators in `frontend/src/utils/validation.js`.
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.

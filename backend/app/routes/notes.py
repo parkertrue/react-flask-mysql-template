@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app import db
 from app.models import Note, User
-from app.schemas import NoteCreateRequest, NoteResponse, NotesPageQuery
+from app.schemas import NoteCreateRequest, NoteResponse, NotesListQuery
 
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')
@@ -20,7 +20,7 @@ def get_notes():
     ones are added between pages, and every page costs the same: the user_id
     index is ordered by id within each user.
     """
-    query = NotesPageQuery.model_validate(request.args.to_dict())
+    query = NotesListQuery.model_validate(request.args.to_dict())
     user_id = int(get_jwt_identity())
 
     stmt = select(Note).where(Note.user_id == user_id)

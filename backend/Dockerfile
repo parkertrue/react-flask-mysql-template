@@ -26,4 +26,4 @@ ENTRYPOINT ["./entrypoint.sh"]
 # behind a login's password hash (~75ms CPU, ~32MB each; 8 fit in the 512MB
 # limit). Scale workers with CPUs and threads with memory. A distributed login
 # flood still saturates the CPU; stopping that belongs to a CDN or WAF.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--workers", "2", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "run_app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--workers", "2", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "wsgi:app"]

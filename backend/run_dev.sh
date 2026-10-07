@@ -41,4 +41,4 @@ flask db upgrade
 
 # Start Flask app
 echo "Starting Flask app..."
-exec python run_app.py
+exec python wsgi.py
