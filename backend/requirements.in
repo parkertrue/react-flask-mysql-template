@@ -1,0 +1,16 @@
+# Runtime dependencies the app imports directly. requirements.txt is the lock
+# compiled from this file: every package, transitive ones included, pinned to
+# an exact version, so each image build installs exactly what was tested.
+# After editing this file, regenerate the lock (see README, "Dependencies").
+
+# Required by PyMySQL for MySQL 8's default caching_sha2_password auth
+cryptography
+gunicorn
+Flask
+Flask-JWT-Extended
+Flask-Limiter
+Flask-Migrate
+Flask-SQLAlchemy
+redis
+pydantic[email]
+PyMySQL

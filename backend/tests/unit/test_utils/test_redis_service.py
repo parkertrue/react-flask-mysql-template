@@ -203,3 +203,44 @@ class TestTokenManagement:
             redis.RedisError("Failed"))
 
         assert service.revoke_all_user_tokens(1) == 0
+
+
+class TestFailFastWhenRedisIsDown:
+    """redis-py's default retries a failed command 10 times with backoff,
+    which would hang every request for ~30s while Redis is down."""
+
+    @staticmethod
+    def count_connection_attempts(make_client):
+        attempts = []
+
+        def refuse(self):
+            attempts.append(1)
+            raise ConnectionRefusedError
+
+        with patch('redis.connection.Connection._connect', refuse):
+            with pytest.raises(Exception):
+                make_client().ping()
+        return len(attempts)
+
+    def test_app_client_retries_once(self):
+        def make():
+            return RedisService(host='localhost', port=6379, db=0,
+                                password='x', max_connections=5)._client
+
+        assert self.count_connection_attempts(make) == 2
+
+    def test_rate_limiter_client_retries_once(self, monkeypatch):
+        """Flask-Limiter hands RATELIMIT_STORAGE_OPTIONS to redis.from_url"""
+        from app.config import DevelopmentConfig
+        monkeypatch.setenv('SECRET_KEY', 'x' * 32)
+        for name, value in {'MYSQL_USER': 'u', 'MYSQL_PASSWORD': 'p',
+                            'MYSQL_HOST': 'h', 'MYSQL_DATABASE': 'd',
+                            'REDIS_HOST': 'localhost', 'REDIS_PASSWORD': 'p'}.items():
+            monkeypatch.setenv(name, value)
+        config = DevelopmentConfig()
+
+        def make():
+            return redis.from_url(
+                config.RATELIMIT_STORAGE_URI, **config.RATELIMIT_STORAGE_OPTIONS)
+
+        assert self.count_connection_attempts(make) == 2

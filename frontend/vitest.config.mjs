@@ -6,6 +6,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // The page's URL. src/test/setup.js stubs window.location with the same
+    // origin, and MSW resolves relative handler paths against it, so the two
+    // must agree for handlers to match the requests axios sends.
+    environmentOptions: { jsdom: { url: 'http://localhost/' } },
     setupFiles: './src/test/setup.js',
     exclude: [
       'node_modules/',

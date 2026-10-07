@@ -280,6 +280,20 @@ flask db upgrade
 
 ---
 
+## Python Dependencies (During Dev)
+
+`requirements.in` lists the packages the app imports and `requirements-dev.in` the test tools. The `.txt` files are locks compiled from them: every package, transitive ones included, pinned to an exact version, so each install and image build gets exactly what was tested. Never edit the `.txt` files by hand. After changing a `.in` file, from `backend/` (needs Docker):
+
+```bash
+./lock_deps.sh             # Re-resolve after editing a .in file
+./lock_deps.sh --upgrade   # Move every package to its newest release
+pip install -r requirements-dev.txt
+```
+
+The script compiles inside the production base image, so the locks resolve for Linux and Python 3.12 whatever machine runs it.
+
+---
+
 ## Stop Development Mode
 
 Stop development servers and database.
@@ -342,8 +356,14 @@ npm run test:e2e:ui               # Interactive mode
 
 GitHub Actions (`.github/workflows/`):
 
-* **Tests** runs the backend and frontend unit suites on every push and pull request to `main`.
-* **Integration & E2E** runs the integration and Playwright suites nightly, and on demand from the Actions tab.
+* **Tests** runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
+* **Integration & E2E** runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
+
+Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
+
+Dependabot (`.github/dependabot.yml`) opens weekly update PRs for the Python locks, npm, Docker images and GitHub Actions. For it to also open security fixes as soon as an advisory is published, enable Dependabot alerts and security updates under the repository's Settings > Advanced Security.
+
+To stop a failing check from merging, require these status checks on `main` (Settings > Branches): Backend unit, Frontend unit, Compose files, Backend integration and Playwright E2E.
 
 ---
 

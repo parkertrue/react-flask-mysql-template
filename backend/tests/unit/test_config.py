@@ -341,7 +341,6 @@ class TestConfigValues:
 
         config = get_config()
 
-        assert config.JWT_COOKIE_HTTPONLY is True
         assert config.JWT_COOKIE_SAMESITE == 'Lax'
         assert config.JWT_COOKIE_CSRF_PROTECT is True
 

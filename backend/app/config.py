@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
+from app.utils.redis_service import CLIENT_OPTIONS as REDIS_CLIENT_OPTIONS
+
 MIN_SECRET_KEY_LENGTH = 32
 PLACEHOLDER_SECRET_KEYS = {"your_secret_key_here"}
 # .env.prod.example's values, which must never reach a deployment. The
@@ -70,6 +72,7 @@ class Config:
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
+        self.RATELIMIT_STORAGE_OPTIONS = REDIS_CLIENT_OPTIONS
         # If Redis is unreachable, count in each worker's memory until it is
         # back, rather than failing every rate-limited request with a 500.
         self.RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = True
@@ -83,14 +86,15 @@ class Config:
         self.JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
         self.JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
         # Access tokens travel in the Authorization header, refresh tokens in
-        # an HttpOnly cookie that is only sent to the /api/auth routes.
+        # an HttpOnly cookie (always, in Flask-JWT-Extended) that is only sent
+        # to the /api/auth routes.
         self.JWT_TOKEN_LOCATION = ['headers', 'cookies']
         self.JWT_REFRESH_COOKIE_PATH = '/api/auth'
-        self.JWT_COOKIE_HTTPONLY = True
         self.JWT_COOKIE_SAMESITE = 'Lax'
+        # Double-submit CSRF for the refresh cookie. The client gets the value
+        # in the login/refresh response body, so no readable CSRF cookie is set.
         self.JWT_COOKIE_CSRF_PROTECT = True
-        self.JWT_CSRF_IN_COOKIES = True
-        self.JWT_CSRF_CHECK_FORM = False
+        self.JWT_CSRF_IN_COOKIES = False
         self.JWT_REFRESH_CSRF_HEADER_NAME = "X-CSRF-REFRESH-TOKEN"
 
         if not self.JWT_SECRET_KEY:

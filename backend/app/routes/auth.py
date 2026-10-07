@@ -36,13 +36,20 @@ def _issue_tokens(user_id: int, replaces: str | None = None):
     access_token = create_access_token(identity=str(user_id))
     refresh_token = create_refresh_token(identity=str(user_id))
 
+    # A refresh token Redis never recorded counts as revoked, so the session
+    # would end silently once the access token expires. Refuse up front.
+    # Only unit tests run with Redis disabled and no store at all.
     redis_service = get_redis_service()
-    if redis_service:
-        jti = decode_token(refresh_token).get('jti')
+    if redis_service is not None or current_app.config["REDIS_ENABLED"]:
+        jti = decode_token(refresh_token)['jti']
         ttl = int(current_app.config["JWT_REFRESH_TOKEN_EXPIRES"].total_seconds())
-        if jti and not redis_service.store_refresh_token(
+        if redis_service is None or not redis_service.store_refresh_token(
                 user_id, jti, ttl_seconds=ttl, replaces=replaces):
-            raise RuntimeError("Failed to store refresh token in Redis")
+            return error_response(
+                code="SERVICE_UNAVAILABLE",
+                message="Sign-in is temporarily unavailable, please try again shortly",
+                status=503
+            )
 
     # Only advertise a CSRF token when cookie CSRF protection is actually on;
     # IntegrationConfig turns it off for headless API tests.

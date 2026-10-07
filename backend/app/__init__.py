@@ -15,10 +15,11 @@ from app.utils.redis_service import connect_redis, get_redis_service
 jwt = JWTManager()
 db = SQLAlchemy()
 migrate = Migrate()
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["1000 per day", "200 per hour"]
-)
+# No default limits: only the routes that need one (login, register,
+# refresh) declare it. nginx caps every client's request rate, and a per-IP
+# daily quota on the whole API would lock out everyone sharing an address
+# (an office, a campus, a mobile carrier's NAT) once a few of them hit it.
+limiter = Limiter(key_func=get_remote_address)
 
 
 def create_app():

@@ -1,7 +1,7 @@
 """Block until MySQL and Redis accept connections, or exit 1 after a timeout.
 
-Run before `flask db upgrade` by entrypoint.sh (containers) and run_dev.sh
-(local dev). Reads the same environment variables as app/config.py.
+Run by entrypoint.sh before the container's command (gunicorn, or the
+migrate service's `flask db upgrade`) and by run_dev.sh (local dev). Reads the same environment variables as app/config.py.
 """
 import os
 import sys

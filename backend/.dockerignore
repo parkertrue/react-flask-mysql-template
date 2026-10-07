@@ -22,6 +22,9 @@ tests/
 # Dev Scripts
 run_dev.sh
 run_tests.sh
+lock_deps.sh
+requirements.in
+requirements-dev.in
 requirements-dev.txt
 ruff.toml
 

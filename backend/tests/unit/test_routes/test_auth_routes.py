@@ -265,14 +265,12 @@ class TestLoginEndpoint:
 
         assert response.status_code == 200
 
-        # Check for Set-Cookie header
         cookies = response.headers.getlist('Set-Cookie')
-        assert len(cookies) > 0
-
-        # Should have refresh token cookie
-        refresh_cookie = any(
-            'refresh_token_cookie' in cookie for cookie in cookies)
-        assert refresh_cookie
+        # Only the refresh cookie, HttpOnly. The CSRF value travels in the
+        # body, so no script-readable CSRF cookie is set.
+        assert len(cookies) == 1
+        assert cookies[0].startswith('refresh_token_cookie=')
+        assert 'HttpOnly' in cookies[0]
 
     def test_login_wrong_password(self, client, sample_user):
         """Wrong password should return 401."""
@@ -469,7 +467,6 @@ class TestLogoutEndpoint:
         assert fake_redis.tokens == set()
         cleared = response.headers.getlist('Set-Cookie')
         assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
-        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
 
     def test_refresh_after_logout_is_rejected(self, client, sample_user, fake_redis):
         csrf = login(client)
@@ -491,7 +488,6 @@ class TestLogoutEndpoint:
         assert response.status_code == 200
         cleared = response.headers.getlist('Set-Cookie')
         assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
-        assert any(c.startswith('csrf_refresh_token=;') for c in cleared)
         assert client.get_cookie('refresh_token_cookie', path='/api/auth') is None
 
     def test_clear_cookies_needs_no_token(self, client):
@@ -632,3 +628,33 @@ class TestAuthenticationFlow:
             content_type='application/json'
         )
         assert new_response.status_code == 200
+
+
+class TestSignInWithoutRedis:
+    """A refresh token Redis never recorded would end the session silently at
+    the access token's expiry, so sign-in refuses with 503 instead."""
+
+    def assert_unavailable(self, response):
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert 'Set-Cookie' not in response.headers
+
+    def test_login_when_redis_is_down(self, app, client, sample_user, monkeypatch):
+        monkeypatch.setitem(app.config, 'REDIS_ENABLED', True)
+        # Stops get_redis_service() from trying to connect for real
+        monkeypatch.setitem(app.extensions, 'redis_retry_at', float('inf'))
+
+        self.assert_unavailable(client.post('/api/auth/login', json=LOGIN_PAYLOAD))
+
+    def test_login_when_redis_rejects_the_write(
+            self, client, sample_user, fake_redis, monkeypatch):
+        monkeypatch.setattr(fake_redis, 'store_refresh_token', lambda *a, **k: False)
+
+        self.assert_unavailable(client.post('/api/auth/login', json=LOGIN_PAYLOAD))
+
+    def test_refresh_when_redis_rejects_the_write(
+            self, client, sample_user, fake_redis, monkeypatch):
+        csrf = login(client)
+        monkeypatch.setattr(fake_redis, 'store_refresh_token', lambda *a, **k: False)
+
+        self.assert_unavailable(client.post('/api/auth/refresh', headers=csrf))
