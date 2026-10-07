@@ -129,6 +129,8 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`templates/00-rate-limits.conf.template`** — rate-limit zones rendered from `NGINX_AUTH_RATE`/`NGINX_API_RATE` at container start. Production defaults are in `nginx/Dockerfile`; `docker-compose.test.yml` relaxes the auth rate for E2E.
 
 ### Docker Compose Files
+Each file names its own Compose project (`app_dev`, `app_test`, `app`), so the stacks never share containers or volumes and can run side by side. Names follow one pattern: production gets the bare name, other environments a suffix (`appdb` / `appdb_dev` / `appdb_test`). The app's MySQL and Redis users are both `app` in dev and test.
+
 | File | Purpose |
 |------|---------|
 | `docker-compose.dev.yml` | Dev: MySQL + Redis only (backend/frontend run locally), bound to 127.0.0.1 |
@@ -142,4 +144,5 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 3. Update `frontend/src/utils/validation.js` (the note-length validators).
 4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage`/`RegisterPage`.
 5. Generate an Alembic migration for the new tables (`flask db migrate`); it chains onto `0001_users`.
-6. Rewrite this file and `README.md` for the new app.
+6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev`/`.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
+7. Rewrite this file and `README.md` for the new app.

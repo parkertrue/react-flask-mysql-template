@@ -1,6 +1,9 @@
+# Every compose file names its own project, so dev, test and production
+# never share containers or volumes. Rename it for a new app.
+name: app_test
+
 services:
   db:
-    container_name: db_test
     image: mysql:8.4.11
     # Only the variables MySQL needs, interpolated from the --env-file passed
     # to docker compose, so SECRET_KEY and the Redis password stay out.
@@ -18,8 +21,6 @@ services:
       retries: 10
       start_period: 30s
     restart: "no"
-    networks:
-      - test-network
     ports:
       - "127.0.0.1:3307:3306"
     mem_limit: 512m
@@ -28,7 +29,6 @@ services:
       - /var/lib/mysql
 
   redis:
-    container_name: redis_test
     image: redis:8.4-alpine
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
@@ -59,8 +59,6 @@ services:
       retries: 5
       start_period: 10s
     restart: "no"
-    networks:
-      - test-network
     ports:
       - "127.0.0.1:6380:6379"
     mem_limit: 128m
@@ -71,7 +69,6 @@ services:
   # exits. The backend starts once it succeeds, holding credentials that
   # cannot change the schema.
   migrate:
-    container_name: migrate_test
     build: ./backend
     security_opt:
       - no-new-privileges:true
@@ -97,14 +94,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - test-network
     restart: "no"
     profiles:
       - e2e
 
   backend:
-    container_name: backend_test
     build: ./backend
     # Same hardening as docker-compose.yml, so E2E catches anything it breaks
     security_opt:
@@ -136,8 +130,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - test-network
     restart: "no"
     healthcheck:
       # start_period covers the entrypoint's wait-for-services
@@ -152,7 +144,6 @@ services:
       - e2e
 
   nginx:
-    container_name: nginx_test
     build:
       context: .
       dockerfile: nginx/Dockerfile
@@ -178,13 +169,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    networks:
-      - test-network
     restart: "no"
     mem_limit: 256m
     cpus: 0.5
     profiles:
       - e2e
-
-networks:
-  test-network:
