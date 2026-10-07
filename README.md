@@ -356,8 +356,8 @@ npm run test:e2e:ui               # Interactive mode
 
 GitHub Actions (`.github/workflows/`):
 
-* **Tests** runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
-* **Integration & E2E** runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
+* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
+* **Integration & E2E** (`integration-e2e.yml`) runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
 
 Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
 
