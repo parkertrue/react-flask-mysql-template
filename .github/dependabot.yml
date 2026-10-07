@@ -1,0 +1,45 @@
+# Weekly update PRs, one per ecosystem and directory, with minor and patch
+# bumps grouped so the queue stays short. Majors arrive one PR each, since
+# they are the ones that need reading. Security fixes are not delayed by this
+# schedule: Dependabot opens those as soon as an advisory is published.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  # Base images in backend/Dockerfile and nginx/Dockerfile, and the MySQL and
+  # Redis images in the compose files
+  - package-ecosystem: docker
+    directories: [/backend, /nginx]
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Stay on the 8.4 LTS line; MySQL 9.x releases are short-lived
+      - dependency-name: mysql
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
