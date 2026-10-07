@@ -1,0 +1,9 @@
+# Test and lint tooling, compiled into requirements-dev.txt on top of the
+# runtime lock: the constraint keeps every shared package at the version
+# production runs.
+-c requirements.txt
+-r requirements.in
+
+pytest
+pytest-cov
+ruff

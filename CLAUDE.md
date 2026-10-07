@@ -34,6 +34,8 @@ cd frontend && npm run dev
 
 First-time setup: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt` and `cd frontend && npm install`.
 
+Python dependencies: edit `backend/requirements.in` (runtime) or `requirements-dev.in` (tools), then run `backend/lock_deps.sh` (Docker) to regenerate the pinned `.txt` locks. Never edit the `.txt` files by hand.
+
 ## Running Tests
 
 ### Backend
@@ -102,7 +104,7 @@ Browser → Nginx (port 80/443) → static React assets or `/api/*` proxied to F
 - **`routes/`** — API blueprints: `auth` (login/register/logout/logout-all/refresh, plus clear-cookies for when logout itself fails), `health` (unlimited, like every route without its own limit: only login, register and refresh declare one, since a per-IP quota on the whole API would lock out users sharing an address), `notes` (the example CRUD feature; `GET` is cursor-paginated, newest first: `?before=<next_cursor>&limit=`, and the frontend's `useNotes` exposes `loadMore`/`hasMore`. Keep that pattern for any list that grows).
 - **`models/`** — SQLAlchemy ORM models (User, Note). Auth logic lives on the User model.
 - **`schemas/`** — Pydantic schemas for request validation.
-- **`utils/`** — Redis service (refresh-token allowlist: one sorted set per user, JTI scored by expiry, at most `MAX_SESSIONS_PER_USER` = 10 with the oldest evicted; refresh swaps old for new in one transaction. The app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it) and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
+- **`utils/`** — Redis service (refresh-token allowlist: one sorted set per user, JTI scored by expiry, at most `MAX_SESSIONS_PER_USER` = 10 with the oldest evicted; refresh swaps old for new in one transaction. The app's instance lives on `app.extensions["redis_service"]`, read it with `get_redis_service()`, never import it). The app's and the rate limiter's Redis clients share `CLIENT_OPTIONS` (2s timeouts, one immediate retry) so a Redis outage fails fast instead of hanging requests, and login/refresh answer 503 when the new refresh token cannot be recorded and error handlers. User text is stored **verbatim**, markup included; output safety is the render layer's job (React escapes text by default). Never render user text with `dangerouslySetInnerHTML` without sanitizing it there.
 - **`migrations/`** — Alembic migrations for MySQL. `0001_users` is the auth table every app keeps; `0002_notes` belongs to the example feature and is deleted with it, so a new app's migrations chain straight onto `0001_users`.
 
 ### Frontend (`frontend/src/`)

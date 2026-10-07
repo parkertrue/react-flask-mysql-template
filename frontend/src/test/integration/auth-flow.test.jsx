@@ -10,7 +10,7 @@ import App from '../../App'
 const server = setupServer()
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: 'warn' })
+  server.listen({ onUnhandledFrame: 'warn' })
 })
 
 afterEach(() => {

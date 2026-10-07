@@ -280,6 +280,20 @@ flask db upgrade
 
 ---
 
+## Python Dependencies (During Dev)
+
+`requirements.in` lists the packages the app imports and `requirements-dev.in` the test tools. The `.txt` files are locks compiled from them: every package, transitive ones included, pinned to an exact version, so each install and image build gets exactly what was tested. Never edit the `.txt` files by hand. After changing a `.in` file, from `backend/` (needs Docker):
+
+```bash
+./lock_deps.sh             # Re-resolve after editing a .in file
+./lock_deps.sh --upgrade   # Move every package to its newest release
+pip install -r requirements-dev.txt
+```
+
+The script compiles inside the production base image, so the locks resolve for Linux and Python 3.12 whatever machine runs it.
+
+---
+
 ## Stop Development Mode
 
 Stop development servers and database.

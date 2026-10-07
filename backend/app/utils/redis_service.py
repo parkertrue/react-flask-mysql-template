@@ -1,11 +1,23 @@
 import time
 import redis
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 from typing import cast
 from flask import Flask, current_app
 
 # How long to wait after a failed connection before trying again. Each attempt
 # can block a request for up to socket_connect_timeout while Redis is down.
 RECONNECT_INTERVAL_SECONDS = 5
+
+# Shared by the app's client and the rate limiter's (config.py). redis-py's
+# default retries a failed command 10 times with backoff, so every request
+# would hang for ~30s while Redis is down. One immediate retry is enough to
+# replace a connection Redis closed; after that, fail fast.
+CLIENT_OPTIONS = {
+    "socket_connect_timeout": 2,
+    "socket_timeout": 2,
+    "retry": Retry(NoBackoff(), 1),
+}
 
 
 def get_redis_service() -> "RedisService | None":
@@ -76,10 +88,9 @@ class RedisService:
                 username=username,
                 password=password,
                 decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
                 health_check_interval=30,
-                max_connections=max_connections
+                max_connections=max_connections,
+                **CLIENT_OPTIONS,
             )
 
             self._client.ping()

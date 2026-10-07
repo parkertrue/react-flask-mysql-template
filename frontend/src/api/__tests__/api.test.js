@@ -6,7 +6,7 @@ import { storage } from '../../utils/storage'
 
 const server = setupServer()
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   window.location.href = 'http://localhost/'
