@@ -1,3 +1,7 @@
+# Every compose file names its own project, so dev, test and production
+# never share containers or volumes. Rename it for a new app.
+name: app
+
 # Docker's default json-file driver never rotates, so on a long-running
 # server container logs grow until the disk fills. Every service uses this.
 x-logging: &logging

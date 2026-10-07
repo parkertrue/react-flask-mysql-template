@@ -1,6 +1,9 @@
+# Every compose file names its own project, so dev, test and production
+# never share containers or volumes. Rename it for a new app.
+name: app_dev
+
 services:
   db:
-    container_name: db_dev
     image: mysql:8.4.11
     # Only the variables MySQL needs, interpolated from the --env-file passed
     # to docker compose, so SECRET_KEY and the Redis password stay out.
@@ -10,7 +13,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
-      - db_data_dev:/var/lib/mysql
+      - db_data:/var/lib/mysql
     healthcheck:
       # ping exits 0 whenever the server is up, even if auth fails, so no
       # credentials need to appear in the process list
@@ -20,15 +23,12 @@ services:
       retries: 10
       start_period: 30s
     restart: unless-stopped
-    networks:
-      - app-network
     ports:
       - "127.0.0.1:3306:3306"
     mem_limit: 512m
     cpus: 0.5
 
   redis:
-    container_name: redis_dev
     image: redis:8.10-alpine
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
@@ -59,15 +59,10 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-    networks:
-      - app-network
     ports:
       - "127.0.0.1:6379:6379"
     mem_limit: 128m
     cpus: 0.25
 
-networks:
-  app-network:
-
 volumes:
-  db_data_dev:
+  db_data:
