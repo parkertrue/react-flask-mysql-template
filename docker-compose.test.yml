@@ -29,7 +29,7 @@ services:
       - /var/lib/mysql
 
   redis:
-    image: redis:8.4-alpine
+    image: redis:8.10-alpine
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}  # lets the healthcheck authenticate
     # noeviction and the ACL user: see docker-compose.yml
