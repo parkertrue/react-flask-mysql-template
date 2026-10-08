@@ -1,15 +1,14 @@
-# Python. Unlike .gitignore, a pattern here matches only at the context
-# root unless it starts with **/.
+# Build context of backend/Dockerfile, which copies all of it. Unlike
+# .gitignore, a pattern here matches only at the context root unless it
+# starts with **/.
+
+# Python
 **/__pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# Environment Files
-.env
-.env.*
 
 # Tests
 tests/

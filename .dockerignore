@@ -1,14 +1,13 @@
-# The repo root is the build context for nginx/Dockerfile only, which needs the
-# frontend source and the nginx config. Allowlist rather than denylist, so env
-# files, certs, venvs and anything added later stay out by default.
-*
-!frontend/
-!nginx/*.conf
-!nginx/templates/
+# Build context of nginx/Dockerfile, the repo root. It copies only frontend/
+# and nginx's config, so only files generated inside frontend/ matter here.
+# Unlike .gitignore, a pattern here matches only at the context root unless
+# it starts with **/.
 
-# Host-built output inside frontend/. node_modules matters most: copying it
-# over the image's `npm ci` would ship the host's platform-specific binaries.
+# Copied over the image's `npm ci`, it would ship the host's
+# platform-specific binaries
 frontend/node_modules/
+
+# Build and test output
 frontend/dist/
 frontend/coverage/
 frontend/playwright-report/
