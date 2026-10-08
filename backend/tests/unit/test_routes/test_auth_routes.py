@@ -453,6 +453,18 @@ class TestRefreshEndpoint:
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
 
+    def test_refresh_for_a_deleted_user_is_rejected(
+            self, client, sample_user, fake_redis, db):
+        """The session outlives the account only until the next request"""
+        csrf = login(client)
+        db.session.delete(sample_user)
+        db.session.commit()
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
+
 
 class TestLogoutEndpoint:
     """Test suite for POST /api/auth/logout and /api/auth/logout-all."""

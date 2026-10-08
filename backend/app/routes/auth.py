@@ -5,8 +5,8 @@ from sqlalchemy import select
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
+    current_user,
     jwt_required,
-    get_jwt_identity,
     get_jwt,
     set_refresh_cookies,
     unset_jwt_cookies,
@@ -162,14 +162,14 @@ def login():
 @jwt_required(refresh=True, locations=['cookies'])
 def refresh():
     """Rotate: issue a new token pair and revoke the refresh token just used"""
-    user_id = int(get_jwt_identity())
+    user_id = current_user.id
     return _issue_tokens(user_id, replaces=get_jwt().get('jti'))
 
 
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required(refresh=True, locations=['cookies'])
 def logout():
-    user_id = int(get_jwt_identity())
+    user_id = current_user.id
     jti = get_jwt().get('jti')
 
     redis_service = get_redis_service()
@@ -201,7 +201,7 @@ def clear_cookies():
 @jwt_required(refresh=True, locations=['cookies'])
 def logout_all():
     """Revoke all refresh tokens for the current user (logout from all devices)"""
-    user_id = int(get_jwt_identity())
+    user_id = current_user.id
 
     message = 'Logged out'
     redis_service = get_redis_service()

@@ -53,6 +53,29 @@ def create_app():
 
     init_password_hashing(app)
 
+    # Imported here for the same reason as the routes below
+    from app.models import User
+
+    @jwt.user_lookup_loader
+    def load_user(jwt_header, jwt_payload):
+        """Runs on every @jwt_required request: the token's user must exist.
+
+        A deleted account's access token stays valid until it expires; this
+        turns it away on every route at the cost of one primary-key lookup,
+        rather than each route remembering to check. Routes read the user
+        as flask_jwt_extended.current_user.
+        """
+        return db.session.get(User, int(jwt_payload['sub']))
+
+    @jwt.user_lookup_error_loader
+    def user_not_found(jwt_header, jwt_payload):
+        # Same code as a bad token, so the frontend signs the user out
+        return error_response(
+            code='AUTH_INVALID_TOKEN',
+            message='Invalid authentication token',
+            status=401
+        )
+
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         """Check if refresh token has been revoked"""

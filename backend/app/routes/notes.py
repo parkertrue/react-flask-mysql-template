@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import current_user, jwt_required
 from sqlalchemy import select
 
 from app import db
-from app.models import Note, User
+from app.models import Note
 from app.schemas import NoteCreateRequest, NoteResponse, NotesListQuery
 
 
@@ -21,9 +21,8 @@ def get_notes():
     index is ordered by id within each user.
     """
     query = NotesListQuery.model_validate(request.args.to_dict())
-    user_id = int(get_jwt_identity())
 
-    stmt = select(Note).where(Note.user_id == user_id)
+    stmt = select(Note).where(Note.user_id == current_user.id)
     if query.before is not None:
         stmt = stmt.where(Note.id < query.before)
     # One extra row says whether another page follows
@@ -43,12 +42,10 @@ def get_notes():
 def create_note():
     """Create a new note"""
     payload = NoteCreateRequest.model_validate(request.get_json())
-    user_id = int(get_jwt_identity())
-    user = db.get_or_404(User, user_id)
 
     new_note = Note(
         content=payload.content,
-        user_id=user.id
+        user_id=current_user.id
     )
     db.session.add(new_note)
     db.session.commit()
