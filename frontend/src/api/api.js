@@ -83,8 +83,13 @@ api.interceptors.response.use(
         failedQueue = []
         isRefreshing = false
 
-        storage.clearAuth()
-        window.location.href = '/login'
+        // Only a 401 means the session is over. A 429, a 503 or a network
+        // error is temporary: keep the session, fail just these requests with
+        // the refresh's own message, and let the next request try again.
+        if (refreshError.response?.status === 401) {
+          storage.clearAuth()
+          window.location.href = '/login'
+        }
 
         return Promise.reject(refreshError)
       }
