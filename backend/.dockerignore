@@ -12,6 +12,8 @@ htmlcov/
 
 # Tests
 tests/
+pytest.ini
+.coveragerc
 
 # Dev Scripts
 run_dev.sh

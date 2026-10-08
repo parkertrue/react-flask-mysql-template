@@ -1,0 +1,12 @@
+[run]
+source = app
+# Count both sides of every if, not just the lines: a guard whose false
+# branch never runs is untested even when every line is.
+branch = True
+
+[report]
+# Enforced on unit runs and the combined report. Integration runs alone
+# cover far less by design; run_tests.sh turns the gate off for them.
+fail_under = 95
+show_missing = True
+skip_covered = True

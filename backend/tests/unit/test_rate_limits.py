@@ -1,5 +1,7 @@
 import pytest
-from flask_jwt_extended import create_refresh_token, decode_token, get_csrf_token
+import redis
+from flask_jwt_extended import (
+    create_access_token, create_refresh_token, decode_token, get_csrf_token)
 
 from app import db, limiter
 from app.models import User
@@ -75,6 +77,14 @@ def test_account_limit_ignores_email_case(limited_app):
     assert login(client, '198.51.100.9', 'nobody@example.com').status_code == 429
 
 
+@pytest.mark.parametrize('body', [{'email': 123, 'password': 'x'}, ['not', 'an', 'object']])
+def test_a_malformed_login_is_a_validation_error_not_a_crash(limited_app, body):
+    """The per-account limit reads the email before the schema has checked it"""
+    response = limited_app.test_client().post('/api/auth/login', json=body)
+
+    assert response.status_code == 422
+
+
 def test_one_address_can_log_in_to_many_accounts(limited_app):
     """An office behind one NAT gets 20 logins a minute, not 5"""
     client = limited_app.test_client()
@@ -141,12 +151,26 @@ class TestRefreshLimit:
 
         assert self.refresh(client, second, '203.0.113.7').status_code == 200
 
-    def test_requests_without_a_valid_cookie_are_not_limited(self, refresh_app):
+    @pytest.mark.parametrize('headers', [
+        {'Cookie': 'refresh_token_cookie=not-a-jwt'},
+        {},
+    ], ids=['forged', 'missing'])
+    def test_requests_without_a_valid_cookie_are_not_limited(self, refresh_app, headers):
         """They get a 401, which tells the client to sign in again"""
         client = refresh_app.test_client(use_cookies=False)
-        forged = {'Cookie': 'refresh_token_cookie=not-a-jwt'}
 
-        statuses = {self.refresh(client, forged, '203.0.113.7').status_code
+        statuses = {self.refresh(client, headers, '203.0.113.7').status_code
+                    for _ in range(15)}
+
+        assert statuses == {401}
+
+    def test_an_access_token_in_the_cookie_is_not_limited(self, refresh_app):
+        """Validly signed but the wrong type: as good as no cookie"""
+        client = refresh_app.test_client(use_cookies=False)
+        with refresh_app.app_context():
+            access = {'Cookie': f'refresh_token_cookie={create_access_token(identity="1")}'}
+
+        statuses = {self.refresh(client, access, '203.0.113.7').status_code
                     for _ in range(15)}
 
         assert statuses == {401}
@@ -165,8 +189,14 @@ def test_unlimited_routes_have_no_per_ip_quota(limited_app):
     assert statuses == {200}
 
 
-def test_limits_fall_back_to_memory_when_redis_is_down(make_limited_app):
+def test_limits_fall_back_to_memory_when_redis_is_down(make_limited_app, monkeypatch):
     """An unreachable limiter store must not turn every request into a 500"""
+    # Refuse every connection at once. A real closed port behaves the same,
+    # but Windows takes ~2s to report each refusal.
+    def refuse(self):
+        raise redis.ConnectionError('Connection refused')
+    monkeypatch.setattr(redis.connection.Connection, '_connect', refuse)
+
     client = make_limited_app('redis://127.0.0.1:1').test_client()
 
     statuses = [login(client, '203.0.113.7').status_code for _ in range(6)]

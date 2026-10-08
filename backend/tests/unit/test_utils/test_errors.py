@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.utils.errors import error_response
 
 
@@ -106,14 +108,14 @@ class TestGlobalErrorHandlers:
         assert data['error']['code'] == 'VALIDATION_ERROR'
 
     def test_missing_json_body(self, client, auth_headers):
-        """Missing JSON body should be handled gracefully."""
+        """A JSON request with no body is malformed"""
         response = client.post(
             '/api/notes',
             headers=auth_headers
         )
 
-        # Should return error (400 or 422)
-        assert response.status_code in [400, 422]
+        assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'BAD_REQUEST'
 
     def test_malformed_json(self, client, auth_headers):
         """Malformed JSON should return 400."""
@@ -147,8 +149,8 @@ class TestJWTErrorHandlers:
 
         response = client.get('/api/notes', headers=headers)
 
-        # Returns 422 for decode errors, but our handler might catch it
-        assert response.status_code in [401, 422]
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
 
     def test_expired_token_handler(self, client, expired_token):
         """Expired JWT token should return 401 with AUTH_TOKEN_EXPIRED."""
@@ -164,18 +166,18 @@ class TestJWTErrorHandlers:
         assert data['error']['code'] == 'AUTH_TOKEN_EXPIRED'
         assert 'expired' in data['error']['message'].lower()
 
-    def test_malformed_authorization_header(self, client):
-        """Malformed Authorization header should be handled."""
-        test_headers = [
-            {'Authorization': 'InvalidFormat'},
-            {'Authorization': 'Bearer'},
-            {'Authorization': ''},
-        ]
+    @pytest.mark.parametrize('authorization, code', [
+        # Not a Bearer header at all, so no token was sent
+        ('InvalidFormat', 'AUTH_MISSING_TOKEN'),
+        ('', 'AUTH_MISSING_TOKEN'),
+        # A Bearer header without a token is a bad token
+        ('Bearer', 'AUTH_INVALID_TOKEN'),
+    ])
+    def test_malformed_authorization_header(self, client, authorization, code):
+        response = client.get('/api/notes', headers={'Authorization': authorization})
 
-        for headers in test_headers:
-            headers['Content-Type'] = 'application/json'
-            response = client.get('/api/notes', headers=headers)
-            assert response.status_code in [401, 422]
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == code
 
 
 class TestErrorConsistency:
@@ -199,9 +201,8 @@ class TestErrorConsistency:
                     content_type='application/json'
                 )
 
-            # All should return JSON
-            if response.status_code >= 400:
-                assert response.content_type == 'application/json'
+            assert response.status_code >= 400
+            assert response.content_type == 'application/json'
 
     def test_error_codes_are_uppercase(self, client):
         """Error codes should be uppercase with underscores."""

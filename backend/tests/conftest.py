@@ -102,19 +102,6 @@ class FakeRedisService:
         return len(mine)
 
 
-@pytest.fixture
-def fake_redis(app):
-    """Give the unit app a Redis token store.
-
-    UnitTestConfig disables Redis, and without it the blocklist loader fails
-    closed, so every refresh-cookie route would return 401.
-    """
-    fake = FakeRedisService()
-    app.extensions['redis_service'] = fake
-    yield fake
-    app.extensions['redis_service'] = None
-
-
 # ============================================================================
 # INTEGRATION TEST FIXTURES (Real MySQL + Redis from docker-compose.test.yml)
 # ============================================================================

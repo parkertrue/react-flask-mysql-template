@@ -58,8 +58,10 @@ def test_app_user_keeps_data_access(probe_user):
     with _probe(probe_user) as conn, conn.cursor() as cursor:
         cursor.execute("INSERT INTO users (email, password_hash) VALUES ('p@x.com', 'h')")
         cursor.execute("UPDATE users SET password_hash = 'h2' WHERE email = 'p@x.com'")
-        cursor.execute('SELECT COUNT(*) FROM users')
+        cursor.execute("SELECT password_hash FROM users WHERE email = 'p@x.com'")
+        assert cursor.fetchone() == ('h2',)
         cursor.execute("DELETE FROM users WHERE email = 'p@x.com'")
+        assert cursor.rowcount == 1
 
 
 @pytest.mark.parametrize('statement', [

@@ -330,8 +330,8 @@ class TestCreateNote:
             headers=headers
         )
 
-        # Should fail because it can't parse as JSON
-        assert response.status_code in [400, 415, 422]
+        assert response.status_code == 415
+        assert response.get_json()['error']['code'] == 'UNSUPPORTED_MEDIA_TYPE'
 
     def test_create_multiple_notes(self, client, auth_headers, sample_user):
         """User should be able to create multiple notes."""

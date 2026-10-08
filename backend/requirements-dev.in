@@ -6,4 +6,7 @@
 
 pytest
 pytest-cov
+# Runs the tests in a new order every time (the seed is in the header), so
+# one test leaning on another's leftovers fails at once
+pytest-randomly
 ruff
