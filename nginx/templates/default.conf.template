@@ -60,8 +60,11 @@ server {
     # assets for users sharing an address; static files cost nginx nothing.
     limit_conn_status 429;
 
-    # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+    # Vite's build output: every file name carries a hash of its content, so
+    # a changed file gets a new URL and these can be cached for good. A prefix,
+    # not an extension regex: a regex location would outrank /api below and
+    # serve, say, /api/avatar.png from disk instead of proxying it.
+    location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         include /etc/nginx/security_headers.conf;
