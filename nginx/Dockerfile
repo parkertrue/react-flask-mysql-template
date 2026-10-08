@@ -5,6 +5,11 @@ COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
+# Compress once here so nginx serves the .gz (gzip_static) instead of
+# compressing the same bundle on every request. Tiny files aren't worth it.
+RUN find dist -type f -size +1k \
+      \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' \) \
+      -exec gzip -9 -k {} +
 
 # ---------- Stage 2: nginx ----------
 # Pinned so a rebuild never silently changes the web server version
