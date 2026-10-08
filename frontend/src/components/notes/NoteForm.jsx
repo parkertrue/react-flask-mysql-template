@@ -37,8 +37,12 @@ export default function NoteForm({ onSubmit, loading }) {
 
   return (
     <form onSubmit={handleSubmit} className="note-form" data-testid="note-form">
+      {/* A real label, not just the placeholder: screen readers may not
+          announce a placeholder, and it disappears once the user types */}
+      <label htmlFor="note-input" className="note-label">New note</label>
       <div className="note-form-group">
         <input
+          id="note-input"
           type="text"
           value={content}
           onChange={handleChange}

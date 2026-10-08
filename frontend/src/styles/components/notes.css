@@ -3,6 +3,14 @@
   margin-bottom: 2rem;
 }
 
+/* Matches the auth forms' labels (.form-group label) */
+.note-label {
+  display: block;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
 .note-form-group {
   display: flex;
   gap: 1rem;
