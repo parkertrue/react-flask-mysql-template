@@ -58,6 +58,15 @@ class Config:
                 'Missing required database environment variables: '
                 'DB_HOST, DB_NAME, DB_USER, DB_PASSWORD')
 
+        # MySQL closes connections idle past wait_timeout (8h by default), and
+        # any restart or network blip drops them all; without a ping, the next
+        # request on each dead pooled connection fails with a 500. Recycling
+        # well before wait_timeout keeps the ping from finding many dead ones.
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 1800,
+        }
+
         # Redis configuration
         self.REDIS_HOST = os.getenv('REDIS_HOST')
         self.REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
