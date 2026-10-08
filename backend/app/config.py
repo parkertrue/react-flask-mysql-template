@@ -65,6 +65,10 @@ class Config:
         self.SQLALCHEMY_ENGINE_OPTIONS = {
             'pool_pre_ping': True,
             'pool_recycle': 1800,
+            # Every timestamp is UTC, and the API says so. NOW() and
+            # CURRENT_TIMESTAMP follow the connection's time zone, which would
+            # otherwise be whatever the server is set to.
+            'connect_args': {'init_command': "SET time_zone = '+00:00'"},
         }
 
         # Redis configuration
@@ -138,6 +142,9 @@ class UnitTestConfig(Config):
         super().__init__()
         self.APP_ENV = 'unit'
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+        # MySQL's settings mean nothing to SQLite, whose CURRENT_TIMESTAMP is
+        # always UTC
+        self.SQLALCHEMY_ENGINE_OPTIONS = {}
         self.RATELIMIT_ENABLED = False
 
 

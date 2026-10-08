@@ -114,6 +114,28 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 422
 
+    def test_register_race_is_a_conflict_not_a_crash(self, client, db, monkeypatch):
+        """Another request registers the email after the existence check
+        (a double submit): the unique index rejects this one, which must be
+        a 409 rather than an unhandled IntegrityError."""
+        set_password = User.set_password
+
+        def register_concurrently(user, password):
+            rival = User(email=user.email)
+            set_password(rival, password)
+            db.session.add(rival)
+            db.session.commit()
+            set_password(user, password)
+
+        monkeypatch.setattr(User, 'set_password', register_concurrently)
+
+        response = client.post('/api/auth/register', json={
+            'email': 'race@example.com', 'password': 'ValidPass123'})
+
+        assert response.status_code == 409
+        assert response.get_json()['error']['code'] == 'EMAIL_ALREADY_REGISTERED'
+        assert db.session.scalar(select(func.count()).select_from(User)) == 1
+
     def test_register_missing_email(self, client):
         """Registration without email should return 422."""
         payload = {
@@ -541,6 +563,26 @@ class TestLogoutEndpoint:
         client.post('/api/auth/logout-all', headers=csrf)
 
         assert [uid for uid, _ in fake_redis.tokens] == [second_user.id]
+
+    def assert_logout_all_failed(self, response):
+        """Every session is still live, so this must not look like success,
+        and the cookie stays so the user can try again"""
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert 'Set-Cookie' not in response.headers
+
+    def test_logout_all_when_redis_fails(self, client, sample_user, fake_redis, monkeypatch):
+        csrf = login(client)
+        monkeypatch.setattr(fake_redis, 'revoke_all_user_tokens', lambda user_id: None)
+
+        self.assert_logout_all_failed(client.post('/api/auth/logout-all', headers=csrf))
+
+    def test_logout_all_when_redis_is_down(self, client, sample_user, fake_redis, monkeypatch):
+        csrf = login(client)
+        # Only the route loses Redis; the token check still passes
+        monkeypatch.setattr(auth_routes, 'get_redis_service', lambda: None)
+
+        self.assert_logout_all_failed(client.post('/api/auth/logout-all', headers=csrf))
 
 
 class TestAuthenticationFlow:

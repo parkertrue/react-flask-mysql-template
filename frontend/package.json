@@ -11,7 +11,6 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "test:coverage:ui": "vitest --coverage --ui",
     "test:e2e": "playwright test",

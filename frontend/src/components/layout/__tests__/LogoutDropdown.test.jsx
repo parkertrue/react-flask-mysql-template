@@ -402,41 +402,77 @@ describe('LogoutDropdown', () => {
       })
     })
 
-    it('should handle logout all API error gracefully', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(new Error('Logout all failed'))
-
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => {
-        expect(consoleError).toHaveBeenCalledWith('Logout all error:', expect.any(Error))
-      })
-
-      expect(storage.clearAuth).toHaveBeenCalled()
-      expect(mockNavigate).toHaveBeenCalledWith('/')
-      consoleError.mockRestore()
+    // Other devices stay signed in unless the server revoked them, so a
+    // failure must say so and leave this session for a retry
+    const serviceUnavailable = () => Object.assign(new Error('Request failed'), {
+      response: {
+        status: 503,
+        data: { error: { code: 'SERVICE_UNAVAILABLE', message: 'Could not sign out other devices' } },
+      },
     })
 
-    it('should still clear auth and navigate even if API fails', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(new Error('Network error'))
+    it('keeps the session and shows the error when the server fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      logoutAllDevices.mockRejectedValue(serviceUnavailable())
 
       const user = userEvent.setup()
       renderDropdown()
-
       await user.click(screen.getByRole('button', { name: /logout/i }))
       await user.click(screen.getByText('Logout All Devices'))
 
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out other devices')
+      expect(storage.clearAuth).not.toHaveBeenCalled()
+      expect(clearAuthCookies).not.toHaveBeenCalled()
+      expect(mockNavigate).not.toHaveBeenCalled()
+      console.error.mockRestore()
+    })
 
-      consoleError.mockRestore()
+    it('keeps the session on a network error', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      logoutAllDevices.mockRejectedValue(new Error('Network Error'))
+
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText('Logout All Devices'))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Network error')
+      expect(storage.clearAuth).not.toHaveBeenCalled()
+      console.error.mockRestore()
+    })
+
+    it('ends the session when the server says it is over (401)', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      logoutAllDevices.mockRejectedValue(
+        Object.assign(new Error('Unauthorized'), { response: { status: 401, data: {} } }))
+
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText('Logout All Devices'))
+
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
+      expect(storage.clearAuth).toHaveBeenCalled()
+      expect(clearAuthCookies).toHaveBeenCalledTimes(1)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      console.error.mockRestore()
+    })
+
+    it('hides the error when the menu is opened again', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      logoutAllDevices.mockRejectedValue(serviceUnavailable())
+
+      const user = userEvent.setup()
+      renderDropdown()
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(screen.getByText('Logout All Devices'))
+      await screen.findByRole('alert')
+
+      await user.click(screen.getByRole('button', { name: /logout/i }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
+      console.error.mockRestore()
     })
   })
 
@@ -603,17 +639,14 @@ describe('LogoutDropdown', () => {
   })
 
   describe('refresh cookie cleanup', () => {
-    it.each([
-      ['Logout This Device', logoutUser],
-      ['Logout All Devices', logoutAllDevices],
-    ])('%s asks the server to clear cookies when logout fails', async (item, request) => {
+    it('asks the server to clear cookies when logout fails', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
-      request.mockRejectedValue(new Error('Network error'))
+      logoutUser.mockRejectedValue(new Error('Network error'))
 
       const user = userEvent.setup()
       renderDropdown()
       await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText(item))
+      await user.click(screen.getByText('Logout This Device'))
 
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
       expect(clearAuthCookies).toHaveBeenCalledTimes(1)

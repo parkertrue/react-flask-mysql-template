@@ -84,25 +84,19 @@ class RedisService:
 
     def __init__(self, host: str, port: int, db: int, username: str, password: str,
                  max_connections: int):
-        try:
-            self._client = redis.Redis(
-                host=host,
-                port=port,
-                db=db,
-                username=username,
-                password=password,
-                decode_responses=True,
-                health_check_interval=30,
-                max_connections=max_connections,
-                **REDIS_CLIENT_OPTIONS,
-            )
-
-            self._client.ping()
-
-        except redis.RedisError as e:
-            raise RuntimeError(f'Failed to connect to Redis: {e}')
-        except Exception as e:
-            raise RuntimeError(f'Redis initialization failed: {e}')
+        # A failed ping raises; connect_redis logs it and retries later
+        self._client = redis.Redis(
+            host=host,
+            port=port,
+            db=db,
+            username=username,
+            password=password,
+            decode_responses=True,
+            health_check_interval=30,
+            max_connections=max_connections,
+            **REDIS_CLIENT_OPTIONS,
+        )
+        self._client.ping()
 
     def get_client(self) -> redis.Redis:
         return self._client
@@ -148,8 +142,12 @@ class RedisService:
             current_app.logger.exception('Could not revoke a refresh token for user %s', user_id)
             return False
 
-    def revoke_all_user_tokens(self, user_id: int) -> int:
-        """Revoke every session the user has; returns how many were live"""
+    def revoke_all_user_tokens(self, user_id: int) -> int | None:
+        """Revoke every session the user has.
+
+        Returns how many were live, or None if Redis failed, which the caller
+        must not report as success: the sessions are all still valid.
+        """
         key = _tokens_key(user_id)
         try:
             pipe = self._client.pipeline()
@@ -159,4 +157,4 @@ class RedisService:
             return cast(int, live)
         except redis.RedisError:
             current_app.logger.exception('Could not revoke the sessions of user %s', user_id)
-            return 0
+            return None

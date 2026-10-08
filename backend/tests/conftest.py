@@ -1,8 +1,11 @@
 import os
 import pytest
+import sqlite3
 import time
 from datetime import timedelta
 from flask_jwt_extended import create_access_token
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from app import create_app, db as _db
 from app.models import User, Note
@@ -39,20 +42,23 @@ def app():
         yield app
 
 
+@event.listens_for(Engine, 'connect')
+def enable_sqlite_foreign_keys(dbapi_conn, connection_record):
+    """SQLite ignores foreign keys (and ON DELETE CASCADE) unless asked.
+
+    Registered once, here: inside a fixture, every test would add another
+    listener on SQLAlchemy's global Engine class.
+    """
+    if isinstance(dbapi_conn, sqlite3.Connection):
+        cursor = dbapi_conn.cursor()
+        cursor.execute('PRAGMA foreign_keys=ON')
+        cursor.close()
+
+
 @pytest.fixture(scope='function')
 def db(app):
     """Unit test database - SQLite in-memory"""
     with app.app_context():
-        # Enable foreign keys for SQLite
-        from sqlalchemy import event
-        from sqlalchemy.engine import Engine
-
-        @event.listens_for(Engine, 'connect')
-        def set_sqlite_pragma(dbapi_conn, connection_record):
-            cursor = dbapi_conn.cursor()
-            cursor.execute('PRAGMA foreign_keys=ON')
-            cursor.close()
-
         _db.create_all()
         yield _db
         _db.session.remove()

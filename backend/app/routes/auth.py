@@ -2,6 +2,7 @@ import hashlib
 
 from flask import Blueprint, abort, g, request, make_response, jsonify, current_app
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -101,26 +102,36 @@ def _issue_tokens(user_id: int, replaces: str | None = None):
     return response
 
 
+def _already_registered():
+    return error_response(
+        code='EMAIL_ALREADY_REGISTERED',
+        message='Email already registered',
+        status=409
+    )
+
+
 @auth_bp.route('/register', methods=['POST'])
 @limiter.limit('10 per hour')
 def register():
     payload = RegisterRequest.model_validate(request.get_json())
 
+    # A fast path that skips hashing a password for a taken email. The
+    # unique index on users.email is the real check, below.
     stmt = select(User).where(User.email == payload.email)
-    existing_user = db.session.execute(stmt).scalar_one_or_none()
-
-    if existing_user:
-        return error_response(
-            code='EMAIL_ALREADY_REGISTERED',
-            message='Email already registered',
-            status=409
-        )
+    if db.session.execute(stmt).scalar_one_or_none():
+        return _already_registered()
 
     user = User(email=payload.email)
     user.set_password(payload.password)
 
     db.session.add(user)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Another request registered the same email since the check above
+        # (a double submit, or a client retrying)
+        db.session.rollback()
+        return _already_registered()
 
     return jsonify({'message': 'User created'}), 201
 
@@ -201,14 +212,19 @@ def clear_cookies():
 @jwt_required(refresh=True, locations=['cookies'])
 def logout_all():
     """Revoke all refresh tokens for the current user (logout from all devices)"""
-    user_id = current_user.id
-
-    message = 'Logged out'
+    # Unlike logout, this exists only for its effect on the server: other
+    # devices stay signed in unless Redis drops their tokens. Report a failure
+    # and keep the cookie, so the user can try again.
     redis_service = get_redis_service()
-    if redis_service:
-        count = redis_service.revoke_all_user_tokens(user_id)
-        message = f'Logged out from {count} device(s)' if count > 0 else 'No active sessions found'
+    count = redis_service.revoke_all_user_tokens(current_user.id) if redis_service else None
+    if count is None:
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='Could not sign out other devices, please try again shortly',
+            status=503
+        )
 
+    message = f'Logged out from {count} device(s)' if count > 0 else 'No active sessions found'
     response = make_response(jsonify({'message': message}), 200)
     unset_jwt_cookies(response)
     return response

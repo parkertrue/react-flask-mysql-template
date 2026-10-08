@@ -1,6 +1,6 @@
 import pytest
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, func
 
 from app.models import Note
@@ -100,11 +100,9 @@ class TestGetNotes:
         note = data[0]
         assert 'created_at' in note
 
-        # Verify timestamp is ISO format
-        try:
-            datetime.fromisoformat(note['created_at'].replace('Z', '+00:00'))
-        except ValueError:
-            pytest.fail('created_at is not in valid ISO format')
+        # ISO 8601 with the zone stated: without one, browsers read it as
+        # their local time
+        assert datetime.fromisoformat(note['created_at']).utcoffset() == timedelta(0)
 
 
 class TestNotesPagination:
@@ -368,10 +366,10 @@ class TestCreateNote:
         assert response.status_code == 201
         data = json.loads(response.data)
 
-        created_at = datetime.fromisoformat(
-            data['created_at']).replace(tzinfo=timezone.utc)
+        # UTC with the zone stated: without one, browsers read it as local time
+        created_at = datetime.fromisoformat(data['created_at'])
+        assert created_at.utcoffset() == timedelta(0)
 
-        # Timestamp should be between before and after (with some tolerance)
         assert before <= created_at <= after
 
     def test_create_note_different_users(self, client, auth_headers,
