@@ -1,13 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import HomePage from '../HomePage'
 import { AuthProvider } from '../../contexts/AuthProvider'
 import { storage } from '../../utils/storage'
-import { checkHealth } from '../../api/services/healthService'
 
 vi.mock('../../utils/storage')
-vi.mock('../../api/services/healthService')
+// Tested on its own; a stub keeps these tests off the health endpoint
+vi.mock('../../components/health/ApiStatus', () => ({
+  default: () => <div data-testid="api-status-demo" />
+}))
 
 describe('HomePage', () => {
   beforeEach(() => {
@@ -15,7 +17,6 @@ describe('HomePage', () => {
     storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)
-    checkHealth.mockResolvedValue({ status: 'ok' })
   })
 
   const renderHomePage = () => {
@@ -41,45 +42,10 @@ describe('HomePage', () => {
       expect(screen.getByText(/A simple note-taking application with/)).toBeInTheDocument()
     })
 
-    it('should render API status label', () => {
+    it('should render the API status demo', () => {
       renderHomePage()
 
-      expect(screen.getByText(/API Status:/)).toBeInTheDocument()
-    })
-  })
-
-  describe('API health status', () => {
-    it('should display checking status initially', () => {
-      checkHealth.mockImplementation(() => new Promise(() => {}))
-      renderHomePage()
-
-      expect(screen.getByTestId('api-status')).toHaveTextContent('checking')
-    })
-
-    it('should display ok status when API is healthy', async () => {
-      checkHealth.mockResolvedValue({ status: 'ok' })
-      renderHomePage()
-
-      await waitFor(() => {
-        expect(screen.getByTestId('api-status')).toHaveTextContent('ok')
-      })
-    })
-
-    it('should display error status when API check fails', async () => {
-      checkHealth.mockRejectedValue(new Error('Connection failed'))
-      renderHomePage()
-
-      await waitFor(() => {
-        expect(screen.getByTestId('api-status')).toHaveTextContent('error')
-      })
-    })
-
-    it('should call checkHealth on mount', async () => {
-      renderHomePage()
-
-      await waitFor(() => {
-        expect(checkHealth).toHaveBeenCalled()
-      })
+      expect(screen.getByTestId('api-status-demo')).toBeInTheDocument()
     })
   })
 
@@ -173,13 +139,6 @@ describe('HomePage', () => {
 
       const content = container.querySelector('.home-content')
       expect(content).toBeInTheDocument()
-    })
-
-    it('should have api-status section', () => {
-      const { container } = renderHomePage()
-
-      const apiStatus = container.querySelector('.api-status')
-      expect(apiStatus).toBeInTheDocument()
     })
 
     it('should have home-actions section', () => {

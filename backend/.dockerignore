@@ -1,10 +1,10 @@
-# Python
-__pycache__/
-*.pyc
+# Python. Unlike .gitignore, a pattern here matches only at the context
+# root unless it starts with **/.
+**/__pycache__/
 .venv/
 .pytest_cache/
+.ruff_cache/
 .coverage
-coverage/
 htmlcov/
 
 # Environment Files
@@ -14,11 +14,6 @@ htmlcov/
 # Tests
 tests/
 
-# Git
-.git/
-.gitignore
-.gitattributes
-
 # Dev Scripts
 run_dev.sh
 run_tests.sh
@@ -27,7 +22,3 @@ requirements.in
 requirements-dev.in
 requirements-dev.txt
 ruff.toml
-
-# Editor / tooling
-.vscode/
-.claude/

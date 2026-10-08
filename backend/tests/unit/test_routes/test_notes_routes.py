@@ -415,16 +415,21 @@ class TestCreateNote:
 class TestNotesEdgeCases:
     """Test edge cases and error scenarios."""
 
-    def test_get_notes_after_user_deletion(self, client, auth_headers,
-                                           sample_user, sample_notes, db):
-        """Notes query should handle deleted user gracefully."""
-        # This tests the relationship setup
-        # In production, you might want cascade delete or orphan handling
+    @pytest.mark.parametrize('request_kwargs', [
+        {'method': 'GET'},
+        {'method': 'POST', 'json': {'content': 'x'}},
+    ])
+    def test_deleted_users_access_token_is_rejected(
+            self, client, auth_headers, sample_user, db, request_kwargs):
+        """An access token outlives its account until it expires; every
+        protected route must still turn it away"""
+        db.session.delete(sample_user)
+        db.session.commit()
 
-        # Verify notes exist
-        response = client.get('/api/notes', headers=auth_headers)
-        assert response.status_code == 200
-        assert len(json.loads(response.data)['notes']) == 3
+        response = client.open('/api/notes', headers=auth_headers, **request_kwargs)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
 
     def test_create_note_with_special_characters(self, client, auth_headers):
         """POST /api/notes stores plain text: symbols that are not part of a

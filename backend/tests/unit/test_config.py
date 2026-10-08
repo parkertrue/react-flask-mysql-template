@@ -364,6 +364,12 @@ class TestConfigValues:
         assert config.REDIS_URI == 'redis://app:redispass@localhost:6379/0'
         assert config.REDIS_MAX_CONNECTIONS == 50
 
+    def test_pool_checks_connections_before_use(self, app):
+        """Every config: a connection MySQL dropped must not reach a request.
+        tests/integration/test_mysql_pool.py shows it working against MySQL."""
+        assert app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_pre_ping'] is True
+        assert app.config['SQLALCHEMY_ENGINE_OPTIONS']['pool_recycle'] < 8 * 3600
+
     def test_database_port_default(self, monkeypatch):
         """Database should use default port 3306"""
         monkeypatch.setenv('APP_ENV', 'development')

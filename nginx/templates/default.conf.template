@@ -54,8 +54,10 @@ server {
     client_header_timeout 12;
     send_timeout 10;
 
-    # Connection limiting
-    limit_conn addr 10;
+    # Concurrent requests per client IP, applied only where they tie up one of
+    # the backend's few request slots (the /api locations below). Over HTTP/2
+    # every stream counts, so a server-wide limit would 429 the page's own
+    # assets for users sharing an address; static files cost nginx nothing.
     limit_conn_status 429;
 
     # Cache static assets
@@ -88,8 +90,9 @@ server {
 
     # Auth endpoints - stricter rate limiting
     location ~ ^/api/auth/(login|register)$ {
-        limit_req zone=auth burst=10 nodelay;
+        limit_req zone=auth burst=20 nodelay;
         limit_req_status 429;
+        limit_conn addr 20;
 
         include /etc/nginx/security_headers.conf;
         # Nothing served here is a page; if one is opened directly (e.g. an
@@ -117,6 +120,7 @@ server {
     location /api {
         limit_req zone=api burst=20 nodelay;
         limit_req_status 429;
+        limit_conn addr 20;
 
         include /etc/nginx/security_headers.conf;
         # Nothing served here is a page; if one is opened directly (e.g. an

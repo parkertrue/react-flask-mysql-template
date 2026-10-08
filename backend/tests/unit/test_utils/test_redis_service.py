@@ -153,12 +153,14 @@ class TestTokenManagement:
         pipe.zrem.assert_called_once_with('refresh_tokens:1', 'old-jti')
         pipe.execute.assert_called_once()
 
-    def test_store_refresh_token_error(self, service):
+    def test_store_refresh_token_error(self, service, caplog):
         """Should return False on Redis errors"""
         service._client.pipeline.return_value.execute.side_effect = (
             redis.RedisError('Write failed'))
 
         assert service.store_refresh_token(1, 'jti') is False
+        assert 'Could not record a refresh token for user 1' in caplog.text
+        assert 'Write failed' in caplog.text
 
     def test_is_token_valid_when_unexpired(self, service):
         service._client.zscore.return_value = time.time() + 60
@@ -177,10 +179,11 @@ class TestTokenManagement:
 
         assert service.is_token_valid(1, 'test-jti') is False
 
-    def test_is_token_valid_error(self, service):
+    def test_is_token_valid_error(self, service, caplog):
         service._client.zscore.side_effect = redis.RedisError('Read failed')
 
         assert service.is_token_valid(1, 'jti') is False
+        assert 'Read failed' in caplog.text
 
     def test_revoke_token_success(self, service):
         service._client.zrem.return_value = 1
@@ -193,10 +196,11 @@ class TestTokenManagement:
 
         assert service.revoke_token(1, 'test-jti') is False
 
-    def test_revoke_token_error(self, service):
+    def test_revoke_token_error(self, service, caplog):
         service._client.zrem.side_effect = redis.RedisError('Delete failed')
 
         assert service.revoke_token(1, 'jti') is False
+        assert 'Delete failed' in caplog.text
 
     def test_revoke_all_user_tokens_returns_live_count(self, service):
         pipe = service._client.pipeline.return_value
@@ -205,11 +209,12 @@ class TestTokenManagement:
         assert service.revoke_all_user_tokens(1) == 3
         pipe.delete.assert_called_once_with('refresh_tokens:1')
 
-    def test_revoke_all_user_tokens_error(self, service):
+    def test_revoke_all_user_tokens_error(self, service, caplog):
         service._client.pipeline.return_value.execute.side_effect = (
             redis.RedisError('Failed'))
 
         assert service.revoke_all_user_tokens(1) == 0
+        assert 'Could not revoke the sessions of user 1' in caplog.text
 
 
 class TestFailFastWhenRedisIsDown:

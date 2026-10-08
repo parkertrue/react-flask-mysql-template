@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { api } from '../api'
@@ -144,7 +144,7 @@ describe('expired access token', () => {
     expect(backend.refreshCalls).toHaveLength(1)
   })
 
-  it('logs out and redirects when the refresh fails', async () => {
+  it('logs out and redirects when the refresh is rejected', async () => {
     mockBackend()
     storage.setRefreshCsrf('wrong')
 
@@ -152,6 +152,85 @@ describe('expired access token', () => {
 
     expect(storage.getAccessToken()).toBeNull()
     expect(window.location.href).toBe('/login')
+  })
+
+  it.each([
+    ['rate limited', 429, 'RATE_LIMITED'],
+    ['unavailable', 503, 'SERVICE_UNAVAILABLE'],
+  ])('keeps the session when the refresh is %s', async (_, status, code) => {
+    mockBackend()
+    server.use(
+      http.post('/api/auth/refresh', () =>
+        HttpResponse.json({ error: { code, message: 'x' } }, { status }))
+    )
+
+    const error = await api.get('/notes').catch(e => e)
+
+    expect(error.response.data.error.code).toBe(code)
+    expect(storage.getAccessToken()).toBe('stale-token')
+    expect(storage.getRefreshCsrf()).toBe('csrf-0')
+    expect(window.location.href).toBe('http://localhost/')
+  })
+
+  it('keeps the session when the refresh cannot reach the server', async () => {
+    mockBackend()
+    server.use(http.post('/api/auth/refresh', () => HttpResponse.error()))
+
+    await expect(api.get('/notes')).rejects.toBeTruthy()
+
+    expect(storage.getAccessToken()).toBe('stale-token')
+    expect(window.location.href).toBe('http://localhost/')
+  })
+
+  it('retries the refresh on the next request after a temporary failure', async () => {
+    const backend = mockBackend()
+    server.use(
+      http.post('/api/auth/refresh', () =>
+        HttpResponse.json({ error: { code: 'RATE_LIMITED', message: 'x' } }, { status: 429 }),
+      { once: true })
+    )
+    await api.get('/notes').catch(() => {})
+
+    const response = await api.get('/notes')
+
+    expect(response.status).toBe(200)
+    expect(backend.refreshCalls).toEqual(['csrf-0'])
+  })
+})
+
+describe('refreshing across tabs', () => {
+  // jsdom has no Web Locks; stand in for the browser's
+  function stubLocks(request) {
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true })
+  }
+  afterEach(() => {
+    delete navigator.locks
+  })
+
+  it('refreshes inside the shared lock', async () => {
+    const backend = mockBackend()
+    const request = vi.fn((name, callback) => callback())
+    stubLocks(request)
+
+    const response = await api.get('/notes')
+
+    expect(response.status).toBe(200)
+    expect(request).toHaveBeenCalledWith('auth-refresh', expect.any(Function))
+    expect(backend.refreshCalls).toEqual(['csrf-0'])
+  })
+
+  it('uses the token another tab stored while this one waited', async () => {
+    const backend = mockBackend()
+    // The other tab held the lock, refreshed, and stored its new token
+    stubLocks((name, callback) => {
+      storage.setAccessToken(backend.validToken)
+      return callback()
+    })
+
+    const response = await api.get('/notes')
+
+    expect(response.status).toBe(200)
+    expect(backend.refreshCalls).toEqual([])
   })
 })
 

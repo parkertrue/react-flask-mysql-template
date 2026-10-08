@@ -30,6 +30,13 @@ class Config:
         # than this before parsing it. nginx enforces the same cap.
         self.MAX_CONTENT_LENGTH = 16 * 1024
 
+        # Password hashes each gunicorn worker may compute at once, out of its
+        # threads (see backend/Dockerfile). The rest stay free for other
+        # requests during a burst of logins. A login that waits longer than
+        # the timeout for a slot gets a 503.
+        self.PASSWORD_HASH_CONCURRENCY = 2
+        self.PASSWORD_HASH_WAIT_SECONDS = 5
+
         # Database configuration
         self.DB_USER = os.getenv('DB_USER')
         self.DB_PASSWORD = os.getenv('DB_PASSWORD')
@@ -50,6 +57,15 @@ class Config:
             raise ValueError(
                 'Missing required database environment variables: '
                 'DB_HOST, DB_NAME, DB_USER, DB_PASSWORD')
+
+        # MySQL closes connections idle past wait_timeout (8h by default), and
+        # any restart or network blip drops them all; without a ping, the next
+        # request on each dead pooled connection fails with a 500. Recycling
+        # well before wait_timeout keeps the ping from finding many dead ones.
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 1800,
+        }
 
         # Redis configuration
         self.REDIS_HOST = os.getenv('REDIS_HOST')

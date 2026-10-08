@@ -26,9 +26,12 @@ def upgrade():
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('content', sa.String(length=256), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id']),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
     )
+    # MySQL drops the index it made for the foreign key once this one can
+    # serve it instead
+    op.create_index('ix_notes_user_id_id', 'notes', ['user_id', 'id'])
 
 
 def downgrade():

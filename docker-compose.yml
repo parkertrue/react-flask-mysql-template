@@ -42,6 +42,11 @@ services:
     logging: *logging
     <<: *security
     image: mysql:8.4.11
+    # InnoDB's cache of table and index pages. The default, 128M, would leave
+    # most of this container's 1g unused and send reads to disk once the data
+    # outgrows it. About half the memory limit leaves room for per-connection
+    # buffers; resize both together as the data grows.
+    command: ["--innodb-buffer-pool-size=512M"]
     # Only the variables MySQL needs, interpolated from the --env-file passed
     # to docker compose, so SECRET_KEY and the Redis password stay out. The
     # keys are the MySQL image's own names; the app reads DB_* everywhere.
@@ -187,6 +192,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    # Sized for gunicorn's default 2 workers x 4 threads (backend/Dockerfile).
+    # To scale, set WEB_CONCURRENCY in environment above to about one worker
+    # per CPU and raise cpus to match; add ~128m of memory per worker.
     deploy:
       resources:
         limits:

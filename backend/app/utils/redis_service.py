@@ -76,6 +76,10 @@ class RedisService:
 
     Redis runs with noeviction because losing these keys logs users out, so
     anything else stored here must carry a TTL, or use a separate instance.
+
+    Every failure is logged: callers turn them into a 503 or a 401, and
+    without the log a full Redis (OOM), a wrong password and a key outside
+    the ACL user's patterns (NOPERM) would all look the same.
     """
 
     def __init__(self, host: str, port: int, db: int, username: str, password: str,
@@ -125,6 +129,7 @@ class RedisService:
             pipe.execute()
             return True
         except redis.RedisError:
+            current_app.logger.exception('Could not record a refresh token for user %s', user_id)
             return False
 
     def is_token_valid(self, user_id: int, jti: str) -> bool:
@@ -132,6 +137,7 @@ class RedisService:
             expires_at = self._client.zscore(_tokens_key(user_id), jti)
             return expires_at is not None and expires_at > time.time()
         except redis.RedisError:
+            current_app.logger.exception('Could not check a refresh token for user %s', user_id)
             return False
 
     def revoke_token(self, user_id: int, jti: str) -> bool:
@@ -139,6 +145,7 @@ class RedisService:
             result = self._client.zrem(_tokens_key(user_id), jti)
             return cast(int, result) > 0
         except redis.RedisError:
+            current_app.logger.exception('Could not revoke a refresh token for user %s', user_id)
             return False
 
     def revoke_all_user_tokens(self, user_id: int) -> int:
@@ -151,4 +158,5 @@ class RedisService:
             live, _ = pipe.execute()
             return cast(int, live)
         except redis.RedisError:
+            current_app.logger.exception('Could not revoke the sessions of user %s', user_id)
             return 0

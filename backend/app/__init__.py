@@ -9,6 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import error_response
+from app.utils.passwords import PasswordHashingBusy, init_password_hashing
 from app.utils.redis_service import connect_redis, get_redis_service
 
 
@@ -49,6 +50,31 @@ def create_app():
 
     if app.config['RATELIMIT_ENABLED']:
         limiter.init_app(app)
+
+    init_password_hashing(app)
+
+    # Imported here for the same reason as the routes below
+    from app.models import User
+
+    @jwt.user_lookup_loader
+    def load_user(jwt_header, jwt_payload):
+        """Runs on every @jwt_required request: the token's user must exist.
+
+        A deleted account's access token stays valid until it expires; this
+        turns it away on every route at the cost of one primary-key lookup,
+        rather than each route remembering to check. Routes read the user
+        as flask_jwt_extended.current_user.
+        """
+        return db.session.get(User, int(jwt_payload['sub']))
+
+    @jwt.user_lookup_error_loader
+    def user_not_found(jwt_header, jwt_payload):
+        # Same code as a bad token, so the frontend signs the user out
+        return error_response(
+            code='AUTH_INVALID_TOKEN',
+            message='Invalid authentication token',
+            status=401
+        )
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
@@ -118,6 +144,14 @@ def create_app():
             code='VALIDATION_ERROR',
             message='Invalid input',
             status=422
+        )
+
+    @app.errorhandler(PasswordHashingBusy)
+    def password_hashing_busy(e):
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='Sign-in is busy, please try again shortly',
+            status=503
         )
 
     # Generic error handlers. Werkzeug's defaults are HTML pages, which the

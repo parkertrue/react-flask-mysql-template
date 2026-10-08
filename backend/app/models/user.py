@@ -1,8 +1,8 @@
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column
-from werkzeug.security import generate_password_hash, check_password_hash
 
 from app import db
+from app.utils.passwords import hash_password, verify_password
 
 # The schemas validate against this, so an over-long email is a 422, not a
 # database error. frontend/src/utils/validation.js mirrors it.
@@ -33,7 +33,7 @@ class User(db.Model):
         self.email = email
 
     def set_password(self, password: str) -> None:
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = hash_password(password)
 
     def check_password(self, password: str) -> bool:
-        return check_password_hash(self.password_hash, password)
+        return verify_password(self.password_hash, password)
