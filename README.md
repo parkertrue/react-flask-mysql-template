@@ -327,7 +327,9 @@ From `backend/`:
 ruff check .                # Lint
 ```
 
-Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis), wait for them to be healthy, and remove them afterwards.
+Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis), wait for them to be healthy, and remove them afterwards. A bare `pytest` runs the unit tests only.
+
+Unit runs fail below 95% line and branch coverage of `app/` (`backend/.coveragerc`), and any warning fails a test (`backend/pytest.ini`), so a deprecation gets fixed when it first appears rather than when the next major release removes it. Tests run in a new random order each time (`pytest-randomly`); to replay a failing order, pass the seed printed in the header: `pytest --randomly-seed=<seed>`.
 
 ## Frontend Tests
 
@@ -337,8 +339,10 @@ From `frontend/`:
 npm run lint          # ESLint
 npm run test:run      # Run unit tests once
 npm run test          # Watch mode (auto re-runs on changes)
-npm run test:coverage # Generate coverage report (coverage/ folder)
+npm run test:coverage # Unit tests with coverage (coverage/ folder); what CI runs
 ```
+
+Coverage below the thresholds in `vite.config.js` fails the run. Tests run in a shuffled order; replay one with `npx vitest run --sequence.seed=<seed>`, using the seed printed at the start of the run. A test also fails if React reports a state update outside `act()`, which means it asserted before the page settled: await the final state with `findBy*` or `waitFor`. Tests that fake the network build responses from `src/test/fixtures.js`, whose list of error codes is checked against the backend's, and start MSW with `setupMswServer` from `src/test/server.js`.
 
 ## End-to-End Tests
 
@@ -381,9 +385,9 @@ To stop a failing check from merging, require these status checks on `main` (Set
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
+1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests: unit, integration (`test_mysql_limits.py`, `test_mysql_cascade.py`) and E2E (`notes-crud.spec.js`).
 2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/components/health/`, `hooks/useHealth.js`, `api/services/healthService.js` and `styles/components/api-status.css` with their tests, the `api-status.css` import in `styles/base/index.css`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Update the `Note` fixtures in `backend/tests/conftest.py`.
+3. Update the `Note` fixtures in `backend/tests/conftest.py`, and the note builders and `/api/notes` handlers in `frontend/src/test/fixtures.js` and `server.js`.
 4. Update the note-length validators in `frontend/src/utils/validation.js`.
 5. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.
 6. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.

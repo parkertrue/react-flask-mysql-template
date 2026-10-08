@@ -24,6 +24,14 @@ export default defineConfig({
     // must agree for handlers to match the requests axios sends.
     environmentOptions: { jsdom: { url: 'http://localhost/' } },
     setupFiles: './src/test/setup.js',
+    // Before each test, every mock loses the return values and
+    // implementations an earlier test gave it, so no test depends on
+    // another having run first. Stubbed globals are put back too.
+    mockReset: true,
+    unstubGlobals: true,
+    // A new order every run, so a test leaning on another's leftovers fails
+    // at once. Replay a failing order with --sequence.seed=<seed>.
+    sequence: { shuffle: true },
     exclude: [
       'node_modules/',
       '**/e2e/',
@@ -33,20 +41,17 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        '**/e2e/',
-        'src/test/',
-        '**/*.config.js',
-        '**/main.jsx',
-        '**/*.css'
-      ]
+      // Without include, a file no test imports is left out of the report
+      // rather than counted as 0%, so an untested new file goes unnoticed.
+      include: ['src/**/*.{js,jsx}'],
+      thresholds: {
+        statements: 95,
+        branches: 95,
+        functions: 95,
+        lines: 95,
+      },
+      // Test files are left out automatically
+      exclude: ['src/test/**', 'src/main.jsx']
     },
-    // React Testing Library's act() warnings are noise for async hooks
-    onConsoleLog(log) {
-      if (log.includes('was not wrapped in act')) {
-        return false
-      }
-    }
   }
 })

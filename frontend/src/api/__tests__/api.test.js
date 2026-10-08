@@ -1,22 +1,18 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
 import { api } from '../api'
 import { storage } from '../../utils/storage'
+import { errorBody, notesPage, tokens } from '../../test/fixtures'
+import { setupMswServer } from '../../test/server'
 
-const server = setupServer()
+// No default handlers: each test mocks exactly the endpoints it expects
+const server = setupMswServer()
 
-beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
-  server.resetHandlers()
   window.location.href = 'http://localhost/'
 })
-afterAll(() => server.close())
 
-const expired = () => HttpResponse.json(
-  { error: { code: 'AUTH_TOKEN_EXPIRED', message: 'Session expired' } },
-  { status: 401 }
-)
+const expired = () => HttpResponse.json(errorBody('AUTH_TOKEN_EXPIRED'), { status: 401 })
 
 // A backend that expires every access token except the latest one it issued,
 // and, like flask-jwt-extended, requires the CSRF value of the current
@@ -29,21 +25,18 @@ function mockBackend() {
       const sent = request.headers.get('X-CSRF-REFRESH-TOKEN')
       state.refreshCalls.push(sent)
       if (sent !== state.csrf) {
-        return HttpResponse.json(
-          { error: { code: 'AUTH_MISSING_TOKEN', message: 'Authentication required' } },
-          { status: 401 }
-        )
+        return HttpResponse.json(errorBody('AUTH_MISSING_TOKEN'), { status: 401 })
       }
       state.issued += 1
       state.validToken = `access-${state.issued}`
       state.csrf = `csrf-${state.issued}`
-      return HttpResponse.json({ access_token: state.validToken, refresh_csrf: state.csrf })
+      return HttpResponse.json(tokens(state.validToken, state.csrf))
     }),
     http.get('/api/notes', ({ request }) => {
       if (request.headers.get('Authorization') !== `Bearer ${state.validToken}`) {
         return expired()
       }
-      return HttpResponse.json([])
+      return HttpResponse.json(notesPage())
     })
   )
 
@@ -148,7 +141,7 @@ describe('expired access token', () => {
     mockBackend()
     storage.setRefreshCsrf('wrong')
 
-    await expect(api.get('/notes')).rejects.toBeTruthy()
+    await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
     expect(window.location.href).toBe('/login')
@@ -161,7 +154,7 @@ describe('expired access token', () => {
     mockBackend()
     server.use(
       http.post('/api/auth/refresh', () =>
-        HttpResponse.json({ error: { code, message: 'x' } }, { status }))
+        HttpResponse.json(errorBody(code), { status }))
     )
 
     const error = await api.get('/notes').catch(e => e)
@@ -176,7 +169,7 @@ describe('expired access token', () => {
     mockBackend()
     server.use(http.post('/api/auth/refresh', () => HttpResponse.error()))
 
-    await expect(api.get('/notes')).rejects.toBeTruthy()
+    await expect(api.get('/notes')).rejects.toMatchObject({ code: 'ERR_NETWORK' })
 
     expect(storage.getAccessToken()).toBe('stale-token')
     expect(window.location.href).toBe('http://localhost/')
@@ -186,7 +179,7 @@ describe('expired access token', () => {
     const backend = mockBackend()
     server.use(
       http.post('/api/auth/refresh', () =>
-        HttpResponse.json({ error: { code: 'RATE_LIMITED', message: 'x' } }, { status: 429 }),
+        HttpResponse.json(errorBody('RATE_LIMITED'), { status: 429 }),
       { once: true })
     )
     await api.get('/notes').catch(() => {})
@@ -237,14 +230,14 @@ describe('refreshing across tabs', () => {
 describe('invalid or missing token', () => {
   const rejectWith = (method, path, code) => server.use(
     http[method](`/api${path}`, () =>
-      HttpResponse.json({ error: { code, message: 'x' } }, { status: 401 }))
+      HttpResponse.json(errorBody(code), { status: 401 }))
   )
 
   it('logs out and redirects on an invalid token', async () => {
     storage.setAccessToken('forged')
     rejectWith('get', '/notes', 'AUTH_INVALID_TOKEN')
 
-    await expect(api.get('/notes')).rejects.toBeTruthy()
+    await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
     expect(window.location.href).toBe('/login')
@@ -254,7 +247,7 @@ describe('invalid or missing token', () => {
     storage.setAccessToken('token')
     rejectWith('post', '/auth/logout', 'AUTH_MISSING_TOKEN')
 
-    await expect(api.post('/auth/logout')).rejects.toBeTruthy()
+    await expect(api.post('/auth/logout')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBe('token')
     expect(window.location.href).toBe('http://localhost/')

@@ -9,7 +9,6 @@ vi.mock('../../utils/storage')
 
 describe('AuthProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)

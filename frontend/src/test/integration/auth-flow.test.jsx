@@ -1,28 +1,17 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
 import App from '../../App'
+import { storage } from '../../utils/storage'
+import { errorBody, notesPage } from '../fixtures'
+import { handlers, setupMswServer } from '../server'
 
-// Create MSW server for this test file
-const server = setupServer()
+// The whole app against the real axios client, with the network faked at the
+// HTTP layer. Every endpoint answers its happy path unless a test says not.
+const server = setupMswServer(...handlers)
 
-beforeAll(() => {
-  server.listen({ onUnhandledFrame: 'warn' })
-})
-
-afterEach(() => {
-  server.resetHandlers()
-  localStorage.clear()
-})
-
-afterAll(() => {
-  server.close()
-})
-
-// Helper to render App with MemoryRouter at a specific route
 function renderAppAt(initialRoute = '/') {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
@@ -31,277 +20,119 @@ function renderAppAt(initialRoute = '/') {
   )
 }
 
+async function fillRegistration(user, email) {
+  await user.type(screen.getByLabelText(/email/i), email)
+  await user.type(screen.getByLabelText(/^password$/i), 'Password123')
+  await user.type(screen.getByLabelText(/confirm password/i), 'Password123')
+  await user.click(screen.getByRole('button', { name: /register/i }))
+}
+
+async function fillLogin(user, password = 'Password123') {
+  await user.type(screen.getByLabelText(/email/i), 'test@example.com')
+  await user.type(screen.getByLabelText(/password/i), password)
+  await user.click(screen.getByRole('button', { name: /login/i }))
+}
+
 describe('Authentication Flow Integration Tests', () => {
   describe('Registration Flow', () => {
-    it('should complete registration and show success message', async () => {
+    it('registers and moves on to the login page', async () => {
       const user = userEvent.setup()
-
-      // Mock successful registration
-      server.use(
-        http.post('/api/auth/register', () => {
-          return HttpResponse.json({ message: 'User created' }, { status: 201 })
-        })
-      )
-
-      // Start at register page
       renderAppAt('/register')
 
-      // Wait for form to be visible
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /register/i })).toBeInTheDocument()
-      })
+      await fillRegistration(user, 'test@example.com')
 
-      // Fill registration form using labels (id attribute)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      const confirmPasswordInput = screen.getByLabelText(/confirm password/i)
-      const registerButton = screen.getByRole('button', { name: /register/i })
-
-      await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'Password123')
-      await user.type(confirmPasswordInput, 'Password123')
-      await user.click(registerButton)
-
-      // After successful registration, should redirect to login page
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
-      }, { timeout: 3000 })
+      expect(
+        await screen.findByRole('heading', { name: /login/i }, { timeout: 3000 })
+      ).toBeInTheDocument()
     })
 
-    it('should show error message on registration failure', async () => {
+    it('shows the server message when the email is taken', async () => {
       const user = userEvent.setup()
-
-      // Mock failed registration
       server.use(
-        http.post('/api/auth/register', () => {
-          return HttpResponse.json(
-            {
-              error: {
-                code: 'EMAIL_ALREADY_EXISTS',
-                message: 'Email already registered'
-              }
-            },
-            { status: 409 }
-          )
-        })
+        http.post('/api/auth/register', () => HttpResponse.json(
+          errorBody('EMAIL_ALREADY_REGISTERED', 'Email already registered'),
+          { status: 409 }))
       )
-
       renderAppAt('/register')
 
-      // Wait for form
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /register/i })).toBeInTheDocument()
-      })
+      await fillRegistration(user, 'existing@example.com')
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      const confirmPasswordInput = screen.getByLabelText(/confirm password/i)
-      const registerButton = screen.getByRole('button', { name: /register/i })
-
-      await user.type(emailInput, 'existing@example.com')
-      await user.type(passwordInput, 'Password123')
-      await user.type(confirmPasswordInput, 'Password123')
-      await user.click(registerButton)
-
-      // Should show error message
-      await waitFor(() => {
-        expect(screen.getByTestId('error-message')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('error-message')).toHaveTextContent(/email already registered/i)
+      expect(await screen.findByTestId('error-message'))
+        .toHaveTextContent(/email already registered/i)
     })
   })
 
   describe('Login Flow', () => {
-    it('should login and load user notes', async () => {
+    it('logs in and loads the user\'s notes with the new token', async () => {
       const user = userEvent.setup()
-
-      const mockNotes = [
-        { id: 1, content: 'First note', user_id: 1, created_at: '2024-01-01T00:00:00Z' },
-        { id: 2, content: 'Second note', user_id: 1, created_at: '2024-01-02T00:00:00Z' }
-      ]
-
-      // Mock successful login and notes fetch
       server.use(
-        http.post('/api/auth/login', () => {
-          return HttpResponse.json(
-            {
-              access_token: 'mock-access-token',
-              refresh_csrf: 'mock-csrf-token'
-            },
-            { status: 200 }
-          )
-        }),
         http.get('/api/notes', ({ request }) => {
-          const authHeader = request.headers.get('authorization')
-          if (!authHeader) {
-            return HttpResponse.json(
-              { error: { code: 'AUTH_MISSING_TOKEN', message: 'No token provided' } },
-              { status: 401 }
-            )
+          if (request.headers.get('Authorization') !== 'Bearer access-token') {
+            return HttpResponse.json(errorBody('AUTH_MISSING_TOKEN'), { status: 401 })
           }
-          return HttpResponse.json({ notes: mockNotes, next_cursor: null }, { status: 200 })
+          return HttpResponse.json(notesPage([
+            { id: 2, content: 'Second note' },
+            { id: 1, content: 'First note' },
+          ]))
         })
       )
-
       renderAppAt('/login')
 
-      // Wait for login form
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
-      })
+      await fillLogin(user)
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const loginButton = screen.getByRole('button', { name: /login/i })
-
-      await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'Password123')
-      await user.click(loginButton)
-
-      // Should display notes
-      await waitFor(() => {
-        expect(screen.getByText('First note')).toBeInTheDocument()
-      }, { timeout: 3000 })
+      expect(await screen.findByText('First note', {}, { timeout: 3000 })).toBeInTheDocument()
       expect(screen.getByText('Second note')).toBeInTheDocument()
     })
 
-    it('should show error on invalid credentials', async () => {
+    it('shows the server message on invalid credentials', async () => {
       const user = userEvent.setup()
-
-      // Mock failed login
       server.use(
-        http.post('/api/auth/login', () => {
-          return HttpResponse.json(
-            {
-              error: {
-                code: 'INVALID_CREDENTIALS',
-                message: 'Invalid email or password'
-              }
-            },
-            { status: 401 }
-          )
-        })
+        http.post('/api/auth/login', () => HttpResponse.json(
+          errorBody('INVALID_CREDENTIALS', 'Invalid email or password'),
+          { status: 401 }))
       )
-
       renderAppAt('/login')
 
-      // Wait for login form
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
-      })
+      await fillLogin(user, 'WrongPassword123')
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const loginButton = screen.getByRole('button', { name: /login/i })
-
-      await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'WrongPassword123')
-      await user.click(loginButton)
-
-      // Should show error message
-      await waitFor(() => {
-        expect(screen.getByTestId('error-message')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('error-message')).toHaveTextContent(/invalid email or password/i)
+      expect(await screen.findByTestId('error-message'))
+        .toHaveTextContent(/invalid email or password/i)
     })
   })
 
-  describe('Notes CRUD Operations', () => {
-    it('should create a new note', async () => {
+  describe('Notes', () => {
+    it('creates a note and shows it', async () => {
       const user = userEvent.setup()
-
-      // Mock authenticated session
-      localStorage.setItem('access_token', 'mock-token')
-
-      server.use(
-        http.get('/api/notes', () => {
-          return HttpResponse.json({ notes: [], next_cursor: null }, { status: 200 })
-        }),
-        http.post('/api/notes', async ({ request }) => {
-          const body = await request.json()
-          return HttpResponse.json(
-            {
-              id: 1,
-              content: body.content,
-              user_id: 1,
-              created_at: new Date().toISOString()
-            },
-            { status: 201 }
-          )
-        })
-      )
-
+      storage.setAccessToken('access-token')
       renderAppAt('/notes')
 
-      // Wait for notes page to load and empty state to appear
-      await waitFor(() => {
-        expect(screen.getByText(/no notes yet/i)).toBeInTheDocument()
-      })
+      await screen.findByText(/no notes yet/i)
+      await user.type(screen.getByLabelText('New note'), 'My new test note')
+      await user.click(screen.getByTestId('note-submit'))
 
-      // Create a note - use testid for the button since text changes
-      const noteInput = screen.getByPlaceholderText(/write a note/i)
-      const addButton = screen.getByTestId('note-submit')
-
-      await user.type(noteInput, 'My new test note')
-      
-      // Wait for button to be enabled (it's disabled when input is empty)
-      await waitFor(() => {
-        expect(addButton).not.toBeDisabled()
-      })
-
-      await user.click(addButton)
-
-      // Should display the new note
-      await waitFor(() => {
-        expect(screen.getByText('My new test note')).toBeInTheDocument()
-      })
+      expect(await screen.findByText('My new test note')).toBeInTheDocument()
     })
   })
 
   describe('Authentication State', () => {
-    it('should maintain authentication across page refreshes', async () => {
-      // Mock authenticated session
-      localStorage.setItem('access_token', 'mock-token')
-
-      const mockNotes = [
-        { id: 1, content: 'Persisted note', user_id: 1, created_at: '2024-01-01T00:00:00Z' }
-      ]
-
+    it('keeps a stored session across a page load', async () => {
+      storage.setAccessToken('access-token')
       server.use(
-        http.get('/api/notes', () => {
-          return HttpResponse.json({ notes: mockNotes, next_cursor: null }, { status: 200 })
-        })
+        http.get('/api/notes', () =>
+          HttpResponse.json(notesPage([{ id: 1, content: 'Persisted note' }])))
       )
 
       renderAppAt('/notes')
 
-      // Should load notes without requiring login
-      await waitFor(() => {
-        expect(screen.getByText('Persisted note')).toBeInTheDocument()
-      })
+      expect(await screen.findByText('Persisted note')).toBeInTheDocument()
     })
 
-    it('should redirect to login when token is missing', async () => {
-      // No token in localStorage
-      server.use(
-        http.get('/api/notes', () => {
-          return HttpResponse.json(
-            { error: { code: 'AUTH_MISSING_TOKEN', message: 'No token provided' } },
-            { status: 401 }
-          )
-        })
-      )
-
+    it('sends a visitor without a session to the login page', async () => {
+      // No handler is needed: the route guard redirects before any request,
+      // and an unexpected request would fail the test
       renderAppAt('/notes')
 
-      // Should show login form or redirect message
-      await waitFor(() => {
-        expect(
-          screen.queryByRole('heading', { name: /login/i }) ||
-          screen.queryByText(/please log in/i) ||
-          screen.queryByText(/unauthorized/i)
-        ).toBeTruthy()
-      }, { timeout: 3000 })
+      expect(await screen.findByRole('heading', { name: /login/i })).toBeInTheDocument()
     })
   })
 })

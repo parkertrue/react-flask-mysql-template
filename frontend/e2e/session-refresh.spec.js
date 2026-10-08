@@ -1,29 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { createHmac, randomUUID } from 'crypto'
-import { readFileSync } from 'fs'
-import path from 'path'
-import { TEST_PASSWORD, login, uniqueEmail } from './helpers'
-
-// The E2E backend signs tokens with SECRET_KEY from .env.test, so the test can
-// mint an access token that is validly signed but already expired: exactly
-// what the browser holds once the real 15-minute token lapses.
-function expiredAccessToken() {
-  const env = readFileSync(path.join(import.meta.dirname, '..', '..', '.env.test'), 'utf8')
-  const secret = env.match(/^SECRET_KEY=(.*)$/m)[1].trim()
-  const now = Math.floor(Date.now() / 1000)
-  const encode = obj => Buffer.from(JSON.stringify(obj)).toString('base64url')
-  const header = encode({ alg: 'HS256', typ: 'JWT' })
-  const payload = encode({
-    sub: '1', type: 'access', fresh: false, jti: randomUUID(),
-    iat: now - 3600, nbf: now - 3600, exp: now - 60,
-  })
-  const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url')
-  return `${header}.${payload}.${signature}`
-}
-
-async function expireAccessToken(page) {
-  await page.evaluate(token => localStorage.setItem('access_token', token), expiredAccessToken())
-}
+import {
+  TEST_PASSWORD, expireAccessToken, login, logout, registerAndLogin, uniqueEmail,
+} from './helpers'
 
 test('an expired session refreshes repeatedly, and logout revokes it', async ({ page }) => {
   const email = uniqueEmail('e2e-refresh')
@@ -53,9 +31,8 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
   const refreshCookie = (await page.context().cookies())
     .find(c => c.name === 'refresh_token_cookie')
 
-  await page.getByRole('button', { name: /logout/i }).click()
   const loggedOut = page.waitForResponse('**/api/auth/logout')
-  await page.getByText(/logout this device/i).click()
+  await logout(page)
   expect((await loggedOut).status()).toBe(200)
 
   // Replaying the old refresh token must fail: logout revoked it server-side
@@ -64,4 +41,74 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
     headers: { 'X-CSRF-REFRESH-TOKEN': csrf },
   })
   expect(replay.status()).toBe(401)
+})
+
+test('logout from all devices signs the other device out', async ({ page, browser }) => {
+  const email = await registerAndLogin(page, 'e2e-logout-all')
+
+  // A second device: its own browser context, so its own cookie and storage
+  const otherContext = await browser.newContext()
+  const other = await otherContext.newPage()
+  try {
+    await other.goto('/login')
+    await login(other, email)
+
+    await logout(page, 'Logout All Devices')
+    await page.waitForURL(/\/$/)
+
+    // The other device notices at its next refresh: rejected, so it is sent
+    // to the login page rather than left with a broken session
+    await expireAccessToken(other)
+    const refreshed = other.waitForResponse('**/api/auth/refresh')
+    await other.reload()
+
+    expect((await refreshed).status()).toBe(401)
+    await expect(other).toHaveURL(/\/login/)
+  } finally {
+    await otherContext.close()
+  }
+})
+
+test('two tabs refreshing at once both stay signed in', async ({ page, context }) => {
+  // Tabs share the refresh cookie and each refresh revokes the token it
+  // used, so without the Web Lock in api.js the slower tab is signed out
+  await registerAndLogin(page, 'e2e-two-tabs')
+  const second = await context.newPage()
+  await second.goto('/notes')
+  await expect(second.getByTestId('notes-empty')).toBeVisible()
+
+  // Force the order that signs a tab out: the first refresh reaches the
+  // server, but its tab hears back only after the second tab has sent its
+  // own, with the token the first just revoked. (Two refreshes that reach
+  // the server at the same instant can both succeed, so without this the
+  // test would pass by luck.) With the lock, the second tab waits, finds
+  // the first tab's token, and never sends a refresh at all.
+  let refreshes = 0
+  let firstRefreshed
+  const firstAtServer = new Promise(resolve => { firstRefreshed = resolve })
+  await context.route('**/api/auth/refresh', async route => {
+    if (++refreshes === 1) {
+      const response = await route.fetch()
+      firstRefreshed()
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await route.fulfill({ response })
+    } else {
+      await firstAtServer
+      await route.fulfill({ response: await route.fetch() })
+    }
+  })
+
+  // localStorage is shared too, so this expires the token in both tabs
+  await expireAccessToken(page)
+  await Promise.all([page.reload(), second.reload()])
+
+  for (const tab of [page, second]) {
+    await expect(tab.getByTestId('notes-empty')).toBeVisible()
+    await expect(tab).toHaveURL(/\/notes/)
+  }
+  expect(refreshes).toBe(1)
+
+  // And the session that survived is the real one
+  await page.reload()
+  await expect(page.getByTestId('notes-empty')).toBeVisible()
 })

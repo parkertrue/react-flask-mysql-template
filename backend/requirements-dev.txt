@@ -139,7 +139,10 @@ pytest==9.1.1
     # via
     #   -r requirements-dev.in
     #   pytest-cov
+    #   pytest-randomly
 pytest-cov==7.1.0
+    # via -r requirements-dev.in
+pytest-randomly==5.0.0
     # via -r requirements-dev.in
 redis==8.1.0
     # via

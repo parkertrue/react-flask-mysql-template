@@ -1,14 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { checkHealth } from '../healthService'
 import { api } from '../../api'
 
 vi.mock('../../api')
 
 describe('healthService', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('checkHealth', () => {
     it('should call GET /health', async () => {
       const mockResponse = {

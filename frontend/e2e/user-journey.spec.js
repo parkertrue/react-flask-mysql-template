@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { TEST_PASSWORD, login, register, submitRegistration, uniqueEmail } from './helpers'
+import {
+  TEST_PASSWORD, addNote, login, logout, register, submitRegistration, uniqueEmail,
+} from './helpers'
 
 test.describe('Critical User Journey', () => {
   let testEmail
@@ -35,25 +37,16 @@ test.describe('Critical User Journey', () => {
 
     // 4. Create a note
     const noteContent = `Test note created at ${new Date().toISOString()}`
-    const noteInput = page.locator('textarea, input[type="text"]').first()
-    await noteInput.fill(noteContent)
-    await page.getByRole('button', { name: /create|add note/i }).click()
-
-    // Verify note appears in list
-    await expect(page.getByText(noteContent)).toBeVisible()
+    await addNote(page, noteContent)
 
     // 5. Verify session persistence (page refresh)
     await page.reload()
     await expect(page).toHaveURL(/\/notes/)
     await expect(page.getByText(noteContent)).toBeVisible()
 
-    // 6. Logout - click dropdown, then logout option
-    const logoutButton = page.getByRole('button', { name: /logout/i })
-    await logoutButton.click()
-    await page.getByText(/logout this device/i).click()
-    
-    // Should redirect to home or login page (both valid for logged out state)
-    await page.waitForURL(/\/(login)?$/, { timeout: 10000 })
+    // 6. Logout, which returns to the home page
+    await logout(page)
+    await page.waitForURL(/\/$/, { timeout: 10000 })
     
     // Verify user is logged out by checking they can't access notes
     await page.goto('/notes')
@@ -76,8 +69,7 @@ test.describe('Critical User Journey', () => {
     await page.getByLabel(/password/i).fill('WrongPassword123')
     await page.getByRole('button', { name: /login|logging in/i }).click()
 
-    // Should show error message (wait for it to appear)
-    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible()
+    await expect(page.getByTestId('error-message')).toHaveText(/invalid email or password/i)
     
     // Should still be on login page
     await expect(page).toHaveURL(/\/login/)
@@ -90,8 +82,7 @@ test.describe('Critical User Journey', () => {
     // Try to register again with same email
     await submitRegistration(page, existingEmail)
     
-    // Should show error about email already existing
-    await expect(page.locator('.error-message, [data-testid="error-message"]').first()).toBeVisible()
+    await expect(page.getByTestId('error-message')).toHaveText(/already registered/i)
     await expect(page).toHaveURL(/\/register/)
   })
 })

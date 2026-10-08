@@ -13,7 +13,6 @@ const page = (notes, next_cursor = null) => ({ notes, next_cursor })
 
 describe('useNotes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)

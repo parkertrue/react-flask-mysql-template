@@ -43,6 +43,7 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      # Fails under the coverage floor in backend/.coveragerc
       - name: Run unit tests
         run: pytest tests/unit --cov=app --cov-report=term-missing
 
@@ -70,8 +71,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Fails under the coverage thresholds in vite.config.js
       - name: Run unit tests
-        run: npm run test:run
+        run: npm run test:coverage
 
   compose:
     name: Compose files

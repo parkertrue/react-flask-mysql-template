@@ -7,90 +7,40 @@ import { storage } from '../../../utils/storage'
 
 vi.mock('../../../utils/storage')
 
+function renderProtected({ signedIn }) {
+  storage.getAccessToken.mockReturnValue(signedIn ? 'valid-token' : null)
+  render(
+    <MemoryRouter initialEntries={['/protected']}>
+      <AuthProvider>
+        <Routes>
+          <Route
+            path="/protected"
+            element={<ProtectedRoute><p>Protected content</p></ProtectedRoute>}
+          />
+          <Route path="/login" element={<p>Login page</p>} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>
+  )
+}
+
 describe('ProtectedRoute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)
   })
 
-  const renderWithRouter = (initialRoute = '/protected') => {
-    return render(
-      <MemoryRouter initialEntries={[initialRoute]}>
-        <AuthProvider>
-          <Routes>
-            <Route
-              path="/protected"
-              element={
-                <ProtectedRoute>
-                  <div>Protected Content</div>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/login" element={<div>Login Page</div>} />
-          </Routes>
-        </AuthProvider>
-      </MemoryRouter>
-    )
-  }
+  it('sends a visitor to the login page instead', () => {
+    renderProtected({ signedIn: false })
 
-  describe('when not authenticated', () => {
-    it('should redirect to login page', () => {
-      renderWithRouter()
-
-      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
-      expect(screen.getByText('Login Page')).toBeInTheDocument()
-    })
-
-    it('should not render children', () => {
-      renderWithRouter()
-
-      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument()
-    })
+    expect(screen.getByText('Login page')).toBeInTheDocument()
+    expect(screen.queryByText('Protected content')).not.toBeInTheDocument()
   })
 
-  describe('when authenticated', () => {
-    beforeEach(() => {
-      storage.getAccessToken.mockReturnValue('valid-token')
-      storage.getEmail.mockReturnValue('user@example.com')
-    })
+  it('shows a signed-in user the page', () => {
+    renderProtected({ signedIn: true })
 
-    it('should render children', () => {
-      renderWithRouter()
-
-      expect(screen.getByText('Protected Content')).toBeInTheDocument()
-      expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
-    })
-
-    it('should wrap children in protected-route div', () => {
-      renderWithRouter()
-
-      const protectedDiv = screen.getByText('Protected Content').parentElement
-      expect(protectedDiv).toHaveClass('protected-route')
-    })
-
-    it('should render multiple children', () => {
-      render(
-        <MemoryRouter initialEntries={['/protected']}>
-          <AuthProvider>
-            <Routes>
-              <Route
-                path="/protected"
-                element={
-                  <ProtectedRoute>
-                    <div>Child 1</div>
-                    <div>Child 2</div>
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </AuthProvider>
-        </MemoryRouter>
-      )
-
-      expect(screen.getByText('Child 1')).toBeInTheDocument()
-      expect(screen.getByText('Child 2')).toBeInTheDocument()
-    })
+    expect(screen.getByText('Protected content')).toBeInTheDocument()
+    expect(screen.queryByText('Login page')).not.toBeInTheDocument()
   })
 })

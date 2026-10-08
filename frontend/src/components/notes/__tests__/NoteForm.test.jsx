@@ -1,547 +1,115 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import NoteForm from '../NoteForm'
+import { NOTE_MAX_LENGTH } from '../../../utils/validation'
+
+function renderForm({ loading = false, onSubmit = vi.fn().mockResolvedValue() } = {}) {
+  render(<NoteForm onSubmit={onSubmit} loading={loading} />)
+  return onSubmit
+}
+
+const input = () => screen.getByLabelText('New note')
+const button = () => screen.getByRole('button', { name: /add note|adding/i })
+const type = text => fireEvent.change(input(), { target: { value: text } })
+// Submitting the form directly, as Enter does, reaches validation even
+// when the button is disabled
+const submit = () => fireEvent.submit(screen.getByTestId('note-form'))
 
 describe('NoteForm', () => {
-  const mockOnSubmit = vi.fn()
+  it('labels the input, so it has a name beyond its placeholder', () => {
+    renderForm()
 
-  beforeEach(() => {
-    vi.clearAllMocks()
+    expect(input()).toBe(screen.getByPlaceholderText('Write a note...'))
+    expect(input()).toHaveAttribute('maxLength', String(NOTE_MAX_LENGTH))
   })
 
-  describe('rendering', () => {
-    it('should render note input field', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      expect(input).toBeInTheDocument()
-      expect(input).toHaveAttribute('placeholder', 'Write a note...')
-    })
+  it('counts down the characters left', () => {
+    renderForm()
+    expect(screen.getByText(`${NOTE_MAX_LENGTH} characters remaining`)).toBeInTheDocument()
 
-    it('should render submit button', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toBeInTheDocument()
-      expect(button).toHaveTextContent('Add Note')
-    })
+    type('Hello')
 
-    it('should render character counter', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      expect(screen.getByText(/256 characters remaining/i)).toBeInTheDocument()
-    })
-
-    it('should render form with proper structure', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const form = screen.getByTestId('note-form')
-      expect(form).toBeInTheDocument()
-      expect(form.tagName).toBe('FORM')
-    })
-
-    it('should have correct input attributes', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      expect(input).toHaveAttribute('type', 'text')
-      expect(input).toHaveAttribute('maxLength', '256')
-    })
+    expect(screen.getByText(`${NOTE_MAX_LENGTH - 5} characters remaining`)).toBeInTheDocument()
   })
 
-  describe('user input', () => {
-    it('should update input value when typing', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      
-      expect(input).toHaveValue('Test note')
-    })
+  it.each([
+    ['empty', '', false],
+    ['only whitespace', '   \n\t', false],
+    ['has text', 'A note', true],
+  ])('enables Add Note only when the note %s', (_, text, enabled) => {
+    renderForm()
 
-    it('should update character counter when typing', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      
-      expect(screen.getByText(/247 characters remaining/i)).toBeInTheDocument()
-    })
+    type(text)
 
-    it('should handle empty input', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: '' } })
-      
-      expect(input).toHaveValue('')
-      expect(screen.getByText(/256 characters remaining/i)).toBeInTheDocument()
-    })
+    expect(button()).toHaveProperty('disabled', !enabled)
+  })
 
-    it('should handle maximum length input', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const maxText = 'a'.repeat(256)
-      fireEvent.change(input, { target: { value: maxText } })
-      
-      expect(input).toHaveValue(maxText)
-      expect(screen.getByText(/0 characters remaining/i)).toBeInTheDocument()
-    })
+  it('submits the trimmed note once, then clears the field', async () => {
+    const onSubmit = renderForm()
+    type('  My note  ')
 
-    it('should handle special characters', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: 'Note @#$% test!' } })
-      
-      expect(input).toHaveValue('Note @#$% test!')
-    })
+    fireEvent.click(button())
 
-    it('should handle unicode characters', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: '🎉 Test note 🎊' } })
-      
-      expect(input).toHaveValue('🎉 Test note 🎊')
-    })
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onSubmit).toHaveBeenCalledWith('My note')
+    await waitFor(() => expect(input()).toHaveValue(''))
+  })
+
+  it('keeps the text when saving fails, so the user can retry', async () => {
+    const onSubmit = renderForm({ onSubmit: vi.fn().mockRejectedValue(new Error('500')) })
+    type('Keep me')
+
+    submit()
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(input()).toHaveValue('Keep me')
   })
 
   describe('validation', () => {
-    it('should show error for empty note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const form = screen.getByTestId('note-form')
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('note-error')).toBeInTheDocument()
-        expect(screen.getByTestId('note-error')).toHaveTextContent(/required/i)
-      })
+    it.each([
+      ['a blank note', '   ', 'Note content is required'],
+      // maxLength stops typing past it, but not a pasted or scripted value
+      ['an over-long note', 'x'.repeat(NOTE_MAX_LENGTH + 1),
+        `Note must be at most ${NOTE_MAX_LENGTH} characters`],
+    ])('refuses %s and explains why', (_, text, message) => {
+      const onSubmit = renderForm()
+      type(text)
+
+      submit()
+
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(input()).toHaveAttribute('aria-invalid', 'true')
+      expect(input()).toHaveAccessibleDescription(message)
     })
 
-    it('should show error for whitespace-only note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: '   ' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('note-error')).toBeInTheDocument()
-        expect(screen.getByTestId('note-error')).toHaveTextContent(/required/i)
-      })
+    it('accepts a note of exactly the maximum length', async () => {
+      const onSubmit = renderForm()
+      type('x'.repeat(NOTE_MAX_LENGTH))
+
+      submit()
+
+      expect(onSubmit).toHaveBeenCalledWith('x'.repeat(NOTE_MAX_LENGTH))
+      await waitFor(() => expect(input()).toHaveValue(''))
     })
 
-    it('should show error for note exceeding maximum length', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      const tooLong = 'a'.repeat(257)
-      fireEvent.change(input, { target: { value: tooLong } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('note-error')).toBeInTheDocument()
-        expect(screen.getByTestId('note-error')).toHaveTextContent(/at most 256 characters/i)
-      })
-    })
+    it('clears the message as soon as the user types again', () => {
+      renderForm()
+      type('   ')
+      submit()
+      expect(screen.getByTestId('note-error')).toBeInTheDocument()
 
-    it('should clear error when user starts typing', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      // Trigger error
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('note-error')).toBeInTheDocument()
-      })
-      
-      // Start typing
-      fireEvent.change(input, { target: { value: 'Valid note' } })
-      
-      await waitFor(() => {
-        expect(screen.queryByTestId('note-error')).not.toBeInTheDocument()
-      })
-    })
+      type('Better')
 
-    it('should not show error for valid note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: 'Valid note' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.queryByTestId('note-error')).not.toBeInTheDocument()
-      })
+      expect(screen.queryByTestId('note-error')).not.toBeInTheDocument()
+      expect(input()).toHaveAttribute('aria-invalid', 'false')
     })
   })
 
-  describe('form submission', () => {
-    it('should call onSubmit with trimmed content for valid note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: '  Valid note  ' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalledWith('Valid note')
-      })
-    })
+  it('locks while a note is being saved', () => {
+    renderForm({ loading: true })
 
-    it('should call onSubmit once per submission', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalledTimes(1)
-      })
-    })
-
-    it('should clear input after successful submission', async () => {
-      mockOnSubmit.mockResolvedValue({})
-      
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(input).toHaveValue('')
-      })
-    })
-
-    it('should not call onSubmit for empty note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const form = screen.getByTestId('note-form')
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled()
-      })
-    })
-
-    it('should not call onSubmit for whitespace-only note', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: '   ' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled()
-      })
-    })
-
-    it('should not call onSubmit for note exceeding max length', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      const tooLong = 'a'.repeat(257)
-      fireEvent.change(input, { target: { value: tooLong } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).not.toHaveBeenCalled()
-      })
-    })
-
-    it('should handle submission with note at maximum length', async () => {
-      mockOnSubmit.mockResolvedValue({})
-      
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      const maxNote = 'a'.repeat(256)
-      fireEvent.change(input, { target: { value: maxNote } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalledWith(maxNote)
-      })
-    })
-
-    it('should handle submission error', async () => {
-      mockOnSubmit.mockRejectedValue(new Error('Submission failed'))
-      
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        // Input should not be cleared on error
-        expect(input).toHaveValue('Test note')
-      })
-    })
-  })
-
-  describe('loading state', () => {
-    it('should disable input when loading', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={true} />)
-      
-      const input = screen.getByTestId('note-input')
-      expect(input).toBeDisabled()
-    })
-
-    it('should disable button when loading', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={true} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toBeDisabled()
-    })
-
-    it('should show loading text in button', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={true} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toHaveTextContent('Adding...')
-    })
-
-    it('should not disable input when not loading', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      expect(input).not.toBeDisabled()
-    })
-
-    it('should prevent submission when loading', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={true} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toBeDisabled()
-      
-      fireEvent.click(button)
-      expect(mockOnSubmit).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('button state', () => {
-    it('should disable button when content is empty', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toBeDisabled()
-    })
-
-    it('should disable button when content is only whitespace', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const button = screen.getByTestId('note-submit')
-      
-      fireEvent.change(input, { target: { value: '   ' } })
-      expect(button).toBeDisabled()
-    })
-
-    it('should enable button when content is valid', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const button = screen.getByTestId('note-submit')
-      
-      fireEvent.change(input, { target: { value: 'Valid note' } })
-      expect(button).not.toBeDisabled()
-    })
-
-    it('should disable button when loading even with valid content', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={true} />)
-      
-      const input = screen.getByTestId('note-input')
-      const button = screen.getByTestId('note-submit')
-      
-      fireEvent.change(input, { target: { value: 'Valid note' } })
-      expect(button).toBeDisabled()
-    })
-  })
-
-  describe('accessibility', () => {
-    it('labels the input, so it has a name beyond its placeholder', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-
-      expect(screen.getByLabelText('New note')).toBe(screen.getByTestId('note-input'))
-    })
-
-    it('should have proper aria-invalid attribute', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      expect(input).toHaveAttribute('aria-invalid', 'false')
-      
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(input).toHaveAttribute('aria-invalid', 'true')
-      })
-    })
-
-    it('should have proper aria-describedby when error exists', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(input).toHaveAttribute('aria-describedby', 'note-error')
-        expect(screen.getByTestId('note-error')).toHaveAttribute('id', 'note-error')
-      })
-    })
-
-    it('should not have aria-describedby when no error', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      expect(input).not.toHaveAttribute('aria-describedby')
-    })
-
-    it('should have descriptive button text', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const button = screen.getByTestId('note-submit')
-      expect(button).toHaveAccessibleName('Add Note')
-    })
-  })
-
-  describe('CSS classes', () => {
-    it('should apply error class when error exists', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      expect(input).not.toHaveClass('error')
-      
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(input).toHaveClass('error')
-      })
-    })
-
-    it('should remove error class when error is cleared', async () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(input).toHaveClass('error')
-      })
-      
-      fireEvent.change(input, { target: { value: 'Valid' } })
-      
-      await waitFor(() => {
-        expect(input).not.toHaveClass('error')
-      })
-    })
-
-    it('should have proper CSS classes', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      expect(screen.getByTestId('note-form')).toHaveClass('note-form')
-      expect(screen.getByTestId('note-input')).toHaveClass('note-input')
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle rapid typing', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      
-      'Test note'.split('').forEach(char => {
-        fireEvent.change(input, { target: { value: input.value + char } })
-      })
-      
-      expect(input).toHaveValue('Test note')
-    })
-
-    it('should handle paste events', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      fireEvent.change(input, { target: { value: 'Pasted content' } })
-      
-      expect(input).toHaveValue('Pasted content')
-    })
-
-    it('should handle deletion', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      
-      fireEvent.change(input, { target: { value: 'Test' } })
-      expect(input).toHaveValue('Test')
-      
-      fireEvent.change(input, { target: { value: 'Tes' } })
-      expect(input).toHaveValue('Tes')
-    })
-
-    it('should handle cut/clear all', () => {
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      
-      fireEvent.change(input, { target: { value: 'Test note' } })
-      expect(input).toHaveValue('Test note')
-      
-      fireEvent.change(input, { target: { value: '' } })
-      expect(input).toHaveValue('')
-    })
-
-    it('should preserve trailing spaces before submission', () => {
-      mockOnSubmit.mockResolvedValue({})
-      
-      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
-      
-      const input = screen.getByTestId('note-input')
-      const form = screen.getByTestId('note-form')
-      
-      fireEvent.change(input, { target: { value: 'Note   ' } })
-      expect(input).toHaveValue('Note   ')
-      
-      fireEvent.submit(form)
-      
-      // But submit trimmed version
-      expect(mockOnSubmit).toHaveBeenCalledWith('Note')
-    })
+    expect(input()).toBeDisabled()
+    expect(button()).toBeDisabled()
+    expect(button()).toHaveTextContent('Adding...')
   })
 })

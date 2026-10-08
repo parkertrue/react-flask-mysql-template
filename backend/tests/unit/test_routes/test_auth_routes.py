@@ -1,6 +1,9 @@
 import json
+import time
 from unittest.mock import patch
 
+import jwt
+import pytest
 from sqlalchemy import select, func
 
 from app.models import User
@@ -485,9 +488,10 @@ class TestRefreshEndpoint:
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
 
-    def test_refresh_fails_closed_without_redis(self, client, sample_user):
+    def test_refresh_fails_closed_without_redis(self, app, client, sample_user, monkeypatch):
         """With no Redis there is no allowlist, so every refresh token is revoked"""
         csrf = login(client)
+        monkeypatch.setitem(app.extensions, 'redis_service', None)
 
         response = client.post('/api/auth/refresh', headers=csrf)
 
@@ -712,7 +716,7 @@ class TestSignInWithoutRedis:
         assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
         assert 'Set-Cookie' not in response.headers
 
-    def test_login_when_redis_is_down(self, app, client, sample_user, monkeypatch):
+    def test_login_when_redis_is_down(self, app, client, sample_user, no_redis, monkeypatch):
         monkeypatch.setitem(app.config, 'USES_SERVICES', True)
         # Stops get_redis_service() from trying to connect for real
         monkeypatch.setitem(app.extensions, 'redis_retry_at', float('inf'))
@@ -731,3 +735,57 @@ class TestSignInWithoutRedis:
         monkeypatch.setattr(fake_redis, 'rotate_refresh_token', lambda *a, **k: None)
 
         self.assert_unavailable(client.post('/api/auth/refresh', headers=csrf))
+
+
+class TestUnusualRefreshTokens:
+    """Validly signed refresh tokens the app never issues, and odd conditions
+    around them: each must end in a clean 401, or a clean logout"""
+
+    def mint(self, app, **claims):
+        """A refresh token signed with the app's key, holding exactly `claims`"""
+        now = int(time.time())
+        payload = {'type': 'refresh', 'fresh': False, 'csrf': 'csrf',
+                   'iat': now, 'nbf': now, 'exp': now + 600, **claims}
+        payload = {k: v for k, v in payload.items() if v is not None}
+        return jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+
+    def refresh_with(self, client, token):
+        client.set_cookie('refresh_token_cookie', token, path='/api/auth')
+        return client.post('/api/auth/refresh', headers={'X-CSRF-REFRESH-TOKEN': 'csrf'})
+
+    @pytest.mark.parametrize('claims, code', [
+        # No token id to look up in Redis
+        ({'sub': '1', 'jti': None}, 'AUTH_TOKEN_REVOKED'),
+        # User ids are integers; Redis cannot vouch for any other
+        ({'sub': 'not-a-number', 'jti': 'some-jti'}, 'AUTH_TOKEN_REVOKED'),
+        # No user at all: flask-jwt-extended refuses it before the blocklist
+        ({'sub': None, 'jti': 'some-jti'}, 'AUTH_INVALID_TOKEN'),
+    ])
+    def test_is_rejected(self, app, client, sample_user, fake_redis, claims, code):
+        response = self.refresh_with(client, self.mint(app, **claims))
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == code
+
+    def test_no_csrf_value_is_sent_when_csrf_protection_is_off(
+            self, app, client, sample_user, fake_redis, monkeypatch):
+        """IntegrationConfig turns it off; a value the server never checks is noise"""
+        monkeypatch.setitem(app.config, 'JWT_COOKIE_CSRF_PROTECT', False)
+
+        response = client.post('/api/auth/login', json=LOGIN_PAYLOAD)
+
+        assert response.status_code == 200
+        assert 'refresh_csrf' not in response.get_json()
+
+    def test_logout_still_clears_cookies_if_redis_vanishes(
+            self, client, sample_user, fake_redis, monkeypatch):
+        """Logout is best effort: the token was valid a moment ago, so the
+        browser forgets it even though Redis can no longer revoke it"""
+        csrf = login(client)
+        monkeypatch.setattr(auth_routes, 'get_redis_service', lambda: None)
+
+        response = client.post('/api/auth/logout', headers=csrf)
+
+        assert response.status_code == 200
+        assert any(c.startswith('refresh_token_cookie=;')
+                   for c in response.headers.getlist('Set-Cookie'))

@@ -42,28 +42,6 @@ class TestUserModel:
         with pytest.raises(IntegrityError):
             db.session.commit()
 
-    def test_email_case_sensitivity(self, db):
-        """Email uniqueness should be case-sensitive at DB level."""
-        # Note: MySQL default collation is case-insensitive
-        # This test documents the behavior
-        user1 = User(email='Test@Example.com')
-        user1.set_password('Password123')
-        db.session.add(user1)
-        db.session.commit()
-
-        # Depending on DB collation, this might fail or succeed
-        user2 = User(email='test@example.com')
-        user2.set_password('Password456')
-        db.session.add(user2)
-
-        try:
-            db.session.commit()
-            # If no error, emails are case-sensitive
-            assert user1.email != user2.email
-        except IntegrityError:
-            # MySQL with case-insensitive collation will fail here
-            db.session.rollback()
-
     def test_created_at_auto_generated(self, db):
         """created_at should be automatically set on creation."""
         before = datetime.now(timezone.utc).replace(microsecond=0)

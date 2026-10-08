@@ -25,7 +25,6 @@ vi.mock('../pages/NotesPage', () => ({
 
 describe('App', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
     storage.getEmail.mockReturnValue(null)
@@ -81,31 +80,6 @@ describe('App', () => {
         </MemoryRouter>
       )
 
-      expect(screen.getByTestId('home-page')).toBeInTheDocument()
-    })
-  })
-
-  describe('layout', () => {
-    it('should wrap all routes in Layout component', () => {
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <App />
-        </MemoryRouter>
-      )
-
-      expect(screen.getByTestId('layout')).toBeInTheDocument()
-    })
-  })
-
-  describe('AuthProvider', () => {
-    it('should provide authentication context to all routes', () => {
-      render(
-        <MemoryRouter initialEntries={['/']}>
-          <App />
-        </MemoryRouter>
-      )
-
-      // If AuthProvider is properly wrapping, routes should render
       expect(screen.getByTestId('home-page')).toBeInTheDocument()
     })
   })

@@ -107,23 +107,6 @@ class TestNoteModel:
 
         assert note.content == content_256
 
-    def test_note_content_exceeds_max_length(self, db, sample_user):
-        """Note content exceeding 256 chars should fail."""
-        content_257 = 'x' * 257
-        note = Note(user_id=sample_user.id, content=content_257)
-        db.session.add(note)
-
-        # This might raise DataError or just truncate depending on DB
-        # SQLite test DB might handle differently than MySQL
-        try:
-            db.session.commit()
-            # If it didn't raise, check it was truncated
-            db.session.refresh(note)
-            assert len(note.content) <= 256
-        except Exception:
-            # Expected to fail
-            db.session.rollback()
-
     def test_multiple_notes_per_user(self, db, sample_user):
         """User should be able to have multiple notes."""
         notes = [

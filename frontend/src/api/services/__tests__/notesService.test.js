@@ -1,23 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { fetchNotes, createNote } from '../notesService'
 import { api } from '../../api'
+import { note, notesPage } from '../../../test/fixtures'
 
 vi.mock('../../api')
 
 describe('notesService', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('fetchNotes', () => {
     it('should GET the first page without a cursor', async () => {
-      const mockPage = {
-        notes: [
-          { id: 2, content: 'Note 2', created_at: '2024-01-02' },
-          { id: 1, content: 'Note 1', created_at: '2024-01-01' }
-        ],
-        next_cursor: null
-      }
+      const mockPage = notesPage([{ id: 2 }, { id: 1 }])
       api.get.mockResolvedValue({ data: mockPage })
 
       const result = await fetchNotes()
@@ -27,7 +18,7 @@ describe('notesService', () => {
     })
 
     it('should pass the cursor as ?before=', async () => {
-      api.get.mockResolvedValue({ data: { notes: [], next_cursor: null } })
+      api.get.mockResolvedValue({ data: notesPage() })
 
       await fetchNotes(42)
 
@@ -44,11 +35,7 @@ describe('notesService', () => {
 
   describe('createNote', () => {
     it('should call POST /notes with content', async () => {
-      const mockNote = {
-        id: 1,
-        content: 'New note',
-        created_at: '2024-01-01'
-      }
+      const mockNote = note({ content: 'New note' })
       api.post.mockResolvedValue({ data: mockNote })
 
       const result = await createNote('New note')
@@ -60,11 +47,7 @@ describe('notesService', () => {
     })
 
     it('should handle empty content', async () => {
-      const mockNote = {
-        id: 1,
-        content: '',
-        created_at: '2024-01-01'
-      }
+      const mockNote = note({ content: '' })
       api.post.mockResolvedValue({ data: mockNote })
 
       const result = await createNote('')

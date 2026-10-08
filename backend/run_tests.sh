@@ -139,7 +139,7 @@ case "$TEST_TYPE" in
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/integration/ $VERBOSE
         else
-            pytest tests/integration/ --cov=app --cov-report=term-missing $VERBOSE
+            pytest tests/integration/ --cov=app --cov-report=term-missing --cov-fail-under=0 $VERBOSE
         fi
 
         ;;
@@ -196,7 +196,7 @@ case "$TEST_TYPE" in
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/integration/ $VERBOSE
         else
-            pytest tests/integration/ --cov=app --cov-report=term-missing $VERBOSE
+            pytest tests/integration/ --cov=app --cov-report=term-missing --cov-fail-under=0 $VERBOSE
         fi
 
         ;;

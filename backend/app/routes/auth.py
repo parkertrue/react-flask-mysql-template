@@ -76,35 +76,34 @@ def _issue_tokens(user_id: int, replaces: str | None = None):
     access_token = create_access_token(identity=str(user_id))
     refresh_token = create_refresh_token(identity=str(user_id))
 
-    # A refresh token Redis never recorded counts as revoked, so the session
-    # would end silently once the access token expires. Refuse up front.
-    # Only unit tests run with Redis disabled and no store at all.
     redis_service = get_redis_service()
-    if redis_service is not None or current_app.config['USES_SERVICES']:
-        jti = decode_token(refresh_token)['jti']
-        ttl = int(current_app.config['JWT_REFRESH_TOKEN_EXPIRES'].total_seconds())
-        if redis_service is None:
-            recorded = None
-        elif replaces:
-            recorded = redis_service.rotate_refresh_token(user_id, replaces, jti, ttl_seconds=ttl)
-        else:
-            # A new sign-in replaces nothing, so its only failure is Redis's own
-            recorded = redis_service.store_refresh_token(user_id, jti, ttl_seconds=ttl) or None
+    jti = decode_token(refresh_token)['jti']
+    ttl = int(current_app.config['JWT_REFRESH_TOKEN_EXPIRES'].total_seconds())
+    if redis_service is None:
+        recorded = None
+    elif replaces:
+        recorded = redis_service.rotate_refresh_token(user_id, replaces, jti, ttl_seconds=ttl)
+    else:
+        # A new sign-in replaces nothing, so its only failure is Redis's own
+        recorded = redis_service.store_refresh_token(user_id, jti, ttl_seconds=ttl) or None
 
-        if recorded is False:
-            # Another request rotated this token between the blocklist check
-            # and here; refuse it as the blocklist would have a moment later.
-            return error_response(
-                code='AUTH_TOKEN_REVOKED',
-                message='Session revoked',
-                status=401
-            )
-        if recorded is None:
-            return error_response(
-                code='SERVICE_UNAVAILABLE',
-                message='Sign-in is temporarily unavailable, please try again shortly',
-                status=503
-            )
+    if recorded is False:
+        # Another request rotated this token between the blocklist check and
+        # here; refuse it as the blocklist would have a moment later.
+        return error_response(
+            code='AUTH_TOKEN_REVOKED',
+            message='Session revoked',
+            status=401
+        )
+    if recorded is None:
+        # A refresh token Redis never recorded counts as revoked, so the
+        # session would end silently once the access token expires. Refuse
+        # up front.
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='Sign-in is temporarily unavailable, please try again shortly',
+            status=503
+        )
 
     # Only advertise a CSRF token when cookie CSRF protection is actually on;
     # IntegrationConfig turns it off for headless API tests.

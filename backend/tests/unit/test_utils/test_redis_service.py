@@ -97,8 +97,11 @@ class TestTokenManagement:
     """Test token management operations"""
 
     @pytest.fixture
-    def service(self):
-        """Create a RedisService instance with mocked client"""
+    def service(self, app):
+        """Create a RedisService instance with mocked client
+
+        Needs the app: failures are logged through current_app.logger.
+        """
         with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
