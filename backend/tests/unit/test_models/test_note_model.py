@@ -1,10 +1,10 @@
 import pytest
 import time
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import delete, event, func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Note
+from app.models import Note, User
 
 
 class TestNoteModel:
@@ -191,6 +191,40 @@ class TestNoteModel:
 
         deleted_note = db.session.get(Note, note_id)
         assert deleted_note is None
+
+    def test_deleting_a_user_deletes_their_notes_in_the_database(
+            self, db, sample_user, second_user, sample_notes):
+        """ON DELETE CASCADE, not the ORM: a bulk DELETE never loads the notes"""
+        other = Note(user_id=second_user.id, content='Not mine')
+        db.session.add(other)
+        db.session.commit()
+
+        db.session.execute(delete(User).where(User.id == sample_user.id))
+        db.session.commit()
+
+        remaining = db.session.execute(select(Note.content)).scalars().all()
+        assert remaining == ['Not mine']
+
+    def test_deleting_a_user_does_not_load_their_notes(self, db, sample_user, sample_notes):
+        """passive_deletes: one DELETE on users, nothing per note"""
+        db.session.expire_all()
+        user = db.session.get(User, sample_user.id)
+        statements = []
+        engine = db.engine
+
+        def record(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        event.listen(engine, 'before_cursor_execute', record)
+        try:
+            db.session.delete(user)
+            db.session.commit()
+        finally:
+            event.remove(engine, 'before_cursor_execute', record)
+
+        assert not any(s.lstrip().upper().startswith('SELECT') and 'notes' in s
+                       for s in statements)
+        assert db.session.execute(select(func.count(Note.id))).scalar() == 0
 
     def test_note_update(self, db, sample_user):
         """Note content should be updatable."""

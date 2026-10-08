@@ -17,8 +17,8 @@ def get_notes():
 
     Cursor pagination: pass a page's next_cursor as ?before= to get the next
     one. Unlike an offset, a cursor neither skips nor repeats notes when new
-    ones are added between pages, and every page costs the same: the user_id
-    index is ordered by id within each user.
+    ones are added between pages, and every page costs the same: the
+    (user_id, id) index on Note finds each page directly.
     """
     query = NotesListQuery.model_validate(request.args.to_dict())
 
