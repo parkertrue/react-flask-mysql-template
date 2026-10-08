@@ -77,9 +77,15 @@ class FakeRedisService:
     def __init__(self):
         self.tokens = set()  # {(user_id, jti)}
 
-    def store_refresh_token(self, user_id, jti, ttl_seconds, replaces=None):
-        self.tokens.discard((user_id, replaces))
+    def store_refresh_token(self, user_id, jti, ttl_seconds):
         self.tokens.add((user_id, jti))
+        return True
+
+    def rotate_refresh_token(self, user_id, old_jti, new_jti, ttl_seconds):
+        if (user_id, old_jti) not in self.tokens:
+            return False
+        self.tokens.discard((user_id, old_jti))
+        self.tokens.add((user_id, new_jti))
         return True
 
     def is_token_valid(self, user_id, jti):

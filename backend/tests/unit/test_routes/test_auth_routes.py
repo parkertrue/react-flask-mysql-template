@@ -444,6 +444,25 @@ class TestRefreshEndpoint:
         assert stale.status_code == 401
         assert fresh.status_code == 200
 
+    def test_concurrent_refreshes_of_one_token_yield_one_session(
+            self, app, client, sample_user, fake_redis, monkeypatch):
+        """Two requests can both pass the blocklist check before either rotates;
+        the rotation itself must still let only the first one through"""
+        csrf = login(client)
+        cookie = client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        replay = app.test_client(use_cookies=False)
+        headers = {**csrf, 'Cookie': f'refresh_token_cookie={cookie}'}
+        # As both requests saw it: the token was still live when checked
+        monkeypatch.setattr(fake_redis, 'is_token_valid', lambda *args: True)
+
+        first = replay.post('/api/auth/refresh', headers=headers)
+        second = replay.post('/api/auth/refresh', headers=headers)
+
+        assert first.status_code == 200
+        assert second.status_code == 401
+        assert second.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
+        assert len(fake_redis.tokens) == 1
+
     def test_refresh_revokes_previous_token(self, client, sample_user, fake_redis):
         csrf = login(client)
         (old,) = fake_redis.tokens
@@ -709,6 +728,6 @@ class TestSignInWithoutRedis:
     def test_refresh_when_redis_rejects_the_write(
             self, client, sample_user, fake_redis, monkeypatch):
         csrf = login(client)
-        monkeypatch.setattr(fake_redis, 'store_refresh_token', lambda *a, **k: False)
+        monkeypatch.setattr(fake_redis, 'rotate_refresh_token', lambda *a, **k: None)
 
         self.assert_unavailable(client.post('/api/auth/refresh', headers=csrf))

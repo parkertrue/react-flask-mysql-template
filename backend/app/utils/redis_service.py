@@ -71,6 +71,29 @@ def _tokens_key(user_id: int) -> str:
     return f'refresh_tokens:{user_id}'
 
 
+# Records a refresh token, in place of the one it replaces when rotating.
+# A script runs inside Redis with nothing else in between, so the check and
+# the swap are one step: of two requests rotating the same token at once,
+# only the first finds it, and the second is refused (returns 0) rather than
+# turning one session into two. Swapping in one step also matters at the
+# session cap: storing first would evict another device's session.
+#   KEYS[1]  the user's set     ARGV[1]  new JTI       ARGV[2]  its expiry time
+#   ARGV[3]  now                ARGV[4]  session cap   ARGV[5]  TTL in seconds
+#   ARGV[6]  JTI to replace, or '' for a new sign-in
+_RECORD_TOKEN = """
+if ARGV[6] ~= '' and redis.call('ZREM', KEYS[1], ARGV[6]) == 0 then
+  return 0
+end
+redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[3])
+-- Keep the newest sessions; the lowest scores expire first
+redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -(tonumber(ARGV[4]) + 1))
+-- The newest token expires last, so the key can go with it
+redis.call('EXPIRE', KEYS[1], ARGV[5])
+return 1
+"""
+
+
 class RedisService:
     """Refresh-token allowlist in Redis.
 
@@ -97,34 +120,41 @@ class RedisService:
             **REDIS_CLIENT_OPTIONS,
         )
         self._client.ping()
+        # Sent by hash (EVALSHA) after the first call, loaded again if Redis
+        # restarted and forgot it
+        self._record_token = self._client.register_script(_RECORD_TOKEN)
 
     def get_client(self) -> redis.Redis:
         return self._client
 
-    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int = 2592000,
-                            replaces: str | None = None) -> bool:
-        """Record a new refresh token, swapping out `replaces` in the same step.
-
-        Rotating in one transaction matters at the session cap: storing first
-        would evict another device's session to make room for this one.
-        """
-        key = _tokens_key(user_id)
+    def _record(self, user_id: int, jti: str, ttl_seconds: int, replaces: str) -> bool:
         now = time.time()
+        recorded = self._record_token(
+            keys=[_tokens_key(user_id)],
+            args=[jti, now + ttl_seconds, now, MAX_SESSIONS_PER_USER, ttl_seconds, replaces])
+        return recorded == 1
+
+    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int = 2592000) -> bool:
+        """Record a new sign-in's refresh token; False if Redis failed"""
         try:
-            pipe = self._client.pipeline()  # MULTI/EXEC: all or nothing
-            if replaces:
-                pipe.zrem(key, replaces)
-            pipe.zadd(key, {jti: now + ttl_seconds})
-            pipe.zremrangebyscore(key, '-inf', now)
-            # Keep the newest MAX_SESSIONS_PER_USER; the lowest scores expire first
-            pipe.zremrangebyrank(key, 0, -(MAX_SESSIONS_PER_USER + 1))
-            # The newest token expires last, so the key can go with it
-            pipe.expire(key, ttl_seconds)
-            pipe.execute()
-            return True
+            return self._record(user_id, jti, ttl_seconds, replaces='')
         except redis.RedisError:
             current_app.logger.exception('Could not record a refresh token for user %s', user_id)
             return False
+
+    def rotate_refresh_token(self, user_id: int, old_jti: str, new_jti: str,
+                             ttl_seconds: int = 2592000) -> bool | None:
+        """Swap a refresh token for its successor.
+
+        False if `old_jti` was no longer there (another request rotated it
+        first, or it was revoked), and None if Redis failed: the caller must
+        tell those apart, since only the first means the session is over.
+        """
+        try:
+            return self._record(user_id, new_jti, ttl_seconds, replaces=old_jti)
+        except redis.RedisError:
+            current_app.logger.exception('Could not rotate a refresh token for user %s', user_id)
+            return None
 
     def is_token_valid(self, user_id: int, jti: str) -> bool:
         try:

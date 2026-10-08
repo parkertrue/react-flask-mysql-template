@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 
 from app.utils.redis_service import MAX_SESSIONS_PER_USER
@@ -146,6 +147,47 @@ class TestTokenRotation:
         assert len(after) == MAX_SESSIONS_PER_USER
         assert current not in after
         assert set(before) - {current} <= set(after)
+
+
+class TestRotationIsAtomic:
+    """One refresh token buys one successor, however many requests race for it"""
+
+    def test_a_token_rotates_only_once(
+        self, integration_client, integration_user, integration_redis
+    ):
+        assert _login(integration_client).status_code == 200
+        [old] = _jtis(integration_redis, integration_user.id)
+
+        first = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-1')
+        second = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-2')
+
+        assert (first, second) == (True, False)
+        assert _jtis(integration_redis, integration_user.id) == ['next-1']
+
+    def test_concurrent_refreshes_yield_exactly_one_session(
+        self, integration_app, integration_client, integration_user, integration_redis
+    ):
+        """Whichever loses, at the blocklist or in the rotation, it gets a 401"""
+        assert _login(integration_client).status_code == 200
+        cookie = integration_client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        start = threading.Barrier(2)
+        statuses = []
+
+        def refresh():
+            client = integration_app.test_client(use_cookies=False)
+            start.wait()
+            response = client.post(
+                '/api/auth/refresh', headers={'Cookie': f'refresh_token_cookie={cookie}'})
+            statuses.append(response.status_code)
+
+        threads = [threading.Thread(target=refresh) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert sorted(statuses) == [200, 401]
+        assert len(_jtis(integration_redis, integration_user.id)) == 1
 
 
 class TestBlocklistFailsClosed:
