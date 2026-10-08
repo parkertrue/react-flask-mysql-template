@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterEach, afterAll, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { api } from '../api'
@@ -195,6 +195,42 @@ describe('expired access token', () => {
 
     expect(response.status).toBe(200)
     expect(backend.refreshCalls).toEqual(['csrf-0'])
+  })
+})
+
+describe('refreshing across tabs', () => {
+  // jsdom has no Web Locks; stand in for the browser's
+  function stubLocks(request) {
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true })
+  }
+  afterEach(() => {
+    delete navigator.locks
+  })
+
+  it('refreshes inside the shared lock', async () => {
+    const backend = mockBackend()
+    const request = vi.fn((name, callback) => callback())
+    stubLocks(request)
+
+    const response = await api.get('/notes')
+
+    expect(response.status).toBe(200)
+    expect(request).toHaveBeenCalledWith('auth-refresh', expect.any(Function))
+    expect(backend.refreshCalls).toEqual(['csrf-0'])
+  })
+
+  it('uses the token another tab stored while this one waited', async () => {
+    const backend = mockBackend()
+    // The other tab held the lock, refreshed, and stored its new token
+    stubLocks((name, callback) => {
+      storage.setAccessToken(backend.validToken)
+      return callback()
+    })
+
+    const response = await api.get('/notes')
+
+    expect(response.status).toBe(200)
+    expect(backend.refreshCalls).toEqual([])
   })
 })
 

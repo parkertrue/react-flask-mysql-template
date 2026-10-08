@@ -18,6 +18,33 @@ const REFRESH_COOKIE_ENDPOINTS = ['/auth/refresh', '/auth/logout']
 let isRefreshing = false
 let failedQueue = []
 
+// Tabs share the refresh cookie, and each refresh revokes the token it
+// used, so two tabs refreshing at once would sign the slower one out. A Web
+// Lock makes tabs take turns; one that waited finds the access token the
+// other stored (localStorage is shared too) and uses it instead of
+// refreshing again. Browsers without the API (or a non-HTTPS origin other
+// than localhost) refresh without the lock, as before.
+async function refreshTokens(staleToken) {
+  const refresh = async () => {
+    const current = storage.getAccessToken()
+    if (current && current !== staleToken) {
+      return current
+    }
+
+    const response = await api.post('/auth/refresh')
+    const { access_token, refresh_csrf } = response.data
+    storage.setAccessToken(access_token)
+    // Every refresh token carries its own CSRF value. Keeping the old one
+    // makes the next refresh, and logout, fail the backend's CSRF check.
+    storage.setRefreshCsrf(refresh_csrf)
+    return access_token
+  }
+
+  return navigator.locks
+    ? navigator.locks.request('auth-refresh', refresh)
+    : refresh()
+}
+
 api.interceptors.request.use(config => {
   const token = storage.getAccessToken()
   if (token) {
@@ -64,12 +91,8 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const response = await api.post('/auth/refresh')
-        const { access_token, refresh_csrf } = response.data
-        storage.setAccessToken(access_token)
-        // Every refresh token carries its own CSRF value. Keeping the old one
-        // makes the next refresh, and logout, fail the backend's CSRF check.
-        storage.setRefreshCsrf(refresh_csrf)
+        const staleToken = originalRequest.headers.Authorization.replace(/^Bearer /, '')
+        const access_token = await refreshTokens(staleToken)
 
         originalRequest.headers.Authorization = `Bearer ${access_token}`
 
