@@ -388,6 +388,12 @@ describe('NoteForm', () => {
   })
 
   describe('accessibility', () => {
+    it('labels the input, so it has a name beyond its placeholder', () => {
+      render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
+
+      expect(screen.getByLabelText('New note')).toBe(screen.getByTestId('note-input'))
+    })
+
     it('should have proper aria-invalid attribute', async () => {
       render(<NoteForm onSubmit={mockOnSubmit} loading={false} />)
       

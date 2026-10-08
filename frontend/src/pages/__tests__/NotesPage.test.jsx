@@ -181,7 +181,7 @@ describe('NotesPage', () => {
       const existingNotes = [
         { id: 1, content: 'Existing note' }
       ]
-      const newNote = { id: 2, content: 'New note' }
+      const newNote = { id: 2, content: 'Another note' }
 
       fetchNotes.mockResolvedValue(page(existingNotes))
       createNote.mockResolvedValue(newNote)
@@ -196,12 +196,12 @@ describe('NotesPage', () => {
       const input = screen.getByTestId('note-input')
       const submitBtn = screen.getByTestId('note-submit')
 
-      await user.type(input, 'New note')
+      await user.type(input, 'Another note')
       await user.click(submitBtn)
 
       await waitFor(() => {
         expect(screen.getByText('Existing note')).toBeInTheDocument()
-        expect(screen.getByText('New note')).toBeInTheDocument()
+        expect(screen.getByText('Another note')).toBeInTheDocument()
       })
     })
 

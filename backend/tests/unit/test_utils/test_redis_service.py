@@ -114,34 +114,46 @@ class TestTokenManagement:
             )
             return service
 
-    def test_store_refresh_token_success(self, service):
-        """Should return True once the transaction executes"""
-        pipe = service._client.pipeline.return_value
+    # What the script does inside Redis is tested against a real one in
+    # tests/integration/test_redis_auth.py; these cover how its answers and
+    # failures reach the caller.
+
+    def test_store_refresh_token_records_a_new_sign_in(self, service):
+        service._record_token.return_value = 1
 
         assert service.store_refresh_token(1, 'test-jti', ttl_seconds=3600) is True
-        pipe.zadd.assert_called_once()
-        assert pipe.zadd.call_args[0][0] == 'refresh_tokens:1'
-        pipe.zrem.assert_not_called()
-        pipe.expire.assert_called_once_with('refresh_tokens:1', 3600)
-        pipe.execute.assert_called_once()
-
-    def test_store_refresh_token_replaces_in_same_transaction(self, service):
-        """Rotation removes the old JTI inside the same MULTI/EXEC"""
-        pipe = service._client.pipeline.return_value
-
-        service.store_refresh_token(1, 'new-jti', replaces='old-jti')
-
-        pipe.zrem.assert_called_once_with('refresh_tokens:1', 'old-jti')
-        pipe.execute.assert_called_once()
+        call = service._record_token.call_args.kwargs
+        assert call['keys'] == ['refresh_tokens:1']
+        jti, _, _, _, ttl, replaces = call['args']
+        assert (jti, ttl, replaces) == ('test-jti', 3600, '')
 
     def test_store_refresh_token_error(self, service, caplog):
         """Should return False on Redis errors"""
-        service._client.pipeline.return_value.execute.side_effect = (
-            redis.RedisError('Write failed'))
+        service._record_token.side_effect = redis.RedisError('Write failed')
 
         assert service.store_refresh_token(1, 'jti') is False
         assert 'Could not record a refresh token for user 1' in caplog.text
         assert 'Write failed' in caplog.text
+
+    def test_rotate_refresh_token_replaces_the_old_jti(self, service):
+        service._record_token.return_value = 1
+
+        assert service.rotate_refresh_token(1, 'old-jti', 'new-jti', ttl_seconds=60) is True
+        jti, _, _, _, _, replaces = service._record_token.call_args.kwargs['args']
+        assert (jti, replaces) == ('new-jti', 'old-jti')
+
+    def test_rotate_refresh_token_refuses_a_token_already_rotated(self, service):
+        """The script answers 0 when the old JTI was no longer there"""
+        service._record_token.return_value = 0
+
+        assert service.rotate_refresh_token(1, 'old-jti', 'new-jti') is False
+
+    def test_rotate_refresh_token_error_is_not_a_refusal(self, service, caplog):
+        """None, not False: the session is fine, Redis is not"""
+        service._record_token.side_effect = redis.RedisError('Write failed')
+
+        assert service.rotate_refresh_token(1, 'old-jti', 'new-jti') is None
+        assert 'Could not rotate a refresh token for user 1' in caplog.text
 
     def test_is_token_valid_when_unexpired(self, service):
         service._client.zscore.return_value = time.time() + 60
