@@ -56,14 +56,14 @@ class TestRedisServiceInitialization:
             assert call_kwargs['max_connections'] == 100
 
     def test_init_connection_failure(self):
-        """Redis should raise RuntimeError on connection failure"""
+        """A failed ping propagates; connect_redis logs it and retries later"""
         with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
             mock_client = MagicMock()
             mock_redis_class.return_value = mock_client
             mock_client.ping.side_effect = redis.RedisError(
                 'Connection failed')
 
-            with pytest.raises(RuntimeError) as exc_info:
+            with pytest.raises(redis.RedisError, match='Connection failed'):
                 RedisService(
                     host='localhost',
                     port=6379,
@@ -72,25 +72,6 @@ class TestRedisServiceInitialization:
                     password='testpass',
                     max_connections=50
                 )
-
-            assert 'Failed to connect to Redis' in str(exc_info.value)
-
-    def test_init_exception(self):
-        """Redis should raise RuntimeError on unexpected exceptions"""
-        with patch('app.utils.redis_service.redis.Redis') as mock_redis_class:
-            mock_redis_class.side_effect = Exception('Unexpected error')
-
-            with pytest.raises(RuntimeError) as exc_info:
-                RedisService(
-                    host='localhost',
-                    port=6379,
-                    db=0,
-                    username='app',
-                    password='testpass',
-                    max_connections=50
-                )
-
-            assert 'Redis initialization failed' in str(exc_info.value)
 
     def test_get_client(self):
         """get_client should return the Redis client"""
@@ -213,7 +194,7 @@ class TestTokenManagement:
         service._client.pipeline.return_value.execute.side_effect = (
             redis.RedisError('Failed'))
 
-        assert service.revoke_all_user_tokens(1) == 0
+        assert service.revoke_all_user_tokens(1) is None
         assert 'Could not revoke the sessions of user 1' in caplog.text
 
 
