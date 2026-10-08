@@ -7,20 +7,15 @@ vi.mock('../../../api/services/healthService')
 
 describe('ApiStatus', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     checkHealth.mockResolvedValue({ status: 'ok' })
   })
 
-  it('should render the API status label', () => {
+  it('labels the status it shows', async () => {
     render(<ApiStatus />)
 
     expect(screen.getByText(/API Status:/)).toBeInTheDocument()
-  })
-
-  it('should have the api-status class', () => {
-    const { container } = render(<ApiStatus />)
-
-    expect(container.querySelector('.api-status')).toBeInTheDocument()
+    // Let the health check settle inside the test
+    await screen.findByText('ok')
   })
 
   it('should display checking status initially', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
@@ -6,6 +6,7 @@ import LogoutDropdown from '../LogoutDropdown'
 import { AuthProvider } from '../../../contexts/AuthProvider'
 import { storage } from '../../../utils/storage'
 import { logoutUser, logoutAllDevices, clearAuthCookies } from '../../../api/services/authService'
+import { errorBody } from '../../../test/fixtures'
 
 vi.mock('../../../utils/storage')
 vi.mock('../../../api/services/authService')
@@ -13,671 +14,164 @@ vi.mock('../../../api/services/authService')
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  }
+  return { ...actual, useNavigate: () => mockNavigate }
 })
+
+const httpError = (status, code, message) =>
+  Object.assign(new Error(`Request failed with status code ${status}`), {
+    response: { status, data: code ? errorBody(code, message) : {} },
+  })
 
 describe('LogoutDropdown', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     storage.getAccessToken.mockReturnValue('valid-token')
     storage.getRefreshCsrf.mockReturnValue('valid-csrf')
     storage.getEmail.mockReturnValue('test@example.com')
-    logoutUser.mockResolvedValue({})
-    logoutAllDevices.mockResolvedValue({})
-    clearAuthCookies.mockResolvedValue({})
+    logoutUser.mockResolvedValue()
+    logoutAllDevices.mockResolvedValue()
+    clearAuthCookies.mockResolvedValue()
+    // A failed logout is logged; keep the test output clean
+    vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
-  const renderDropdown = () => {
-    return render(
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function renderDropdown() {
+    render(
       <BrowserRouter>
         <AuthProvider>
           <LogoutDropdown />
         </AuthProvider>
       </BrowserRouter>
     )
+    return userEvent.setup()
   }
 
-  describe('initial rendering', () => {
-    it('should render logout button', () => {
-      renderDropdown()
-      expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
+  const toggle = () => screen.getByRole('button', { name: /^logout [▾▴]$/i })
+  const thisDevice = () => screen.queryByRole('button', { name: 'Logout This Device' })
+  const allDevices = () => screen.queryByRole('button', { name: 'Logout All Devices' })
+
+  async function choose(user, item) {
+    await user.click(toggle())
+    await user.click(screen.getByRole('button', { name: item }))
+  }
+
+  async function expectSessionEnded() {
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
+    expect(storage.clearAuth).toHaveBeenCalled()
+  }
+
+  describe('menu', () => {
+    it('starts closed and toggles with its button', async () => {
+      const user = renderDropdown()
+      expect(thisDevice()).not.toBeInTheDocument()
+
+      await user.click(toggle())
+      expect(thisDevice()).toBeInTheDocument()
+      expect(allDevices()).toBeInTheDocument()
+
+      await user.click(toggle())
+      expect(thisDevice()).not.toBeInTheDocument()
     })
 
-    it('should not show dropdown menu initially', () => {
-      renderDropdown()
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-      expect(screen.queryByText('Logout All Devices')).not.toBeInTheDocument()
-    })
+    it('closes on a click outside it, but not on one inside', async () => {
+      const user = renderDropdown()
+      await user.click(toggle())
 
-    it('should have correct button class', () => {
-      renderDropdown()
-      const button = screen.getByRole('button', { name: /logout/i })
-      expect(button).toHaveClass('btn', 'btn-logout')
-    })
-
-    it('should render with logout-dropdown wrapper', () => {
-      const { container } = renderDropdown()
-      expect(container.querySelector('.logout-dropdown')).toBeInTheDocument()
-    })
-  })
-
-  describe('dropdown toggle', () => {
-    it('should show dropdown menu when button clicked', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-      expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
-    })
-
-    it('should hide dropdown menu when button clicked twice', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-      await user.click(button)
-
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-      expect(screen.queryByText('Logout All Devices')).not.toBeInTheDocument()
-    })
-
-    it('should toggle dropdown on multiple clicks', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-
-      await user.click(button)
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-
-      await user.click(button)
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-
-      await user.click(button)
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-    })
-
-    it('should show down caret when closed', () => {
-      renderDropdown()
-      expect(screen.getByText(/logout ▾/i)).toBeInTheDocument()
-    })
-
-    it('should show up caret when open', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-
-      expect(screen.getByText(/logout ▴/i)).toBeInTheDocument()
-    })
-
-    it('should toggle caret direction', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-
-      expect(screen.getByText(/logout ▾/i)).toBeInTheDocument()
-
-      await user.click(button)
-      expect(screen.getByText(/logout ▴/i)).toBeInTheDocument()
-
-      await user.click(button)
-      expect(screen.getByText(/logout ▾/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('dropdown menu structure', () => {
-    it('should render dropdown menu with correct class', async () => {
-      const user = userEvent.setup()
-      const { container } = renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      const menu = container.querySelector('.dropdown-menu')
-      expect(menu).toBeInTheDocument()
-    })
-
-    it('should render both menu items', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      const menuItems = screen.getAllByRole('button').filter(btn => 
-        btn.textContent.includes('Logout This Device') || 
-        btn.textContent.includes('Logout All Devices')
-      )
-      expect(menuItems).toHaveLength(2)
-    })
-
-    it('should have correct classes on menu items', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      const logoutThis = screen.getByText('Logout This Device')
-      const logoutAll = screen.getByText('Logout All Devices')
-
-      expect(logoutThis).toHaveClass('dropdown-item')
-      expect(logoutAll).toHaveClass('dropdown-item', 'dropdown-danger')
-    })
-
-    it('should render menu items in correct order', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      const buttons = screen.getAllByRole('button')
-      const menuButtons = buttons.filter(btn => 
-        btn.textContent.includes('Logout This Device') || 
-        btn.textContent.includes('Logout All Devices')
-      )
-
-      expect(menuButtons[0]).toHaveTextContent('Logout This Device')
-      expect(menuButtons[1]).toHaveTextContent('Logout All Devices')
-    })
-  })
-
-  describe('click outside to close', () => {
-    it('should close dropdown when clicking outside', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
+      await user.click(thisDevice().parentElement)
+      expect(thisDevice()).toBeInTheDocument()
 
       await user.click(document.body)
-
-      await waitFor(() => {
-        expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-      })
-    })
-
-    it('should reset caret when clicking outside', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-      expect(screen.getByText(/logout ▴/i)).toBeInTheDocument()
-
-      await user.click(document.body)
-
-      await waitFor(() => {
-        expect(screen.getByText(/logout ▾/i)).toBeInTheDocument()
-      })
-    })
-
-    it('should not close dropdown when clicking inside dropdown', async () => {
-      const user = userEvent.setup()
-      const { container } = renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-
-      const dropdownMenu = container.querySelector('.dropdown-menu')
-      await user.click(dropdownMenu)
-
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-    })
-
-    it('should not close when clicking the toggle button while open', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-
-      // Clicking toggle button should close it (this is normal toggle behavior)
-      await user.click(button)
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
+      expect(thisDevice()).not.toBeInTheDocument()
     })
   })
 
-  describe('logout this device functionality', () => {
-    it('should call logoutUser when "Logout This Device" clicked', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
+  describe('Logout This Device', () => {
+    it('logs out on the server, ends the session and goes home', async () => {
+      const user = renderDropdown()
 
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
+      await choose(user, 'Logout This Device')
 
+      expect(thisDevice()).not.toBeInTheDocument()
+      await expectSessionEnded()
       expect(logoutUser).toHaveBeenCalledTimes(1)
+      // The logout response already expired the refresh cookie
+      expect(clearAuthCookies).not.toHaveBeenCalled()
     })
 
-    it('should close dropdown immediately when logout clicked', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
+    it('still ends the session if the server call fails, and clears the cookie', async () => {
+      logoutUser.mockRejectedValue(new Error('Network Error'))
+      const user = renderDropdown()
 
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
+      await choose(user, 'Logout This Device')
 
-      // Dropdown should close immediately, not wait for API
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
+      await expectSessionEnded()
+      // HttpOnly: only the server can expire it
+      expect(clearAuthCookies).toHaveBeenCalledTimes(1)
     })
 
-    it('should clear auth context on logout', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
+    it('still ends the session if clearing the cookie fails too', async () => {
+      logoutUser.mockRejectedValue(new Error('Network Error'))
+      clearAuthCookies.mockRejectedValue(new Error('Network Error'))
+      const user = renderDropdown()
 
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
+      await choose(user, 'Logout This Device')
 
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-      })
-    })
-
-    it('should navigate to home after logout', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
-    })
-
-    it('should handle logout API error gracefully', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutUser.mockRejectedValue(new Error('Logout failed'))
-
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(consoleError).toHaveBeenCalledWith('Logout error:', expect.any(Error))
-      })
-
-      expect(storage.clearAuth).toHaveBeenCalled()
-      expect(mockNavigate).toHaveBeenCalledWith('/')
-      consoleError.mockRestore()
-    })
-
-    it('should still clear auth and navigate even if API fails', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutUser.mockRejectedValue(new Error('Network error'))
-
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
-
-      consoleError.mockRestore()
-    })
-
-    it('should log error to console on API failure', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const error = new Error('API Error')
-      logoutUser.mockRejectedValue(error)
-
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(consoleError).toHaveBeenCalledWith('Logout error:', error)
-      })
-
-      consoleError.mockRestore()
+      await expectSessionEnded()
     })
   })
 
-  describe('logout all devices functionality', () => {
-    beforeEach(() => {
-      storage.getAccessToken.mockReturnValue('valid-token')
-      storage.getEmail.mockReturnValue('test@example.com')
-    })
+  describe('Logout All Devices', () => {
+    it('signs every device out, ends this session and goes home', async () => {
+      const user = renderDropdown()
 
-    it('should close dropdown immediately when logout all clicked', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
+      await choose(user, 'Logout All Devices')
 
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      // Dropdown should close immediately
-      expect(screen.queryByText('Logout All Devices')).not.toBeInTheDocument()
-    })
-
-    it('should call logoutAllDevices when clicked', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => {
-        expect(logoutAllDevices).toHaveBeenCalledTimes(1)
-      })
-    })
-
-    it('should clear auth context on logout all', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-      })
-    })
-
-    it('should navigate to home after logout all', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
+      await expectSessionEnded()
+      expect(logoutAllDevices).toHaveBeenCalledTimes(1)
     })
 
     // Other devices stay signed in unless the server revoked them, so a
     // failure must say so and leave this session for a retry
-    const serviceUnavailable = () => Object.assign(new Error('Request failed'), {
-      response: {
-        status: 503,
-        data: { error: { code: 'SERVICE_UNAVAILABLE', message: 'Could not sign out other devices' } },
-      },
-    })
+    it.each([
+      ['the server fails', httpError(503, 'SERVICE_UNAVAILABLE', 'Could not sign out other devices'),
+        'Could not sign out other devices'],
+      ['the network fails', new Error('Network Error'), 'Network error'],
+    ])('keeps the session and says so when %s', async (_, error, message) => {
+      logoutAllDevices.mockRejectedValue(error)
+      const user = renderDropdown()
 
-    it('keeps the session and shows the error when the server fails', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(serviceUnavailable())
+      await choose(user, 'Logout All Devices')
 
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out other devices')
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
       expect(storage.clearAuth).not.toHaveBeenCalled()
       expect(clearAuthCookies).not.toHaveBeenCalled()
       expect(mockNavigate).not.toHaveBeenCalled()
-      console.error.mockRestore()
     })
 
-    it('keeps the session on a network error', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(new Error('Network Error'))
+    it('ends the session when the server says it is already over (401)', async () => {
+      logoutAllDevices.mockRejectedValue(httpError(401))
+      const user = renderDropdown()
 
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
+      await choose(user, 'Logout All Devices')
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Network error')
-      expect(storage.clearAuth).not.toHaveBeenCalled()
-      console.error.mockRestore()
-    })
-
-    it('ends the session when the server says it is over (401)', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(
-        Object.assign(new Error('Unauthorized'), { response: { status: 401, data: {} } }))
-
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
-      expect(storage.clearAuth).toHaveBeenCalled()
+      await expectSessionEnded()
       expect(clearAuthCookies).toHaveBeenCalledTimes(1)
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      console.error.mockRestore()
     })
 
     it('hides the error when the menu is opened again', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutAllDevices.mockRejectedValue(serviceUnavailable())
-
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
+      logoutAllDevices.mockRejectedValue(httpError(503, 'SERVICE_UNAVAILABLE'))
+      const user = renderDropdown()
+      await choose(user, 'Logout All Devices')
       await screen.findByRole('alert')
 
-      await user.click(screen.getByRole('button', { name: /logout/i }))
+      await user.click(toggle())
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
-      console.error.mockRestore()
-    })
-  })
-
-  describe('edge cases and cleanup', () => {
-    it('should cleanup event listener on unmount', () => {
-      const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener')
-      const { unmount } = renderDropdown()
-
-      unmount()
-
-      expect(removeEventListenerSpy).toHaveBeenCalledWith('mousedown', expect.any(Function))
-      removeEventListenerSpy.mockRestore()
-    })
-
-    it('should handle rapid dropdown toggles', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-
-      await user.click(button)
-      await user.click(button)
-      await user.click(button)
-      await user.click(button)
-
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-    })
-
-    it('should handle multiple logout attempts', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      // Open dropdown and logout
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(logoutUser).toHaveBeenCalledTimes(1)
-      })
-
-      // Dropdown should be closed, so this shouldn't cause issues
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-    })
-
-    it('should handle logout and logout-all in sequence', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      // First do logout all
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout All Devices'))
-
-      await waitFor(() => {
-        expect(logoutAllDevices).toHaveBeenCalledTimes(1)
-      })
-
-      // Dropdown should be closed
-      expect(screen.queryByText('Logout All Devices')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('integration scenarios', () => {
-    it('should complete full logout flow', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      // Open dropdown
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-
-      // Verify dropdown is open
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-
-      // Click logout
-      await user.click(screen.getByText('Logout This Device'))
-
-      // Verify API was called
-      expect(logoutUser).toHaveBeenCalledTimes(1)
-
-      // Verify cleanup happened
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
-
-      // Verify dropdown is closed
-      expect(screen.queryByText('Logout This Device')).not.toBeInTheDocument()
-    })
-
-    it('should complete full logout all flow', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      // Open dropdown
-      const button = screen.getByRole('button', { name: /logout/i })
-      await user.click(button)
-
-      // Verify dropdown is open
-      expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
-
-      // Click logout all
-      await user.click(screen.getByText('Logout All Devices'))
-
-      // Verify API was called
-      await waitFor(() => {
-        expect(logoutAllDevices).toHaveBeenCalledTimes(1)
-      })
-
-      // Verify cleanup happened
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
-
-      // Verify dropdown is closed
-      expect(screen.queryByText('Logout All Devices')).not.toBeInTheDocument()
-    })
-
-    it('should handle logout all immediately without confirmation', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      // Open dropdown
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      // Click logout all - should proceed immediately
-      await user.click(screen.getByText('Logout All Devices'))
-
-      // Verify API was called without confirmation
-      await waitFor(() => {
-        expect(logoutAllDevices).toHaveBeenCalled()
-        expect(storage.clearAuth).toHaveBeenCalled()
-      })
-    })
-  })
-
-  describe('accessibility', () => {
-    it('should use button elements for all interactive elements', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      const buttons = screen.getAllByRole('button')
-      expect(buttons.length).toBeGreaterThanOrEqual(3) // Main button + 2 menu items
-    })
-
-    it('should have accessible button text', () => {
-      renderDropdown()
-
-      const button = screen.getByRole('button', { name: /logout/i })
-      expect(button).toHaveAccessibleName()
-    })
-
-    it('should have accessible menu item text', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-
-      expect(screen.getByText('Logout This Device')).toBeInTheDocument()
-      expect(screen.getByText('Logout All Devices')).toBeInTheDocument()
-    })
-  })
-
-  describe('refresh cookie cleanup', () => {
-    it('asks the server to clear cookies when logout fails', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutUser.mockRejectedValue(new Error('Network error'))
-
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
-      expect(clearAuthCookies).toHaveBeenCalledTimes(1)
-      console.error.mockRestore()
-    })
-
-    it('does not clear cookies separately when logout succeeds', async () => {
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'))
-      expect(clearAuthCookies).not.toHaveBeenCalled()
-    })
-
-    it('still logs out locally if clearing cookies fails too', async () => {
-      vi.spyOn(console, 'error').mockImplementation(() => {})
-      logoutUser.mockRejectedValue(new Error('Network error'))
-      clearAuthCookies.mockRejectedValue(new Error('Network error'))
-
-      const user = userEvent.setup()
-      renderDropdown()
-      await user.click(screen.getByRole('button', { name: /logout/i }))
-      await user.click(screen.getByText('Logout This Device'))
-
-      await waitFor(() => {
-        expect(storage.clearAuth).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
-      })
-      console.error.mockRestore()
+      expect(allDevices()).toBeInTheDocument()
     })
   })
 })

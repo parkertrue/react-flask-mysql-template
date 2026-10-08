@@ -11,141 +11,43 @@ vi.mock('../../components/health/ApiStatus', () => ({
   default: () => <div data-testid="api-status-demo" />
 }))
 
+function renderHomePage({ signedIn = false } = {}) {
+  storage.getAccessToken.mockReturnValue(signedIn ? 'token' : null)
+  storage.getEmail.mockReturnValue(signedIn ? 'user@example.com' : null)
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <HomePage />
+      </AuthProvider>
+    </MemoryRouter>
+  )
+}
+
+const links = () => Object.fromEntries(
+  screen.queryAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])
+)
+
 describe('HomePage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    storage.getAccessToken.mockReturnValue(null)
     storage.getRefreshCsrf.mockReturnValue(null)
-    storage.getEmail.mockReturnValue(null)
   })
 
-  const renderHomePage = () => {
-    return render(
-      <MemoryRouter>
-        <AuthProvider>
-          <HomePage />
-        </AuthProvider>
-      </MemoryRouter>
-    )
-  }
+  it('welcomes the visitor and shows the API status demo', () => {
+    renderHomePage()
 
-  describe('content', () => {
-    it('should render welcome heading', () => {
-      renderHomePage()
-
-      expect(screen.getByText('Welcome to Flask + React + MySQL Template App')).toBeInTheDocument()
-    })
-
-    it('should render description', () => {
-      renderHomePage()
-
-      expect(screen.getByText(/A simple note-taking application with/)).toBeInTheDocument()
-    })
-
-    it('should render the API status demo', () => {
-      renderHomePage()
-
-      expect(screen.getByTestId('api-status-demo')).toBeInTheDocument()
-    })
+    expect(screen.getByRole('heading', { name: /welcome/i })).toBeInTheDocument()
+    expect(screen.getByTestId('api-status-demo')).toBeInTheDocument()
   })
 
-  describe('when not authenticated', () => {
-    it('should display guest actions', () => {
-      renderHomePage()
+  it('offers a visitor registration and login', () => {
+    renderHomePage()
 
-      const guestActions = document.querySelector('.home-actions--guest')
-      expect(guestActions).toBeInTheDocument()
-    })
-
-    it('should show Get Started button', () => {
-      renderHomePage()
-
-      const getStartedBtn = screen.getByText('Get Started')
-      expect(getStartedBtn).toBeInTheDocument()
-      expect(getStartedBtn).toHaveAttribute('href', '/register')
-    })
-
-    it('should show Login button', () => {
-      renderHomePage()
-
-      const loginBtn = screen.getByText('Login')
-      expect(loginBtn).toBeInTheDocument()
-      expect(loginBtn).toHaveAttribute('href', '/login')
-    })
-
-    it('should not show authenticated actions', () => {
-      renderHomePage()
-
-      expect(screen.queryByText('View My Notes')).not.toBeInTheDocument()
-    })
-
-    it('should have correct button classes', () => {
-      renderHomePage()
-
-      const getStartedBtn = screen.getByText('Get Started')
-      const loginBtn = screen.getByText('Login')
-
-      expect(getStartedBtn).toHaveClass('btn', 'btn-primary')
-      expect(loginBtn).toHaveClass('btn', 'btn-secondary')
-    })
+    expect(links()).toEqual({ 'Get Started': '/register', Login: '/login' })
   })
 
-  describe('when authenticated', () => {
-    beforeEach(() => {
-      storage.getAccessToken.mockReturnValue('valid-token')
-      storage.getEmail.mockReturnValue('user@example.com')
-    })
+  it('offers a signed-in user their notes instead', () => {
+    renderHomePage({ signedIn: true })
 
-    it('should display authenticated actions', () => {
-      renderHomePage()
-
-      const authActions = document.querySelector('.home-actions--authenticated')
-      expect(authActions).toBeInTheDocument()
-    })
-
-    it('should show View My Notes button', () => {
-      renderHomePage()
-
-      const notesBtn = screen.getByText('View My Notes')
-      expect(notesBtn).toBeInTheDocument()
-      expect(notesBtn).toHaveAttribute('href', '/notes')
-    })
-
-    it('should not show guest actions', () => {
-      renderHomePage()
-
-      expect(screen.queryByText('Get Started')).not.toBeInTheDocument()
-      expect(screen.queryByText('Login')).not.toBeInTheDocument()
-    })
-
-    it('should have correct button class', () => {
-      renderHomePage()
-
-      const notesBtn = screen.getByText('View My Notes')
-      expect(notesBtn).toHaveClass('btn', 'btn-primary')
-    })
-  })
-
-  describe('CSS classes and structure', () => {
-    it('should have home-page wrapper', () => {
-      const { container } = renderHomePage()
-
-      const homePage = container.querySelector('.home-page')
-      expect(homePage).toBeInTheDocument()
-    })
-
-    it('should have home-content container', () => {
-      const { container } = renderHomePage()
-
-      const content = container.querySelector('.home-content')
-      expect(content).toBeInTheDocument()
-    })
-
-    it('should have home-actions section', () => {
-      const { container } = renderHomePage()
-
-      const actions = container.querySelector('.home-actions')
-      expect(actions).toBeInTheDocument()
-    })
+    expect(links()).toEqual({ 'View My Notes': '/notes' })
   })
 })

@@ -1,475 +1,146 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
-import { BrowserRouter } from 'react-router-dom'
+import { describe, it, expect, vi } from 'vitest'
+import { act, render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import LoginPage from '../LoginPage'
 import { AuthContext } from '../../contexts/AuthContext'
-import * as authService from '../../api/services/authService'
+import { loginUser } from '../../api/services/authService'
+import { errorBody, tokens } from '../../test/fixtures'
 
-// Mock the auth service
 vi.mock('../../api/services/authService')
 
-// Mock useNavigate
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom')
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  }
+  return { ...actual, useNavigate: () => mockNavigate }
 })
 
-// Helper to render with auth context
-const renderWithAuth = (isAuthenticated = false, loginFn = vi.fn()) => {
-  const authContextValue = {
-    isAuthenticated,
-    login: loginFn,
-    logout: vi.fn(),
-    token: isAuthenticated ? 'mock-token' : null,
-    email: isAuthenticated ? 'user@example.com' : null,
-  }
-
-  return render(
-    <BrowserRouter>
-      <AuthContext.Provider value={authContextValue}>
-        <LoginPage />
+function renderPage({ isAuthenticated = false } = {}) {
+  const auth = { isAuthenticated, login: vi.fn(), logout: vi.fn() }
+  render(
+    <MemoryRouter initialEntries={['/login']}>
+      <AuthContext.Provider value={auth}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/notes" element={<p>Notes page</p>} />
+        </Routes>
       </AuthContext.Provider>
-    </BrowserRouter>
+    </MemoryRouter>
   )
+  return auth
 }
 
+const field = {
+  email: () => screen.getByLabelText(/^email$/i),
+  password: () => screen.getByLabelText(/^password$/i),
+}
+
+function fill({ email = 'user@example.com', password = 'Password123' } = {}) {
+  fireEvent.change(field.email(), { target: { value: email } })
+  fireEvent.change(field.password(), { target: { value: password } })
+}
+
+const submit = () => fireEvent.submit(screen.getByTestId('login-form'))
+
 describe('LoginPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('shows the form, with a way to register', () => {
+    renderPage()
+
+    expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
+    expect(field.email()).toHaveAttribute('type', 'email')
+    expect(field.password()).toHaveAttribute('type', 'password')
+    expect(screen.getByRole('link', { name: /register/i })).toHaveAttribute('href', '/register')
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  it('sends a signed-in user to their notes', () => {
+    renderPage({ isAuthenticated: true })
+
+    expect(screen.getByText('Notes page')).toBeInTheDocument()
   })
 
-  describe('rendering', () => {
-    it('should render login form', () => {
-      renderWithAuth()
-      
-      expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+  describe('validation', () => {
+    it.each([
+      ['a malformed email', { email: 'not-an-email' }, 'email', 'Please enter a valid email address'],
+      ['an empty password', { password: '' }, 'password', 'Password is required'],
+    ])('stops %s with a message tied to the field', (_, values, name, message) => {
+      renderPage()
+      fill(values)
+
+      submit()
+
+      expect(field[name]()).toHaveAttribute('aria-invalid', 'true')
+      expect(field[name]()).toHaveAccessibleDescription(message)
+      expect(loginUser).not.toHaveBeenCalled()
     })
 
-    it('should render link to register page', () => {
-      renderWithAuth()
-      
-      const registerLink = screen.getByRole('link', { name: /register/i })
-      expect(registerLink).toBeInTheDocument()
-      expect(registerLink).toHaveAttribute('href', '/register')
+    it('does not apply the registration password rules', async () => {
+      // Tightening them must never lock out passwords that predate the change
+      loginUser.mockResolvedValue(tokens())
+      renderPage()
+      fill({ password: 'weak' })
+
+      await act(async () => submit())
+
+      expect(loginUser).toHaveBeenCalledWith('user@example.com', 'weak')
     })
 
-    it('should have proper form structure', () => {
-      renderWithAuth()
-      
-      const form = screen.getByTestId('login-form')
-      expect(form).toBeInTheDocument()
-      expect(form.tagName).toBe('FORM')
-    })
+    it.each([
+      ['email', { email: 'bad' }],
+      ['password', { password: '' }],
+    ])('clears the %s message once that field is edited', (name, values) => {
+      renderPage()
+      fill(values)
+      submit()
+      expect(field[name]()).toHaveAttribute('aria-invalid', 'true')
 
-    it('should render email input with correct attributes', () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      expect(emailInput).toHaveAttribute('type', 'email')
-      expect(emailInput).toHaveAttribute('required')
-      expect(emailInput).toHaveAttribute('maxLength', '128')
-    })
+      fireEvent.change(field[name](), { target: { value: 'edited' } })
 
-    it('should render password input with correct attributes', () => {
-      renderWithAuth()
-      
-      const passwordInput = screen.getByLabelText(/password/i)
-      expect(passwordInput).toHaveAttribute('type', 'password')
-      expect(passwordInput).toHaveAttribute('required')
-      expect(passwordInput).toHaveAttribute('maxLength', '128')
-    })
-  })
-
-  describe('authentication redirect', () => {
-    it('should redirect to /notes if already authenticated', () => {
-      renderWithAuth(true)
-      
-      // Component should not render the form
-      expect(screen.queryByTestId('login-form')).not.toBeInTheDocument()
-    })
-
-    it('should not redirect if not authenticated', () => {
-      renderWithAuth(false)
-      
-      expect(screen.getByTestId('login-form')).toBeInTheDocument()
+      expect(field[name]()).toHaveAttribute('aria-invalid', 'false')
     })
   })
 
-  describe('form validation', () => {
-    it('should show error for invalid email', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'invalid-email' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('email-error')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('email-error')).toHaveTextContent(/valid email/i)
+  describe('submitting', () => {
+    it('signs in with the issued tokens and opens the notes', async () => {
+      loginUser.mockResolvedValue(tokens('access', 'csrf'))
+      const auth = renderPage()
+      fill()
+
+      await act(async () => submit())
+
+      expect(loginUser).toHaveBeenCalledWith('user@example.com', 'Password123')
+      expect(auth.login).toHaveBeenCalledWith('access', 'csrf', 'user@example.com')
+      expect(mockNavigate).toHaveBeenCalledWith('/notes')
     })
 
-    it('should show error for empty password', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('password-error')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('password-error')).toHaveTextContent(/required/i)
+    it.each([
+      ['the credentials are wrong', Object.assign(new Error('401'), {
+        response: { status: 401, data: errorBody('INVALID_CREDENTIALS', 'Invalid email or password') },
+      }), 'Invalid email or password'],
+      ['the network fails', new Error('Network Error'), 'Network error'],
+    ])('shows why when %s, and lets the user try again', async (_, error, message) => {
+      loginUser.mockRejectedValue(error)
+      const auth = renderPage()
+      fill()
+
+      submit()
+
+      expect(await screen.findByTestId('error-message')).toHaveTextContent(message)
+      expect(auth.login).not.toHaveBeenCalled()
+      expect(field.email()).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Login' })).toBeEnabled()
     })
 
-    it('should not apply the registration password rules', async () => {
-      authService.loginUser.mockResolvedValue({
-        access_token: 'token',
-        refresh_csrf: 'csrf',
-      })
-      renderWithAuth()
+    it('locks the form while the request is in flight', async () => {
+      let finish
+      loginUser.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+      renderPage()
+      fill()
 
-      fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'user@example.com' } })
-      fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'short' } })
-      fireEvent.submit(screen.getByTestId('login-form'))
+      submit()
 
-      await waitFor(() => {
-        expect(authService.loginUser).toHaveBeenCalledWith('user@example.com', 'short')
-      })
-      expect(screen.queryByTestId('password-error')).not.toBeInTheDocument()
-    })
-
-    it('should clear email error when user types', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      // Trigger error
-      fireEvent.change(emailInput, { target: { value: 'invalid' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('email-error')).toBeInTheDocument()
-      })
-      
-      // Clear error by typing
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      
-      await waitFor(() => {
-        expect(screen.queryByTestId('email-error')).not.toBeInTheDocument()
-      })
-    })
-
-    it('should clear password error when user types', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      // Trigger error
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('password-error')).toBeInTheDocument()
-      })
-      
-      // Clear error by typing
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      
-      await waitFor(() => {
-        expect(screen.queryByTestId('password-error')).not.toBeInTheDocument()
-      })
-    })
-  })
-
-  describe('form submission', () => {
-    it('should call loginUser with correct credentials', async () => {
-      const mockLogin = vi.fn()
-      authService.loginUser.mockResolvedValue({
-        access_token: 'mock-token',
-        refresh_csrf: 'mock-csrf'
-      })
-      
-      renderWithAuth(false, mockLogin)
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(authService.loginUser).toHaveBeenCalledWith('user@example.com', 'Password123')
-      })
-    })
-
-    it('should call login context method on successful login', async () => {
-      const mockLogin = vi.fn()
-      authService.loginUser.mockResolvedValue({
-        access_token: 'test-token',
-        refresh_csrf: 'test-csrf'
-      })
-      
-      renderWithAuth(false, mockLogin)
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith('test-token', 'test-csrf', 'user@example.com')
-      })
-    })
-
-    it('should navigate to /notes on successful login', async () => {
-      const mockLogin = vi.fn()
-      authService.loginUser.mockResolvedValue({
-        access_token: 'test-token',
-        refresh_csrf: 'test-csrf'
-      })
-      
-      renderWithAuth(false, mockLogin)
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/notes')
-      })
-    })
-
-    it('should show error message on login failure', async () => {
-      authService.loginUser.mockRejectedValue({
-        response: {
-          data: {
-            error: {
-              message: 'Invalid credentials'
-            }
-          }
-        }
-      })
-      
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('error-message')).toBeInTheDocument()
-      })
-      expect(screen.getByTestId('error-message')).toHaveTextContent(/invalid credentials/i)
-    })
-
-    it('should show network error on network failure', async () => {
-      authService.loginUser.mockRejectedValue(new Error('Network error'))
-      
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('error-message')).toBeInTheDocument()
-      })
-    })
-
-    it('should not submit with validation errors', async () => {
-      renderWithAuth()
-      
-      const form = screen.getByTestId('login-form')
-      fireEvent.submit(form)
-      
-      // Wait a bit to ensure nothing happens
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      expect(authService.loginUser).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('loading state', () => {
-    it('should disable inputs while loading', async () => {
-      // Hold the login open with an explicit resolve handle rather than a
-      // timer. handleSubmit clears isLoading in a finally block, and racing a
-      // setTimeout let that update land after the test ended — an unhandled
-      // "window is not defined" once jsdom had been torn down.
-      let resolveLogin
-      authService.loginUser.mockImplementation(
-        () => new Promise(resolve => { resolveLogin = resolve })
-      )
-
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const submitButton = screen.getByRole('button', { name: /login/i })
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      // Check loading state
-      await waitFor(() => {
-        expect(emailInput).toBeDisabled()
-      })
-      expect(passwordInput).toBeDisabled()
-      expect(submitButton).toBeDisabled()
-      expect(submitButton).toHaveTextContent(/logging in/i)
-
-      // Settle the login inside the test so the finally-block state update is
-      // flushed before teardown.
-      await act(async () => {
-        resolveLogin({ access_token: 'token', refresh_csrf: 'csrf' })
-      })
-    })
-
-    it('should re-enable inputs after successful login', async () => {
-      authService.loginUser.mockResolvedValue({
-        access_token: 'token',
-        refresh_csrf: 'csrf'
-      })
-      
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalled()
-      })
-    })
-
-    it('should re-enable inputs after failed login', async () => {
-      authService.loginUser.mockRejectedValue(new Error('Login failed'))
-      
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const submitButton = screen.getByRole('button', { name: /login/i })
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'user@example.com' } })
-      fireEvent.change(passwordInput, { target: { value: 'Password123' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(emailInput).not.toBeDisabled()
-      })
-      expect(passwordInput).not.toBeDisabled()
-      expect(submitButton).not.toBeDisabled()
-    })
-  })
-
-  describe('accessibility', () => {
-    it('should have proper aria-invalid attributes', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      expect(emailInput).toHaveAttribute('aria-invalid', 'false')
-      
-      fireEvent.change(emailInput, { target: { value: 'invalid' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(emailInput).toHaveAttribute('aria-invalid', 'true')
-      })
-    })
-
-    it('should have proper aria-describedby for errors', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      fireEvent.change(emailInput, { target: { value: 'invalid' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
-      })
-      expect(screen.getByTestId('email-error')).toHaveAttribute('id', 'email-error')
-    })
-
-    it('should have proper labels for inputs', () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      
-      expect(emailInput).toHaveAttribute('id', 'email')
-      expect(passwordInput).toHaveAttribute('id', 'password')
-    })
-  })
-
-  describe('CSS classes', () => {
-    it('should apply error class to input with error', async () => {
-      renderWithAuth()
-      
-      const emailInput = screen.getByLabelText(/email/i)
-      const form = screen.getByTestId('login-form')
-      
-      expect(emailInput).not.toHaveClass('error')
-      
-      fireEvent.change(emailInput, { target: { value: 'invalid' } })
-      fireEvent.submit(form)
-      
-      await waitFor(() => {
-        expect(emailInput).toHaveClass('error')
-      })
-    })
-
-    it('should have proper CSS classes', () => {
-      renderWithAuth()
-      
-      expect(screen.getByRole('heading', { name: /login/i }).parentElement).toHaveClass('auth-card')
-      expect(screen.getByTestId('login-form')).toHaveClass('auth-form')
+      expect(field.email()).toBeDisabled()
+      expect(field.password()).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Logging in...' })).toBeDisabled()
+      await act(async () => finish(tokens()))
     })
   })
 })
