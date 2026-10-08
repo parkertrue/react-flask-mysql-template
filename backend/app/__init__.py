@@ -9,6 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import error_response
+from app.utils.passwords import PasswordHashingBusy, init_password_hashing
 from app.utils.redis_service import connect_redis, get_redis_service
 
 
@@ -49,6 +50,8 @@ def create_app():
 
     if app.config['RATELIMIT_ENABLED']:
         limiter.init_app(app)
+
+    init_password_hashing(app)
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
@@ -118,6 +121,14 @@ def create_app():
             code='VALIDATION_ERROR',
             message='Invalid input',
             status=422
+        )
+
+    @app.errorhandler(PasswordHashingBusy)
+    def password_hashing_busy(e):
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='Sign-in is busy, please try again shortly',
+            status=503
         )
 
     # Generic error handlers. Werkzeug's defaults are HTML pages, which the

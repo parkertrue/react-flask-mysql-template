@@ -15,12 +15,13 @@ from flask_jwt_extended import (
 )
 from jwt.exceptions import PyJWTError
 from flask_jwt_extended.exceptions import JWTExtendedException
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
 from app import db, limiter
 from app.models import User
 from app.schemas import RegisterRequest, LoginRequest
 from app.utils.errors import error_response
+from app.utils.passwords import verify_password
 from app.utils.redis_service import get_redis_service
 
 
@@ -138,7 +139,7 @@ def login():
     if user is None:
         # Hash anyway, so an unknown email takes as long as a wrong password
         # and response timing doesn't reveal which emails are registered.
-        check_password_hash(_DUMMY_PASSWORD_HASH, payload.password)
+        verify_password(_DUMMY_PASSWORD_HASH, payload.password)
 
     if user is None or not user.check_password(payload.password):
         return error_response(

@@ -2,10 +2,10 @@ import json
 from unittest.mock import patch
 
 from sqlalchemy import select, func
-from werkzeug.security import check_password_hash
 
 from app.models import User
 from app.routes import auth as auth_routes
+from app.utils.passwords import verify_password
 
 
 class TestRegisterEndpoint:
@@ -313,8 +313,8 @@ class TestLoginEndpoint:
             'password': 'SomePassword123'
         }
 
-        with patch('app.routes.auth.check_password_hash',
-                   wraps=check_password_hash) as check:
+        with patch('app.routes.auth.verify_password',
+                   wraps=verify_password) as check:
             response = client.post('/api/auth/login', json=payload)
 
         assert response.status_code == 401

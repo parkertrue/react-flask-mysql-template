@@ -135,7 +135,7 @@ Each file names its own Compose project (`app_dev`, `app_test`, `app`), so the s
 |------|---------|
 | `docker-compose.dev.yml` | Dev: MySQL + Redis only (backend/frontend run locally), bound to 127.0.0.1 |
 | `docker-compose.test.yml` | Test: isolated MySQL (3307) + Redis (6380); `e2e` profile adds migrate + backend + Nginx, hardened like production |
-| `docker-compose.yml` | Production: all services with resource limits, health checks, explicit stop grace periods and hardening (`no-new-privileges`, pids limits; backend read-only with no capabilities). MySQL/Redis on an `internal` network that nginx cannot reach. A one-shot `migrate` service applies migrations as root, then `backend/restrict_db_user.py` leaves `DB_USER` with `SELECT, INSERT, UPDATE, DELETE` only; the backend starts after it succeeds. Gunicorn runs 2 gthread workers × 4 threads |
+| `docker-compose.yml` | Production: all services with resource limits, health checks, explicit stop grace periods and hardening (`no-new-privileges`, pids limits; backend read-only with no capabilities). MySQL/Redis on an `internal` network that nginx cannot reach. A one-shot `migrate` service applies migrations as root, then `backend/restrict_db_user.py` leaves `DB_USER` with `SELECT, INSERT, UPDATE, DELETE` only; the backend starts after it succeeds. Gunicorn runs 2 gthread workers × 4 threads (workers from `WEB_CONCURRENCY`); each worker hashes at most `PASSWORD_HASH_CONCURRENCY` = 2 passwords at once, so a login burst can't take every thread, and a login that waits too long for a slot gets a 503 |
 
 ## Naming Conventions
 

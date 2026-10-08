@@ -22,8 +22,12 @@ USER appuser
 
 ENTRYPOINT ["./entrypoint.sh"]
 
-# 2 processes x 4 threads = 8 requests at once, so other requests don't queue
-# behind a login's password hash (~75ms CPU, ~32MB each; 8 fit in the 512MB
-# limit). Scale workers with CPUs and threads with memory. A distributed login
-# flood still saturates the CPU; stopping that belongs to a CDN or WAF.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--workers", "2", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "wsgi:app"]
+# 2 processes x 4 threads = 8 requests at once. At most 2 threads per worker
+# hash a password at a time (PASSWORD_HASH_CONCURRENCY in app/config.py: ~75ms
+# CPU, ~32MB each), so a burst of logins leaves the rest serving the API.
+# gunicorn reads its worker count from WEB_CONCURRENCY, so a deployment can
+# change it without a rebuild: about one per CPU, with the compose CPU limit
+# raised to match. A distributed login flood still saturates the CPU;
+# stopping that belongs to a CDN or WAF.
+ENV WEB_CONCURRENCY=2
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "wsgi:app"]

@@ -187,6 +187,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    # Sized for gunicorn's default 2 workers x 4 threads (backend/Dockerfile).
+    # To scale, set WEB_CONCURRENCY in environment above to about one worker
+    # per CPU and raise cpus to match; add ~128m of memory per worker.
     deploy:
       resources:
         limits:
