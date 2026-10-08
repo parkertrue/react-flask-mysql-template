@@ -382,9 +382,10 @@ To stop a failing check from merging, require these status checks on `main` (Set
 # Starting a New App From This Template
 
 1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests.
-2. Update the `Note` fixtures in `backend/tests/conftest.py`.
-3. Update the note-length validators in `frontend/src/utils/validation.js`.
-4. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.
-5. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
-6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
-7. Rewrite this README and `CLAUDE.md` for your app.
+2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/components/health/`, `hooks/useHealth.js`, `api/services/healthService.js` and `styles/components/api-status.css` with their tests, the `api-status.css` import in `styles/base/index.css`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
+3. Update the `Note` fixtures in `backend/tests/conftest.py`.
+4. Update the note-length validators in `frontend/src/utils/validation.js`.
+5. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.
+6. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
+7. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
+8. Rewrite this README and `CLAUDE.md` for your app.

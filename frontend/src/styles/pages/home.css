@@ -18,12 +18,6 @@
   margin-bottom: 2rem;
 }
 
-.api-status {
-  margin: 1.5rem 0;
-  padding: 1rem;
-  background-color: #f5f5f5;
-}
-
 .home-actions {
   display: flex;
   gap: 1rem;

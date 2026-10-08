@@ -8,6 +8,7 @@
 @import '../components/navbar.css';
 @import '../components/notes.css';
 @import '../components/messages.css';
+@import '../components/api-status.css';
 
 /* Pages */
 @import '../pages/home.css';
