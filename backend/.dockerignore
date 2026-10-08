@@ -3,8 +3,8 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.ruff_cache/
 .coverage
-coverage/
 htmlcov/
 
 # Environment Files
@@ -14,11 +14,6 @@ htmlcov/
 # Tests
 tests/
 
-# Git
-.git/
-.gitignore
-.gitattributes
-
 # Dev Scripts
 run_dev.sh
 run_tests.sh
@@ -27,7 +22,3 @@ requirements.in
 requirements-dev.in
 requirements-dev.txt
 ruff.toml
-
-# Editor / tooling
-.vscode/
-.claude/
