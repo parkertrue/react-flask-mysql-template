@@ -1,6 +1,6 @@
-# Python
-__pycache__/
-*.pyc
+# Python. Unlike .gitignore, a pattern here matches only at the context
+# root unless it starts with **/.
+**/__pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
