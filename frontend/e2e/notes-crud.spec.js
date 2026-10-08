@@ -1,45 +1,24 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin } from './helpers'
+import { addNote, logout, noteInput, registerAndLogin } from './helpers'
 
 test.describe('Notes CRUD Operations', () => {
-  let context
-  let page
-
-  // One account, registered and logged in once, for every test here
-  test.beforeAll(async ({ browser }) => {
-    context = await browser.newContext({ ignoreHTTPSErrors: true })
-    page = await context.newPage()
+  // A fresh account and page per test, so each one runs (and retries) alone
+  test.beforeEach(async ({ page }) => {
     await registerAndLogin(page, 'e2e-crud')
   })
 
-  test.afterAll(async () => {
-    await context.close()
-  })
-
-  test('can create multiple notes', async () => {
-    const notes = ['First note', 'Second note', 'Third note']
-    
-    for (const noteText of notes) {
-      const noteInput = page.locator('textarea, input[type="text"]').first()
-      await noteInput.click()  // Focus the input first
-      await noteInput.fill(noteText)
-      
-      // Wait for React to update button state (client-side validation)
-      const addButton = page.getByRole('button', { name: /create|add note/i })
-      await expect(addButton).toBeEnabled()
-      
-      await addButton.click()
-      await expect(page.getByText(noteText)).toBeVisible()
+  test('can create multiple notes', async ({ page }) => {
+    for (const noteText of ['First note', 'Second note', 'Third note']) {
+      await addNote(page, noteText)
     }
+    await expect(page.getByTestId('note-item')).toHaveCount(3)
   })
 
-  test('can update a note', async () => {
+  test('can update a note', async ({ page }) => {
     // Create a note to update
     const originalText = 'Original note text'
-    const noteInput = page.locator('textarea, input[type="text"]').first()
-    await noteInput.fill(originalText)
-    await page.getByRole('button', { name: /create|add note/i }).click()
-    await expect(page.getByText(originalText)).toBeVisible()
+    const noteInputField = noteInput(page)
+    await addNote(page, originalText)
 
     // Find and click edit button for this note
     // Look for edit button near the note text
@@ -47,16 +26,16 @@ test.describe('Notes CRUD Operations', () => {
     const editButton = noteContainer.getByRole('button', { name: /edit/i }).or(
       noteContainer.locator('button').filter({ hasText: /edit/i })
     )
-    
+
     // Wait a moment for any animations
     await page.waitForTimeout(500)
-    
+
     if (await editButton.isVisible()) {
       await editButton.click()
 
       // Update the note
       const updatedText = 'Updated note text'
-      await noteInput.fill(updatedText)
+      await noteInputField.fill(updatedText)
       await page.getByRole('button', { name: /save|update/i }).click()
 
       // Verify update
@@ -65,23 +44,20 @@ test.describe('Notes CRUD Operations', () => {
     }
   })
 
-  test('can delete a note', async () => {
+  test('can delete a note', async ({ page }) => {
     // Create a note to delete
     const noteText = 'Note to be deleted'
-    const noteInput = page.locator('textarea, input[type="text"]').first()
-    await noteInput.fill(noteText)
-    await page.getByRole('button', { name: /create|add note/i }).click()
-    await expect(page.getByText(noteText)).toBeVisible()
+    await addNote(page, noteText)
 
     // Find and click delete button for this note
     const noteContainer = page.locator(`text=${noteText}`).locator('..')
     const deleteButton = noteContainer.getByRole('button', { name: /delete/i }).or(
       noteContainer.locator('button').filter({ hasText: /delete/i })
     )
-    
+
     // Wait a moment for any animations
     await page.waitForTimeout(500)
-    
+
     if (await deleteButton.isVisible()) {
       await deleteButton.click()
 
@@ -96,64 +72,57 @@ test.describe('Notes CRUD Operations', () => {
     }
   })
 
-  test('empty note submission shows validation', async () => {
-    // Try to submit empty note
-    const noteInput = page.locator('textarea, input[type="text"]').first()
-    await noteInput.fill('')
-    
+  test('empty note submission shows validation', async ({ page }) => {
+    await noteInput(page).fill('')
+
     // Button should be disabled for empty input (client-side validation)
-    const addButton = page.getByRole('button', { name: /create|add note/i })
-    await expect(addButton).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Add Note' })).toBeDisabled()
   })
 
-  test('notes persist across page reloads', async () => {
-    // Create a test note
+  test('notes persist across page reloads', async ({ page }) => {
     const persistentNote = `Persistent note ${Date.now()}`
-    const noteInput = page.locator('textarea, input[type="text"]').first()
-    await noteInput.fill(persistentNote)
-    
-    // Wait for button to be enabled
-    const addButton = page.getByRole('button', { name: /create|add note/i })
-    await expect(addButton).toBeEnabled({ timeout: 2000 })
-    
-    await addButton.click()
-    await expect(page.getByText(persistentNote)).toBeVisible()
+    await addNote(page, persistentNote)
 
-    // Reload page
     await page.reload()
 
-    // Verify note still exists
     await expect(page.getByText(persistentNote)).toBeVisible()
   })
 
-  test('notes are private to user', async ({ browser }) => {
-    // This test needs its own context since it creates and logs out multiple users
-    const testContext = await browser.newContext({ ignoreHTTPSErrors: true })
-    const testPage = await testContext.newPage()
-    
-    try {
-      await registerAndLogin(testPage, 'first-user')
+  test('notes are private to user', async ({ page }) => {
+    const firstUserNote = `Private note ${Date.now()}`
+    await addNote(page, firstUserNote)
 
-      // Create a note as first user
-      const firstUserNote = `Private note ${Date.now()}`
-      const noteInput = testPage.locator('textarea, input[type="text"]').first()
-      await noteInput.fill(firstUserNote)
-      const addButton = testPage.getByRole('button', { name: /create|add note/i })
-      await expect(addButton).toBeEnabled()
-      await addButton.click()
-      await expect(testPage.getByText(firstUserNote)).toBeVisible()
+    await logout(page)
+    await page.waitForURL(/\/$/, { timeout: 10000 })
+    await registerAndLogin(page, 'second-user')
 
-      // Logout first user
-      await testPage.getByRole('button', { name: /logout/i }).click()
-      await testPage.getByText(/logout this device/i).click()
-      await testPage.waitForURL(/\/(login)?$/, { timeout: 10000 })
+    // The second user's list has loaded, and the first user's note is not in it
+    await expect(page.getByTestId('notes-empty')).toBeVisible()
+    await expect(page.getByText(firstUserNote)).not.toBeVisible()
+  })
 
-      await registerAndLogin(testPage, 'second-user')
-
-      // Verify first user's note is NOT visible to second user
-      await expect(testPage.getByText(firstUserNote)).not.toBeVisible()
-    } finally {
-      await testContext.close()
+  test('older notes load a page at a time', async ({ page }) => {
+    // 21 notes, one more than a page, created through the API for speed
+    const token = await page.evaluate(() => localStorage.getItem('access_token'))
+    for (let i = 1; i <= 21; i++) {
+      const response = await page.request.post('/api/notes', {
+        data: { content: `Note number ${i}` },
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(response.status()).toBe(201)
     }
+
+    await page.reload()
+
+    // Newest first: the oldest note is on the second page
+    await expect(page.getByTestId('note-item')).toHaveCount(20)
+    await expect(page.getByText('Note number 21', { exact: true })).toBeVisible()
+    await expect(page.getByText('Note number 1', { exact: true })).not.toBeVisible()
+
+    await page.getByRole('button', { name: 'Load more' }).click()
+
+    await expect(page.getByTestId('note-item')).toHaveCount(21)
+    await expect(page.getByText('Note number 1', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Load more' })).not.toBeVisible()
   })
 })

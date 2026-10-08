@@ -1,5 +1,7 @@
 import { expect } from '@playwright/test'
-import { randomUUID } from 'crypto'
+import { createHmac, randomUUID } from 'crypto'
+import { readFileSync } from 'fs'
+import path from 'path'
 
 export const TEST_PASSWORD = 'SecurePass123'
 
@@ -39,4 +41,43 @@ export async function registerAndLogin(page, prefix) {
   await register(page, email)
   await login(page, email)
   return email
+}
+
+/** The note field, found by its label as a screen reader finds it */
+export const noteInput = page => page.getByLabel('New note')
+
+/** Add a note through the form and wait for it to be listed */
+export async function addNote(page, text) {
+  await noteInput(page).fill(text)
+  await page.getByRole('button', { name: 'Add Note' }).click()
+  await expect(page.getByText(text)).toBeVisible()
+}
+
+/** Open the logout menu and pick 'Logout This Device' or 'Logout All Devices' */
+export async function logout(page, item = 'Logout This Device') {
+  await page.getByRole('button', { name: /^logout/i }).click()
+  await page.getByRole('button', { name: item }).click()
+}
+
+// The E2E backend signs tokens with SECRET_KEY from .env.test, so a test can
+// re-sign the page's own access token as already expired: exactly what the
+// browser holds once the real 15-minute token lapses.
+function signingKey() {
+  const env = readFileSync(path.join(import.meta.dirname, '..', '..', '.env.test'), 'utf8')
+  return env.match(/^SECRET_KEY=(.*)$/m)[1].trim()
+}
+
+/** Replace the page's access token with the same one, expired */
+export async function expireAccessToken(page) {
+  const token = await page.evaluate(() => localStorage.getItem('access_token'))
+  const [header, payload] = token.split('.')
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+  const now = Math.floor(Date.now() / 1000)
+  const expired = Buffer.from(JSON.stringify({
+    ...claims, iat: now - 3600, nbf: now - 3600, exp: now - 60,
+  })).toString('base64url')
+  const signature = createHmac('sha256', signingKey())
+    .update(`${header}.${expired}`).digest('base64url')
+  await page.evaluate(
+    t => localStorage.setItem('access_token', t), `${header}.${expired}.${signature}`)
 }
