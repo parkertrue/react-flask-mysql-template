@@ -16,7 +16,9 @@ COPY nginx/proxy_params.conf /etc/nginx/proxy_params.conf
 COPY nginx/security_headers.conf /etc/nginx/security_headers.conf
 COPY nginx/templates /etc/nginx/templates
 # Production rate limits, per client IP; see templates/
-ENV NGINX_AUTH_RATE=5r/m NGINX_API_RATE=30r/s
+# The auth rate covers login and register together. Flask's own limits are
+# tighter per account; this one only has to stop a single address flooding.
+ENV NGINX_AUTH_RATE=20r/m NGINX_API_RATE=30r/s
 # docker-compose.yml sets the real domain; localhost serves the test stack.
 ENV NGINX_SERVER_NAME=localhost
 # Only NGINX_* variables are substituted into templates/, so no other

@@ -1,4 +1,6 @@
-from flask import Blueprint, abort, request, make_response, jsonify, current_app
+import hashlib
+
+from flask import Blueprint, abort, g, request, make_response, jsonify, current_app
 from sqlalchemy import select
 from flask_jwt_extended import (
     create_access_token,
@@ -11,6 +13,8 @@ from flask_jwt_extended import (
     get_csrf_token,
     decode_token
 )
+from jwt.exceptions import PyJWTError
+from flask_jwt_extended.exceptions import JWTExtendedException
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db, limiter
@@ -24,6 +28,40 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 # Same algorithm as User.set_password, so checking it costs the same.
 _DUMMY_PASSWORD_HASH = generate_password_hash('not-a-real-password')
+
+
+def _login_email_key():
+    """Rate-limit key for the account being logged in to, whatever the IP.
+
+    A per-IP limit alone either locks out everyone behind a shared address or,
+    set loosely, lets one attacker guess an account's password from many. The
+    email is lowercased like MySQL's case-insensitive match on users.email,
+    and hashed so the limiter's Redis keys hold no addresses.
+    """
+    body = request.get_json(silent=True)
+    email = body.get('email') if isinstance(body, dict) else None
+    if not isinstance(email, str):
+        email = ''
+    return 'email:' + hashlib.sha256(email.strip().lower().encode()).hexdigest()
+
+
+def _refresh_user_id():
+    """The user a valid refresh cookie belongs to, or None.
+
+    Limits are checked before @jwt_required runs, so the cookie is decoded
+    here; decode_token checks the signature and expiry.
+    """
+    if 'refresh_user_id' not in g:
+        g.refresh_user_id = None
+        token = request.cookies.get(current_app.config['JWT_REFRESH_COOKIE_NAME'])
+        if token:
+            try:
+                claims = decode_token(token)
+            except (PyJWTError, JWTExtendedException):
+                claims = {}
+            if claims.get('type') == 'refresh':
+                g.refresh_user_id = claims.get('sub')
+    return g.refresh_user_id
 
 
 def _issue_tokens(user_id: int, replaces: str | None = None):
@@ -63,7 +101,7 @@ def _issue_tokens(user_id: int, replaces: str | None = None):
 
 
 @auth_bp.route('/register', methods=['POST'])
-@limiter.limit('3 per hour')
+@limiter.limit('10 per hour')
 def register():
     payload = RegisterRequest.model_validate(request.get_json())
 
@@ -87,7 +125,10 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
-@limiter.limit('5 per minute')
+# Loose per IP, so a shared address keeps working; tight per account, which
+# is what actually slows down guessing one user's password.
+@limiter.limit('20 per minute')
+@limiter.limit('5 per minute', key_func=_login_email_key)
 def login():
     payload = LoginRequest.model_validate(request.get_json())
 
@@ -110,7 +151,13 @@ def login():
 
 
 @auth_bp.route('/refresh', methods=['POST'])
-@limiter.limit('10 per minute')
+# Per user, not per IP: everyone behind a shared address refreshes from it,
+# and a 429 here used to log them all out. A request without a valid cookie
+# is exempt, since @jwt_required turns it away cheaply with a 401.
+@limiter.limit(
+    '10 per minute',
+    key_func=lambda: f'user:{_refresh_user_id()}',
+    exempt_when=lambda: _refresh_user_id() is None)
 @jwt_required(refresh=True, locations=['cookies'])
 def refresh():
     """Rotate: issue a new token pair and revoke the refresh token just used"""
