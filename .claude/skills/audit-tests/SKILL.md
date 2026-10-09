@@ -17,16 +17,16 @@ folder as RULES.md.
 
 ## 1. Current state
 
-- CI: `gh run list --branch main --limit 10`. Record the latest result of the
-  `CI` and `Integration & E2E` workflows, and any job that failed and then
-  passed on retry (flaky).
+- CI: record the latest result of the `CI` and `Integration & E2E`
+  workflows for this commit or, per RULES.md, for `main`. Search the E2E log
+  for tests Playwright marked `flaky`.
 - Run locally what is cheap and needs no Docker:
   `cd backend && ./run_tests.sh unit` and `cd frontend && npm run test:coverage`.
   Record the counts, coverage, the random seed each one printed, and how long
   each took.
-- Do not run integration or E2E locally unless CI is red or older than the
-  last commit that touched tested code. If you do, follow the Docker rules in
-  RULES.md.
+- Do not run integration or E2E locally unless CI is red, or RULES.md's
+  branch diff shows changed code they cover. If you do, follow the Docker
+  rules in RULES.md.
 
 ## 2. Infrastructure, config and patterns
 
@@ -42,16 +42,23 @@ router, fixtures), `frontend/playwright.config.js`, `frontend/e2e/helpers.js`.
 - Isolation: any test that depends on order, leftover data, wall-clock time,
   real network, or a shared account? Any fixture using `current_app` without
   requesting `app`? E2E: does every test register its own account?
-- Speed and scale: slowest tests (`pytest --durations=15`, Vitest's report).
-  Will the patterns hold at ten features: fixtures per feature, table-driven
-  cases, no copy-paste per case?
+- Speed and scale: report only a test over 2s or a suite over 60s
+  (`pytest --durations=15`, Vitest's report). Will the patterns hold at ten
+  features: fixtures per feature, table-driven cases, no copy-paste per case?
+- Thresholds: do global coverage thresholds hide a weak critical file? List
+  the coverage of each security-critical module (`backend/app/routes/auth.py`,
+  `utils/redis_service.py`, `frontend/src/api/api.js`, `src/auth/`). If any is
+  well below the global figure, the guard is a per-path threshold.
 - Flakiness: E2E `waitForTimeout`, fixed sleeps, polling without a deadline,
   selectors tied to markup instead of roles and labels.
 
 ## 3. Assertion quality
 
 CLAUDE.md requires that every assertion can fail. Search all suites for
-violations:
+violations, mechanically where possible (for Python, an AST scan for `assert`
+under `if`/`try` and for tests without any assert; for JS, a grep for
+`expect` inside `if`/`catch`). Save the scan script in the report's appendix
+and propose it as a CI guard if it finds anything:
 - Assertions behind `if`, inside `try/except`, or after `isVisible()` checks;
   status sets (`in [400, 422]`, `toBeOneOf`); assertions only on mocks being
   called, never on outcomes; snapshots of large markup; `expect(true)`.
@@ -64,8 +71,11 @@ most (auth checks, token rotation, rate-limit keys, input validation, error
 handlers, the api client's refresh logic). For each, break the code in a
 **scratch git worktree** (`git worktree add <scratchpad>/audit-mut HEAD`, then
 change the code there, never in the main tree), run only the relevant tests, and
-record whether any test failed. A mutation that survives is a high finding.
-Remove the worktree afterward (`git worktree remove --force`).
+record whether any test failed. If the targeted tests pass, run the whole
+suite before concluding: a mutation that survives the whole suite is a high
+finding. List every mutation tried (file:line, change, result) in the
+report's appendix, so the next run re-checks the survivors first. Remove the
+worktree as RULES.md describes (unlink `node_modules` first).
 
 ## 4. Coverage gaps (behavior, not files)
 

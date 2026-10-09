@@ -21,7 +21,7 @@ attack (who, from where, doing what, gaining what), not just the weakness.
 ## 1. code: application and configuration review
 
 Read all of `backend/app/`, `frontend/src/` (except tests), `nginx/`, the
-Dockerfiles and compose files. Walk the ASVS Level 2 chapters that apply to
+Dockerfiles and compose files. Walk the ASVS 5.0 Level 2 chapters that apply to
 this app and record what each one turns up:
 
 - **Authentication and sessions:** password policy and NFKC handling,
@@ -41,7 +41,7 @@ this app and record what each one turns up:
   `eval`/`subprocess`/`os.system` in app code; error responses leak no stack
   traces, SQL, or internal hostnames.
 - **Secrets:** nothing secret in git history
-  (`git log -p --all -S 'SECRET_KEY=' -- . ':!*.example' ':!.env.dev' ':!.env.test'`
+  (`git log -p --all -S 'SECRET_KEY=' -- . ':!*.example' ':!*.examples' ':!.env.dev' ':!.env.test' ':!.claude'`
   plus a scan for key-shaped strings), `ProductionConfig`'s secret checks,
   root DB password reaching only `migrate`, secrets never logged (grep the
   logging calls).
@@ -52,51 +52,82 @@ this app and record what each one turns up:
   and the MySQL privileges left after `restrict_db_user.py`.
 - **Denial of service:** body limits, connection limits, hashing slots, slow
   clients, unbounded queries or lists, Redis memory growth.
-- **What is missing:** ASVS L2 requirements the app neither meets nor has
-  recorded in DECISIONS.md. Report each one as a gap with its ASVS number.
+- **What is missing:** ASVS 5.0 L2 requirements the app neither meets nor has
+  recorded in DECISIONS.md. Report each one as a gap with its ASVS 5.0 number.
+  Group gaps that one feature would close (password reset, MFA, security
+  event logging) into one finding each.
 
 ## 2. deps: dependencies
 
-- Python: `pip-audit -r backend/requirements.txt` and
-  `pip-audit -r backend/requirements-dev.txt` (if `pip-audit` isn't
+- Python: `pip-audit --no-deps --disable-pip -r backend/requirements.txt` and
+  the same for `backend/requirements-dev.txt` (the locks pin every package, so
+  nothing needs resolving; if `pip-audit` isn't
   installed in the venv, run it with `pipx run pip-audit`, or install it into
   a throwaway venv in your scratch directory, never into the project venv).
 - JavaScript: `npm audit` in `frontend/` (all deps) and `npm audit --omit=dev`
   (what ships).
-- Dependabot: `gh api repos/{owner}/{repo}/dependabot/alerts --jq '.[] | select(.state=="open")'`
+- Dependabot: first confirm alerts are enabled
+  (`gh api repos/{owner}/{repo}/vulnerability-alerts` answers 204), since an
+  empty alert list looks the same either way; then
+  `gh api repos/{owner}/{repo}/dependabot/alerts --jq '.[] | select(.state=="open")'`
   and open Dependabot PRs (`gh pr list --author app/dependabot`).
 - Images: are the pinned base images (Dockerfiles, compose files, the
-  hadolint digest in CI) current releases of supported versions?
+  hadolint digest in CI) current releases of supported versions? Then scan
+  the built images for OS-package CVEs, which tag checks can't see:
+  `docker run --rm -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity HIGH,CRITICAL --ignore-unfixed <image>`
+  for the backend and nginx images (build them first, or scan the stack's)
+  and the MySQL and Redis images.
 - Unused or misplaced packages: compare `requirements.in` and
   `package.json` against actual imports (`backend/app`, `frontend/src`), config
   files and scripts. A package used only by tests belongs in the dev lists.
 
-A critical or high CVE in something that ships is a blocker. Dev-only CVEs are
-rated by whether they can reach CI or a developer's machine.
+Rate every CVE by reachability, as RULES.md rates everything by impact: a
+critical or high CVE in shipped code that this app's configuration can reach
+is a blocker; one it cannot reach (the module isn't loaded, the input never
+reaches it) is low, with the reasoning stated, and its fix is still an image
+rebuild or upgrade. Dev-only CVEs are rated by whether they can reach CI or a
+developer's machine.
 
 ## 3. scan: the running test stack
 
-Bring up the E2E stack (follow the Docker rules in RULES.md; generate
-self-signed certs in `nginx/certs/` only if none exist, as the E2E CI job does):
+Bring up the E2E stack (follow RULES.md's Docker and certificate rules):
 `docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e up -d --build --wait`.
-Then, against `https://localhost:8443` only:
+From the host, target `https://localhost:8443`; from scanner containers,
+join nginx's network namespace and target `https://localhost` as RULES.md
+describes. Nothing else.
 
 - **Headers and TLS:** `curl -skI` on `/`, `/assets/<a real asset>`, `/api/health`,
-  an unknown path, and an unknown Host header. Use testssl.sh via Docker if
-  available (`docker run --rm --network host drwetter/testssl.sh localhost:8443`;
-  on Docker Desktop, use `host.docker.internal:8443`).
-- **ZAP:** a full active scan is acceptable here, since the stack is
-  throwaway. `docker run --rm -t ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py -t https://host.docker.internal:8443 -I`
-  (fall back to `zap-baseline.py` if the full scan exceeds 20 minutes).
-  Triage every alert. Most will be false positives for an SPA plus JSON API;
-  report only what holds up, with the request that shows it.
-- **Hand probes** the scanners can't do: replay a rotated refresh token,
-  send a refresh without the CSRF header, read another user's notes via the
-  cursor, exceed the login limit for one account from rotating
-  `X-Forwarded-For` values, send a 17 KB body, send malformed JSON, and log in
+  an unknown path, and an unknown Host header. Run testssl.sh:
+  `docker run --rm --network container:<nginx> drwetter/testssl.sh --quiet localhost:443`.
+  Locally it always grades the self-signed certificate "T" and flags the
+  missing SAN, chain and OCSP: expected, not findings.
+- **ZAP:** Java sends no TLS server name for a dotless host like
+  `localhost`, so nginx refuses ZAP's TLS connection and ZAP reports an empty,
+  clean-looking scan. Bridge it: in nginx's network namespace, run
+  `alpine/socat TCP-LISTEN:8081,fork,bind=127.0.0.1 OPENSSL:localhost:443,verify=0,snihost=localhost`
+  (detached), and point ZAP (also in that namespace) at `http://localhost:8081`.
+  - Front end: `zap-baseline.py -t http://localhost:8081 -I`.
+  - API: `zap-api-scan.py` with a small OpenAPI file you write in the
+    scratch directory from `backend/app/routes/` (every route, method and
+    body), a Bearer token for a registered test user injected with
+    `-config replacer.full_list(0).description=auth -config replacer.full_list(0).enabled=true -config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Authorization -config replacer.full_list(0).replacement="Bearer <token>"`,
+    and `-config scanner.delayInMs=60` to stay under nginx's per-IP limit.
+    The access token lasts 15 minutes; refresh it if the scan runs longer.
+  - After each scan, grep its log for `Failed to access` and check its URL
+    count. A scan that reached nothing is a failed step, not a pass.
+  - Triage every alert. Most are false positives for an SPA plus JSON API;
+    report only what holds up, with the request that shows it.
+- **Hand probes** the scanners can't do, on the test stack: replay a rotated
+  refresh token, send a refresh without the CSRF header, read another user's
+  notes via the cursor, send a 17 KB body, send malformed JSON, and log in
   with a password that differs only by Unicode normalization.
 
-Tear the stack down when done.
+Tear the test stack down. Then, **for the rate-limit probes only**, bring up
+the production-config stack (RULES.md): the test stack runs `IntegrationConfig`,
+which turns Flask's limits off and trusts no proxy. Exceed the login limit for
+one account using rotating `X-Forwarded-For` values and different spellings
+of the same email, and check the per-IP limit keys on the real client
+address. Tear it down.
 
 **Skipped until deployed** (list under *Skipped*): Observatory and SSL Labs
 against the real domain, Docker Bench and CIS on the host, SSH, firewall and

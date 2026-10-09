@@ -31,6 +31,9 @@ bulletproof. In priority order:
 - **`DECISIONS.md`** (next to this file) lists accepted trade-offs and known
   gaps. Do not report them as findings. Report an entry only if its *Revisit
   when* condition has come true or the code no longer matches it.
+- **Read files from disk.** A copy of CLAUDE.md or any other file already in
+  your context may be older than the working tree. Read it again before
+  relying on it.
 - **Code beats prose.** Read the actual file before claiming anything about it.
   If a claim can be checked by running something (a test, a curl, a grep, a
   container), run it. Never report a guess as a finding; if you could not
@@ -59,31 +62,83 @@ Audits are **read-only** with respect to the repository:
     and `SERVER_NAME=localhost`, plus a scratch override file that rebinds
     nginx to `127.0.0.1` (`ports: !override ["127.0.0.1:80:80", "127.0.0.1:443:443"]`),
     so nothing listens on the network. Never use the bare project name `app`.
+  - Project names here (`app_test`, `app_dev`, `app_audit`) are the
+    template's defaults. In an app built from the template, read the real
+    names from each compose file's `name:` and use those instead.
     Tear down with the same `-p app_audit` and `-f` flags plus `down -v`.
 - There is no deployed server (see DECISIONS.md, Known gaps). Never scan, SSH
   into, or load-test anything other than localhost. A step that needs a real
   deployment is reported under *Skipped* with the reason.
+- "No Docker" (when the orchestrator says so) means starting no containers.
+  Docker commands that only read or validate (`docker info`, `docker ps`,
+  `docker compose ... config --quiet`) are always allowed.
 - Scratch work (worktrees, probe files, scan output) goes in the session's
-  scratchpad or the system temp directory, never in the repository.
+  scratchpad or the system temp directory, never in the repository. One
+  exception: the stacks mount TLS certificates from the gitignored
+  `nginx/certs/`. If it has no `fullchain.pem`/`privkey.pem` pair, create a
+  self-signed one there as CI does
+  (`openssl req -x509 -nodes -days 30 -newkey rsa:2048 -keyout nginx/certs/privkey.pem -out nginx/certs/fullchain.pem -subj "/CN=localhost"`),
+  and say so in the report. Never overwrite an existing pair.
+- Build output goes to scratch too: `npm run build -- --outDir <scratch>/dist`.
+- **Requests from the host:** nginx drops bare IPs, and on Windows plain
+  `localhost` can stall about 2s per connection while IPv6 is tried first. Use
+  `curl -sk -m 10 --resolve localhost:8443:127.0.0.1 https://localhost:8443/...`
+  (port 443 for the production-config stack). Always pass `-m 10`: curl on
+  Windows can hang for minutes on some requests. Foreground `sleep` may be
+  blocked; to wait out a rate-limit window, poll in an until-loop with a
+  deadline, and allow about 65s, since Flask's windows start at the first
+  request, not on the minute. nginx limits `/api` to about
+  30 requests per second per IP (`NGINX_API_RATE`), so pace timing runs, or
+  expect 429s.
+- **Verify privileges and limits live**, not from a script's output or its
+  test: for example, `SHOW GRANTS` and an actual `CREATE TABLE` as the app's
+  MySQL user, or an actual forbidden command as the app's Redis user.
+- **Scanning a stack from a container:** nginx answers only its
+  `SERVER_NAME` (`localhost` in both stacks) and drops other hosts, so
+  `host.docker.internal` gets nothing back, and an empty scan can look clean.
+  Run scanner containers inside nginx's network namespace instead, so
+  `localhost` reaches it: `docker run --rm --network container:<nginx container name> <image> ... https://localhost:443`
+  (find the name with `docker compose ... ps nginx --format '{{.Name}}'`).
+  Java-based tools (ZAP) send no TLS server name for `localhost` and are
+  refused; `/audit-security` describes the socat bridge for them.
+  Always confirm a scan saw real responses (for example, its request count
+  or a known header) before reporting it clean.
 
 ## Environment
 
 - Windows with Git Bash (POSIX syntax) and PowerShell; Docker Desktop.
 - Backend tools: `source backend/.venv/Scripts/activate` (or `.venv/bin/activate`
   on Linux/macOS). Frontend: `npm` in `frontend/`.
-- CI already runs, on every push: ruff, ESLint, both unit suites with coverage,
-  compose validation, zizmor, hadolint and gixy-ng; integration and E2E run on
-  `main` and daily. **Read CI results instead of re-running them:**
-  `gh run list --branch main --limit 10` and `gh run view <id> --log-failed`.
-  Re-run locally only what CI cannot show, or when CI is red or older than the
-  last commit. If `gh` is unavailable, say so and run locally instead.
+- CI runs on pushes to `main` and on pull requests: ruff, ESLint, both unit
+  suites with coverage, compose validation, zizmor, hadolint and gixy-ng.
+  Integration and E2E run on `main`, on pull requests, and daily. Check the
+  `on:` blocks in `.github/workflows/` if in doubt. **Read CI results instead
+  of re-running them:** `gh run list --commit $(git rev-parse HEAD)` first,
+  then per workflow (`gh run list --branch main --workflow CI --limit 5`, and
+  the same for `"Integration & E2E"`; unfiltered lists fill up with Dependabot
+  and code-scanning runs), and `gh run view <id> --log-failed`. Playwright
+  retries twice in CI, so a flaky test passes silently: search the E2E job's
+  log for `flaky`.
+  CI results count only for the commit they ran on: on a branch with no run
+  for HEAD, or with a dirty tree, diff it against `main`
+  (`git diff --stat main...HEAD -- . ':!.claude' ':!*.md'`) and run locally
+  what the changed files affect. If that diff is empty, `main`'s CI results
+  stand for this branch. If `gh` is
+  unavailable, say so and run locally instead.
 - Scratch worktrees (`git worktree add <scratch>/<name> HEAD`) have no
   `backend/.venv` or `frontend/node_modules`. Backend: run the main tree's
   venv from inside the worktree (`<repo>/backend/.venv/Scripts/python -m pytest`,
   or `.venv/bin/python` on Linux/macOS). Frontend: link the main tree's
-  modules (`cmd //c mklink /J frontend\\node_modules <repo>\\frontend\\node_modules`
-  on Windows, `ln -s` elsewhere), or run `npm ci` if the lockfile changed.
-  Always `git worktree remove --force <path>` when done.
+  modules. On Windows use PowerShell
+  (`New-Item -ItemType Junction -Path <worktree>\frontend\node_modules -Target <repo>\frontend\node_modules`;
+  `cmd //c mklink` from Git Bash mangles the backslashes); elsewhere `ln -s`.
+  Or run `npm ci` if the lockfile changed.
+- **Removing a worktree: unlink first.** Delete the `node_modules` link on its
+  own before removing the worktree (Windows: `cmd /c rmdir <worktree>\frontend\node_modules`,
+  which removes the junction, not its target; elsewhere `rm` the symlink).
+  Then check `<repo>/frontend/node_modules` still exists, and only then run
+  `git worktree remove --force <path>`. Removing the worktree with the link
+  still in place can delete the main tree's modules through it.
 - Gotchas: `run_tests.sh integration` ends with `down -v`, which kills an E2E
   stack using the same project. Playwright reuses a running stack locally
   (`reuseExistingServer`), so tear down before rerunning E2E and pass
@@ -131,7 +186,8 @@ Counts: blocker N, high N, medium N, low N, nit N
 | INFRA-1 | high | `nginx/...:42` | One sentence. | What you read or ran that shows it. | Concrete change. | Guard that would catch it, or "—". |
 
 ## Compared with last run
-Read the most recent earlier report for this check in `temp/audits/`, if any.
+Read the most recent earlier report for this check in `temp/audits/`; if
+there is none, write "First run." and nothing else here.
 New: IDs. Resolved: the earlier findings that are now fixed. Recurring: IDs
 also in the last report (call out any reported three times or more).
 
@@ -144,6 +200,17 @@ Short bullets of important claims you checked and found true (one line each).
 ## Unverified / Skipped
 What you could not check, and why (no deployment, Docker unavailable, ...).
 ```
+
+Write the report with the Write tool, not a shell heredoc (backticks and pipes
+in the tables break shell quoting). When citing line numbers, read each file
+on its own; line numbers from several files concatenated together are wrong.
+
+**Overlap with other checks:** if a finding belongs mainly to another
+check's area (an accessibility problem found during the code check), report
+it briefly and tag it `(also /audit-<other>)`; don't investigate further. If
+another check's report from the same day in `temp/audits/` already has it,
+cite that ID (`see INFRA-1`) instead of reporting it again, unless you add
+new evidence. The orchestrator merges what remains.
 
 ID prefixes: `INFRA`, `TEST`, `SEC`, `REC`, `CODE`, `A11Y`, `DOCS`, `SCAF`.
 Order findings by severity. Give each one a precise `file:line`.

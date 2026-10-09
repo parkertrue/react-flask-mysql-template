@@ -15,9 +15,14 @@ as RULES.md.
 
 **Scope:** `$ARGUMENTS`. If empty, run all three parts.
 
-**Files:** every tracked file (`git ls-files`) except lockfiles, migrations'
-generated boilerplate, and `.claude/`. Tests are in scope: their comments and
-names rot too.
+**Files:** every tracked file (`git ls-files`) except lockfiles,
+`backend/migrations/{README,alembic.ini,script.py.mako}` (Alembic's
+generated files), and `.claude/`. Tests are in scope, but for test comments
+report only stale or wrong ones, not redundant narration.
+
+Whitespace and formatting (trailing spaces, final newlines) are out of scope,
+except for one finding proposing a guard (an `.editorconfig` or lint rule) if
+they are inconsistent.
 
 ## 1. comments
 
@@ -64,10 +69,13 @@ way that would mislead someone into a bug (then **medium**).
 - Files: anything tracked that nothing references (scripts, configs, assets),
   and test files whose subject is gone.
 - Config: settings, env vars, compose keys and CI steps that have no effect.
-- Debug leftovers that lint can't see: `print` in scripts where `logging`
-  belongs, `console.*` in e2e or config files, stray `.only`/`.skip` in tests,
-  commented-out code in JS (ruff's ERA covers Python), and debug-level logging
-  or `FLASK_DEBUG` reaching production config.
+- Code only tests use (a method, parameter or return value no app code
+  reads) counts as dead, unless a comment marks it as a deliberate test seam.
+- Debug leftovers that lint can't see. Lint already enforces `print` (ruff
+  T20), commented-out Python (ruff ERA), `console.*` in app code (ESLint
+  `no-console`), and `.only` in E2E (Playwright `forbidOnly` in CI). Look only
+  for commented-out JS, `.skip` and `.only` in Vitest files, and debug-level
+  logging or `FLASK_DEBUG` reaching production config.
 
 ## 3. naming: consistency
 
@@ -77,7 +85,8 @@ Check names and patterns against CLAUDE.md's conventions and against each other:
 - Route and schema modules named after the API resource; test files after the
   module they test.
 - The same concept spelled the same way everywhere (for example, error codes,
-  env var prefixes, compose service and volume names, CSS custom properties).
+  env var prefixes, compose service and volume names, CSS custom properties,
+  and UI wording such as "Log out" vs "Logout").
 - The same job done the same way everywhere: error responses through
   `error_response`, backend calls through a service module, forms through
   `FormField`, imports through `@/`, React or React Router built-ins instead of
@@ -89,7 +98,9 @@ Check names and patterns against CLAUDE.md's conventions and against each other:
 ## Out of scope
 README and CLAUDE.md prose (`/audit-docs`); behavior (other checks).
 
-Write the report as RULES.md describes, with ID prefix `CODE`. Comment nits are
-not capped at five here: list all of them in a separate *Comment edits* table
+Write the report as RULES.md describes, with ID prefix `CODE`. Group comment
+problems into findings by kind (for example, "CODE-3: 7 change-history
+comments"), and put every individual edit in a separate *Comment edits* table
 (file:line, current text, proposed text), since applying them is the point of
-part 1.
+part 1. The table's rows are not findings: they don't count toward the
+severity counts or the cap on nits.

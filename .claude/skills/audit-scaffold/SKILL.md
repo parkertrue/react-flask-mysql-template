@@ -24,21 +24,35 @@ pass in the worktree before changing anything (baseline).
 ## 2. Follow the steps literally
 
 Carry out CLAUDE.md's **Starting a New App** steps in order, exactly as
-written, as a developer who knows only what the docs say. For each step,
-record:
-- whether every file, symbol and command it names exists,
-- what you had to do that the step does not say (each one is a finding),
-- what was left behind that still mentions notes or health (grep
-  `-i 'note'` and `health` across the worktree afterward, excluding
-  `/api/health`, which is kept on purpose).
+written, as a developer who knows only what the docs say. Create files with the
+Write tool, not shell heredocs (Git Bash mangles backslashes and backticks).
 
-For step 5, use a stand-in feature instead of a real one: a `bookmarks`
+**Checkpoint after every step, before fixing anything:** run ruff, ESLint and
+both unit suites, and record the failure counts. Then fix what the step left
+broken. For each step, record:
+- whether every file, symbol and command it names exists,
+- the failures at its checkpoint, and what you had to do that the step does
+  not say (each one is a finding),
+- files touched that the step names vs. files it doesn't.
+
+When the example is removed (after steps 1–2), also look for tests that
+**still pass but no longer test anything**: tests that now hit a 404 instead
+of the status they claim to check, or probe a table that no longer exists.
+Shared tests that used the example as "any protected route" are the usual
+cause. Then grep for leftovers (`notes?`, `Note`, `health`, excluding
+`/api/health`, which is kept on purpose, and English uses such as "Note:").
+
+**The stand-in feature:** in step 1, replace notes with a `bookmarks`
 resource (`url` and `title`, owned by a user, cursor-paginated list, create),
-built by following the notes slice's pattern as CLAUDE.md describes it (model,
-schema, routes, migration, service, hook, page, tests). Keep it minimal. The
-point is to discover what the pattern makes hard, not to write a good feature.
-Generate its migration as CLAUDE.md says; if that needs a database, use the test
-stack's `db` per RULES.md, and tear it down afterward.
+built by following the notes slice's pattern as CLAUDE.md describes it
+(model, schema, routes, service, hook, page, unit tests, and its E2E spec,
+ported and linted). Keep it minimal. The point is to discover what the pattern
+makes hard, not to write a good feature. In step 5, generate its migration as
+CLAUDE.md says, using the test stack's `db` per RULES.md. Start that stack from
+the worktree and note its project name after step 6's rename: teardown must
+use the name it was started under. Afterward, reset the database
+(`down -v` and up again) before the integration suite, since `flask db
+migrate` leaves tables and `alembic_version` behind.
 
 Skip step 7 (rewriting docs); just note which sections of README and
 CLAUDE.md would need rewriting, as a measure of how much is notes-specific.
@@ -46,10 +60,13 @@ CLAUDE.md would need rewriting, as a measure of how much is notes-specific.
 ## 3. Verify
 
 In the worktree: `ruff check .`, the backend unit tests with coverage,
-`npm run lint`, `npm run test:coverage`, and `npm run build`. Each must pass,
-including the coverage thresholds. If the test stack is available, also run
-`test_migrations.py` against it, so the new migration is checked against the
-model.
+`npm run lint`, `npm run test:coverage`, and `npm run build -- --outDir <scratch>/dist`.
+Each must pass, including the coverage thresholds. Then run the backend
+integration suite on a fresh test stack (it includes `test_migrations.py`,
+which checks the new migration against the model; to run `run_tests.sh` from
+the worktree, set `VIRTUAL_ENV` and `PATH` to the main tree's venv), and the
+E2E suite (`npm run test:e2e`), since the ported specs and shared helpers are
+where scaffolding breaks quietly. Tear the stack down afterward.
 
 ## 4. Judge the experience
 
@@ -59,10 +76,12 @@ model.
 - Which renames (`app`, `appdb`, `APP_NAME`, compose projects) were spread over
   more places than the steps admit?
 - Could any step be replaced by a check that fails loudly (a test or lint
-  rule) instead of a line in the docs?
+  rule) instead of a line in the docs? Could removing the example be one
+  command (a script), exercised by a CI job that removes it and runs the
+  suites? That is the natural guard for most findings here.
 
-Clean up: tear down any stack, remove the worktree
-(`git worktree remove --force`), and delete any branch you created.
+Clean up: tear down any stack, remove the worktree as RULES.md describes
+(unlink `node_modules` first), and delete any branch you created.
 
 Write the report as RULES.md describes, with ID prefix `SCAF`. Add a table of
 the steps with columns: step, as written, what was actually needed, verdict.

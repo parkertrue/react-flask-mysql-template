@@ -23,7 +23,7 @@ Ground rules when using these:
   - REST Security, Input Validation, Mass Assignment, Error Handling, Logging
   - HTTP Headers, Content Security Policy, Cross-Site Request Forgery, XSS Prevention
   - Docker Security, NodeJS/npm Security, Secrets Management, Denial of Service
-- **OWASP ASVS** (Application Security Verification Standard):
+- **OWASP ASVS 5.0** (Application Security Verification Standard; cite 5.0 numbers, which differ from 4.0.3):
   https://owasp.org/www-project-application-security-verification-standard/
   A checklist of verifiable requirements, organized by level. Level 2 is a
   sensible target for "production-grade". Good for spotting what's *missing*,
@@ -185,7 +185,7 @@ Ground rules when using these:
 |---|---|
 | `/audit-infra` | The layer's section above; diff config against h5bp (nginx), Mozilla SSL generator (TLS), Docker best practices, bulletproof-react / fastapi-best-practices (structure), 12factor (config) |
 | `/audit-tests` | Testing section; pytest good practices; Testing Library principles; Playwright best practices |
-| `/audit-security` | OWASP ASVS L2 + Cheat Sheets; WSTG / Testing Checklist; once deployed: Observatory + SSL Labs against the site, Docker Bench + CIS on the host |
+| `/audit-security` | OWASP ASVS 5.0 L2 + Cheat Sheets; WSTG / Testing Checklist; once deployed: Observatory + SSL Labs against the site, Docker Bench + CIS on the host |
 | `/audit-recovery` | MySQL Backup and Recovery chapter; Redis persistence; SRE book chapters on postmortems and data integrity |
 | `/audit-a11y` | WCAG 2.2 quick reference; WAI-ARIA APG |
 | `/audit-infra` (bottlenecks) | Use The Index, Luke; Gunicorn Design page; SQLAlchemy pooling |

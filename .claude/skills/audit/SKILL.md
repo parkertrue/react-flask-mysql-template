@@ -46,8 +46,9 @@ above and ask which tier to run. Do not guess.
    > `/audit <tier>`. Read `.claude/skills/<check>/SKILL.md` and carry it out
    > exactly, with an empty scope (cover everything), following
    > `.claude/skills/_audit-shared/RULES.md`. <For the no-Docker group, add:
-   > "Do not use Docker in this run; other checks are using it. List any step
-   > that needs it under Unverified / Skipped.">
+   > "Start no containers in this run; other checks are using Docker. Read-only
+   > Docker commands are fine (RULES.md). List any step that needs a running
+   > stack under Unverified / Skipped.">
    > Write your report to `temp/audits/` as RULES.md says, and reply with only
    > the summary RULES.md asks for.
 

@@ -17,7 +17,18 @@ layers, cover only those.
 
 For each layer: read every file listed, check each CLAUDE.md claim about that
 layer against the code, compare the layer with its SOURCES.md section, then
-work through the questions. The questions are starting points, not the limit.
+work through the questions. Questions that ask whether something exists ("a
+health check on every service") are prompts, not requirements: under RULES.md's
+lean rule, a missing piece is a finding only if something would act on it or
+its absence causes a real failure.
+
+**Running stacks:** bring up the E2E test stack once (RULES.md) and use it for
+every live check below: startup logs of **every** service
+(`docker compose ... logs`, looking for errors and warnings), live privileges,
+and the perf timings. Use the production-config stack only for a question
+whose answer depends on production-only settings (persistent volumes, restart
+policies, the production database name, `ProductionConfig`), and say in the
+report which questions needed it. The questions are starting points, not the limit.
 Report anything a senior engineer would flag on review.
 
 ## Layers
@@ -65,6 +76,9 @@ Files: `backend/Dockerfile`, `backend/entrypoint.sh`, `nginx/Dockerfile`,
   `no-new-privileges`, `cap_drop`, `read_only` where possible, and an
   `internal` network that nginx cannot reach?
 - Does the test stack mirror production's hardening, so E2E catches breakage?
+- Do image majors match the CI runtimes (`setup-node`, `setup-python`
+  versions in `.github/workflows/`) and each other? Are they all supported
+  (not end-of-life) releases?
 - Are dev, test and production consistent in naming (CLAUDE.md table) and
   image versions?
 
@@ -83,9 +97,12 @@ Files: `backend/app/models/`, `backend/migrations/`, the `db` services.
   constraints and `ON DELETE` behavior, column sizes matching the named
   constants, UTC session time zone, `pool_pre_ping` or recycle settings.
 - Do migrations match the models (`test_migrations.py` checks this; is it
-  green in CI)? Least-privilege DB user after `restrict_db_user.py`?
+  green in CI)?
+- Least privilege, checked live on the running stack: `SHOW GRANTS` for the
+  app user, then try `CREATE TABLE` and `DROP TABLE` as that user. Do not
+  trust `restrict_db_user.py`'s output or its test.
 - MySQL server settings worth setting explicitly (character set, SQL mode)?
-  Startup warnings: run the test stack's `db` and read `docker compose logs db`.
+  Startup warnings from the `db` logs.
 
 ### redis
 Files: `backend/app/utils/redis_service.py` (and the rest of `utils/`), the
@@ -98,11 +115,12 @@ Files: `backend/app/utils/redis_service.py` (and the rest of `utils/`), the
 Files: `frontend/vite.config.js`, `package.json`, `index.html`,
 `eslint.config.js`, `jsconfig.json`, `src/main.jsx`, `src/routes.jsx`,
 `src/api/api.js`.
-- Production build: run `npm run build` in `frontend/` and look at the output
-  sizes. Are there source maps, dev-only code or unused dependencies in the
+- Production build: run `npm run build -- --outDir <scratch>/dist` in
+  `frontend/` and look at the output sizes. Are there source maps, dev-only code or unused dependencies in the
   bundle?
 - Does `package.json` have runtime vs dev dependencies in the right place,
-  engines pinned, and scripts that match CLAUDE.md?
+  and scripts that match CLAUDE.md? Is the Node version consistent wherever
+  it is set (CI, Dockerfile, any `engines` field)?
 
 ### ci: workflows and supply chain
 Files: `.github/workflows/`, `.github/dependabot.yml`, `backend/lock_deps.sh`,
@@ -110,8 +128,13 @@ Files: `.github/workflows/`, `.github/dependabot.yml`, `backend/lock_deps.sh`,
 - Actions pinned by SHA, least `permissions:`, `persist-credentials: false`,
   timeouts, no untrusted input interpolated into `run:`?
 - Does every check CLAUDE.md says CI runs actually run? Is anything run twice?
-- Read the latest runs (`gh run list --branch main --limit 10`). Any red,
-  flaky (failed then passed on retry), or slow jobs?
+- Read the latest runs (`gh run list --branch main --limit 20`, which also
+  shows GitHub-managed workflows such as Dependabot and code scanning). Any
+  red, flaky (failed then passed on retry), or slow jobs?
+- Open Dependabot PRs (`gh pr list --author app/dependabot`): does any of them
+  propose a version the project should not take (an end-of-life or
+  odd-numbered Node, a major the tools don't support)? If so, the fix is an
+  `ignore` rule in `dependabot.yml`.
 
 ### perf: bottlenecks
 - Request path cost: queries per request (N+1), missing indexes, unbounded
@@ -122,8 +145,10 @@ Files: `.github/workflows/`, `.github/dependabot.yml`, `backend/lock_deps.sh`,
   paths.
 - Estimate the first bottleneck under load (which resource saturates first,
   roughly at what request rate) and whether the template documents how to
-  scale past it. Do not load-test beyond a few dozen requests against the
-  local test stack.
+  scale past it. Keep it light: at most a few hundred requests against the
+  local test stack, paced under nginx's per-IP limit (see RULES.md on
+  requests from the host). Save the timing script in your report's appendix,
+  so the next run can repeat it and compare the numbers.
 
 ## Out of scope
 Code-level security review and dependency CVEs (`/audit-security`), tests
