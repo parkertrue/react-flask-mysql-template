@@ -46,13 +46,13 @@ cd backend
 ./run_tests.sh combined          # All tests with merged coverage report
 ./run_tests.sh unit --verbose    # Verbose output
 ./run_tests.sh unit --no-coverage
-ruff check .                     # Lint (errors + quote style; CI fails on any finding)
+ruff check .                     # Lint (errors, quote style, no print or commented-out code; CI fails on any finding)
 ```
 
 ### Frontend
 ```bash
 cd frontend
-npm run lint          # ESLint (CI fails on any finding)
+npm run lint          # ESLint, no console outside tests (CI fails on any finding)
 npm run test          # Watch mode
 npm run test:run      # Run once (CI)
 npm run test:coverage
@@ -68,24 +68,23 @@ source .venv/bin/activate
 pytest tests/unit/test_routes/test_auth_routes.py::TestClassName::test_method_name -v
 ```
 
-## Custom Commands
+## Audits
 
-Slash commands for quality checks. Run these on demand — never automatically.
+Skills in `.claude/skills/` that audit the template, run on demand only, never automatically. Each check runs in its own subagent, changes nothing, and writes its findings to `temp/audits/YYYY-MM-DD-<check>.md`, comparing them with its previous report.
 
-| Command | When to run |
-|---------|-------------|
-| `/security` | After any auth, config, or infra change; before every release |
-| `/check-tests` | After adding or modifying any feature |
-| `/check-readme` | After significant feature, architecture, or config changes |
-| `/check-ignores` | When adding new file types, services, or dependencies |
-| `/check-obsolete` | Periodically, or before a release |
-| `/check-comments` | Before any PR or release |
-| `/check-debug` | Before any PR or release |
-| `/check-deps` | After adding/updating dependencies; before every release |
-| `/check-env` | After adding new env variables or config classes |
-| `/pre-publish` | Before any public release — runs all checks above in sequence |
+| Command | Covers | When to run |
+|---|---|---|
+| `/audit-infra [layer]` | Config and infrastructure at every layer, bottlenecks | Daily, or after any config or infra change |
+| `/audit-tests` | Test infrastructure and patterns, then coverage gaps; mutation spot checks | After a feature lands |
+| `/audit-security` | ASVS L2 code review, dependency CVEs, scans of the local test stack | After auth, config or dependency changes |
+| `/audit-recovery` | Failure drills on a throwaway production-config stack; restore and compromise readiness | After infra changes |
+| `/audit-code` | Comments, dead code, debug leftovers, naming consistency | Before a PR |
+| `/audit-a11y` | WCAG 2.2 AA beyond what axe catches | After UI changes |
+| `/audit-docs` | README and CLAUDE.md against the code | After significant changes |
+| `/audit-scaffold` | Acts out "Starting a New App" in a throwaway worktree | After structural changes |
+| `/audit <tier>` | Runs a tier (`daily`, `periodic`, `ops`, `release`) and merges the reports | `release` before publishing |
 
-The instructions for these commands live in `.claude/commands/`. To update a check (e.g., new file patterns to scan, new security rules), edit the corresponding file there.
+Shared material lives in `.claude/skills/_audit-shared/`: `RULES.md` (what every check follows: CLAUDE.md is the spec, read-only boundaries, severity, report format), `SOURCES.md` (the outside standards each layer is measured against), and `DECISIONS.md` (accepted trade-offs and known gaps, so audits stop re-reporting them). When a finding is kept on purpose, record it in `DECISIONS.md`; when a finding could be caught mechanically, add the lint rule, test or CI job instead of more prompt text.
 
 ## Production Build
 ```bash
