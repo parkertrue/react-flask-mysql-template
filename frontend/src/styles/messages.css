@@ -1,0 +1,14 @@
+.error-message,
+.success-message {
+  padding: 0.75rem;
+  color: white;
+  margin: 1rem 0;
+}
+
+.error-message {
+  background-color: var(--color-danger);
+}
+
+.success-message {
+  background-color: var(--color-success);
+}

@@ -4,12 +4,10 @@ import path from 'path'
 import {
   validatePassword,
   validateEmail,
-  validateNoteContent,
   validatePasswordMatch,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
-  EMAIL_MAX_LENGTH,
-  NOTE_MAX_LENGTH
+  EMAIL_MAX_LENGTH
 } from '../validation'
 
 describe('validatePassword', () => {
@@ -82,30 +80,6 @@ describe('validateEmail', () => {
   })
 })
 
-describe('validateNoteContent', () => {
-  it.each([
-    ['one character', 'a'],
-    ['the maximum length', 'a'.repeat(NOTE_MAX_LENGTH)],
-    ['special characters and numbers', 'Note 123 with @#$% chars!'],
-    // The backend trims too, so surrounding space never counts
-    ['surrounding whitespace', '  Valid note  '],
-  ])('accepts %s', (_, content) => {
-    expect(validateNoteContent(content)).toEqual([])
-  })
-
-  it.each(['', undefined, null, '   ', '\t\t', '\n\n', '  \n\t  '])(
-    'requires some content (%o)',
-    (content) => {
-      expect(validateNoteContent(content)).toEqual(['Note content is required'])
-    }
-  )
-
-  it('rejects a note longer than the notes.content column', () => {
-    expect(validateNoteContent('a'.repeat(NOTE_MAX_LENGTH + 1)))
-      .toEqual([`Note must be at most ${NOTE_MAX_LENGTH} characters`])
-  })
-})
-
 describe('validatePasswordMatch', () => {
   it.each([
     ['Password123', 'Password123'],
@@ -138,7 +112,6 @@ describe('limits match the backend', () => {
     ['PASSWORD_MIN_LENGTH', PASSWORD_MIN_LENGTH, 'schemas/auth.py'],
     ['PASSWORD_MAX_LENGTH', PASSWORD_MAX_LENGTH, 'schemas/auth.py'],
     ['EMAIL_MAX_LENGTH', EMAIL_MAX_LENGTH, 'models/user.py'],
-    ['NOTE_MAX_LENGTH', NOTE_MAX_LENGTH, 'models/note.py'],
   ])('%s', (name, value, file) => {
     expect(value).toBe(constant(file, name))
   })

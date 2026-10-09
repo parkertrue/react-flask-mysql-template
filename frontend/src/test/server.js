@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { note, notesPage, tokens } from './fixtures'
+import { tokens } from './fixtures'
 
-// The happy path of every endpoint the frontend calls. A test overrides the
-// ones it cares about with server.use(); resetHandlers() drops the overrides.
+// The happy path of every shared endpoint; a feature keeps its own handlers
+// beside its tests. A test overrides the ones it cares about with
+// server.use(); resetHandlers() drops the overrides.
 export const handlers = [
   http.get('/api/health', () => HttpResponse.json({ status: 'ok' })),
   http.post('/api/auth/register', () =>
@@ -16,11 +17,6 @@ export const handlers = [
     HttpResponse.json({ message: 'Logged out from 1 device(s)' })),
   http.post('/api/auth/clear-cookies', () =>
     HttpResponse.json({ message: 'Cookies cleared' })),
-  http.get('/api/notes', () => HttpResponse.json(notesPage())),
-  http.post('/api/notes', async ({ request }) => {
-    const { content } = await request.json()
-    return HttpResponse.json(note({ content }), { status: 201 })
-  }),
 ]
 
 /**

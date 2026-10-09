@@ -1,185 +1,112 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, Link, Navigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
-import { registerUser } from '../api/services/authService'
-import { getErrorMessage } from '../api/errors'
-import { 
-  validateEmail, 
-  validatePassword, 
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { registerUser } from '@/auth/authService'
+import { getErrorMessage } from '@/api/errors'
+import FormField from '@/components/forms/FormField'
+import { useFormFields } from '@/components/forms/useFormFields'
+import PageTitle from '@/components/layout/PageTitle'
+import {
+  validateEmail,
+  validatePassword,
   validatePasswordMatch,
   EMAIL_MAX_LENGTH,
-  PASSWORD_MAX_LENGTH 
-} from '../utils/validation'
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH
+} from '@/utils/validation'
 
 export default function RegisterPage() {
-  const { isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [errors, setErrors] = useState({})
+  const { values, errors, handleChange, validate } = useFormFields({
+    email: '', password: '', confirmPassword: ''
+  })
+  const [formError, setFormError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
-
-  // In an effect so leaving the page before it fires cancels the redirect
-  useEffect(() => {
-    if (!success) return
-    const timer = setTimeout(() => navigate('/login'), 2000)
-    return () => clearTimeout(timer)
-  }, [success, navigate])
-
-  if (isAuthenticated) {
-    return <Navigate to="/notes" replace />
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    const emailErrors = validateEmail(email)
-    const passwordErrors = validatePassword(password)
-    const matchErrors = validatePasswordMatch(password, confirmPassword)
-    
-    if (emailErrors.length > 0 || passwordErrors.length > 0 || matchErrors.length > 0) {
-      setErrors({
-        email: emailErrors[0],
-        password: passwordErrors[0],
-        confirmPassword: matchErrors[0]
-      })
-      return
-    }
+    if (isLoading) return
 
-    setErrors({})
+    const valid = validate(e.currentTarget, {
+      email: validateEmail(values.email)[0],
+      password: validatePassword(values.password)[0],
+      confirmPassword: validatePasswordMatch(values.password, values.confirmPassword)[0],
+    })
+    if (!valid) return
+
+    setFormError(null)
     setIsLoading(true)
-
     try {
-      await registerUser(email, password)
-      setSuccess(true)
+      await registerUser(values.email, values.password)
+      navigate('/login', { state: { registered: true } })
     } catch (err) {
-      setErrors({ general: getErrorMessage(err) })
-    } finally {
+      setFormError(getErrorMessage(err))
       setIsLoading(false)
     }
   }
 
-  if (success) {
-    return (
-      <div className="register-page">
-        <div className="auth-container">
-          <div className="success-message" data-testid="success-message">
-            Registration successful! Redirecting to login...
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+  // While submitting, inputs are read-only and the button aria-disabled
+  // rather than disabled: a disabled element drops keyboard focus
   return (
-    <div className="register-page">
+    <div className="auth-page">
+      <PageTitle>Register</PageTitle>
       <div className="auth-container">
         <div className="auth-card">
-          <h2>Register</h2>
+          <h1 id="register-heading">Register</h1>
 
-          <form onSubmit={handleSubmit} className="auth-form" data-testid="register-form">
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (errors.email) {
-                    setErrors(prev => ({ ...prev, email: undefined }))
-                  }
-                }}
-                disabled={isLoading}
-                required
-                className={`form-input ${errors.email ? 'error' : ''}`}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                maxLength={EMAIL_MAX_LENGTH}
-              />
-              {errors.email && (
-                <div className="field-error" id="email-error" data-testid="email-error">
-                  {errors.email}
-                </div>
-              )}
-            </div>
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="auth-form"
+            aria-labelledby="register-heading"
+          >
+            <FormField
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="email"
+              value={values.email}
+              onChange={handleChange}
+              error={errors.email}
+              readOnly={isLoading}
+              required
+              maxLength={EMAIL_MAX_LENGTH}
+            />
+            <FormField
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="new-password"
+              value={values.password}
+              onChange={handleChange}
+              error={errors.password}
+              hint={`At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number.`}
+              readOnly={isLoading}
+              required
+              maxLength={PASSWORD_MAX_LENGTH}
+            />
+            <FormField
+              id="confirmPassword"
+              label="Confirm Password"
+              type="password"
+              autoComplete="new-password"
+              value={values.confirmPassword}
+              onChange={handleChange}
+              error={errors.confirmPassword}
+              readOnly={isLoading}
+              required
+              maxLength={PASSWORD_MAX_LENGTH}
+            />
 
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  if (errors.password) {
-                    setErrors(prev => ({ ...prev, password: undefined }))
-                  }
-                }}
-                disabled={isLoading}
-                required
-                minLength={8}
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? 'password-error' : undefined}
-                maxLength={PASSWORD_MAX_LENGTH}
-              />
-              {errors.password && (
-                <div className="field-error" id="password-error" data-testid="password-error">
-                  {errors.password}
-                </div>
-              )}
-            </div>
+            {formError && <div className="error-message" role="alert">{formError}</div>}
 
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value)
-                  if (errors.confirmPassword) {
-                    setErrors(prev => ({ ...prev, confirmPassword: undefined }))
-                  }
-                }}
-                disabled={isLoading}
-                minLength={8}
-                required
-                className={`form-input ${errors.confirmPassword ? 'error' : ''}`}
-                aria-invalid={!!errors.confirmPassword}
-                aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
-                maxLength={PASSWORD_MAX_LENGTH}
-              />
-              {errors.confirmPassword && (
-                <div className="field-error" id="confirm-password-error" data-testid="confirm-password-error">
-                  {errors.confirmPassword}
-                </div>
-              )}
-            </div>
-
-            {errors.general && (
-              <div className="error-message" data-testid="error-message">
-                {errors.general}
-              </div>
-            )}
-
-            <button 
-              type="submit"
-              disabled={isLoading}
-              className="btn btn-primary btn-block"
-            >
+            <button type="submit" aria-disabled={isLoading} className="btn btn-primary btn-block">
               {isLoading ? 'Creating account...' : 'Register'}
             </button>
           </form>
 
           <p className="auth-footer">
             Already have an account?{' '}
-            <Link to="/login" className="auth-link">
-              Login
-            </Link>
+            <Link to="/login" className="auth-link">Login</Link>
           </p>
         </div>
       </div>

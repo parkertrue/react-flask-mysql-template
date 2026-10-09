@@ -53,11 +53,21 @@ export async function addNote(page, text) {
   await expect(page.getByText(text)).toBeVisible()
 }
 
-/** Open the logout menu and pick 'Logout This Device' or 'Logout All Devices' */
-export async function logout(page, item = 'Logout This Device') {
-  await page.getByRole('button', { name: /^logout/i }).click()
-  await page.getByRole('button', { name: item }).click()
+/** Log this device out from the navbar; it lands on the home page */
+export async function logout(page) {
+  await page.getByRole('button', { name: 'Logout' }).click()
+  await page.waitForURL(/\/$/)
 }
+
+/** Sign every device out from the account page, reached by the navbar's email */
+export async function logoutAllDevices(page) {
+  await page.getByRole('link', { name: /\(account\)$/ }).click()
+  await page.getByRole('button', { name: 'Logout All Devices' }).click()
+  await page.waitForURL(/\/$/)
+}
+
+/** The notes page's message when the list loaded and is empty */
+export const noNotesYet = page => page.getByText(/no notes yet/i)
 
 // The E2E backend signs tokens with SECRET_KEY from .env.test, so a test can
 // re-sign the page's own access token as already expired: exactly what the

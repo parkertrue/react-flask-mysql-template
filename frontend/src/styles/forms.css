@@ -1,0 +1,38 @@
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-input {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  font-size: 1rem;
+}
+
+.form-input:focus {
+  border-color: var(--color-primary);
+}
+
+.form-input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.form-hint,
+.field-error {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.form-hint {
+  color: var(--color-text-muted);
+}
+
+.field-error {
+  color: var(--color-danger);
+}

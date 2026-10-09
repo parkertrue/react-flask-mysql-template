@@ -1,135 +1,101 @@
 import { useState } from 'react'
-import { useNavigate, Link, Navigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
-import { loginUser } from '../api/services/authService'
-import { getErrorMessage } from '../api/errors'
-import { 
-  validateEmail, 
-  PASSWORD_MAX_LENGTH, 
-  EMAIL_MAX_LENGTH 
-} from '../utils/validation'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
+import { loginUser } from '@/auth/authService'
+import { getErrorMessage } from '@/api/errors'
+import FormField from '@/components/forms/FormField'
+import { useFormFields } from '@/components/forms/useFormFields'
+import PageTitle from '@/components/layout/PageTitle'
+import { validateEmail, PASSWORD_MAX_LENGTH, EMAIL_MAX_LENGTH } from '@/utils/validation'
 
 export default function LoginPage() {
-  const { isAuthenticated, login } = useAuth()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [errors, setErrors] = useState({})
+  const { login } = useAuth()
+  const location = useLocation()
+  const { values, errors, handleChange, validate } = useFormFields({ email: '', password: '' })
+  const [formError, setFormError] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  if (isAuthenticated) {
-    return <Navigate to="/notes" replace />
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    const emailErrors = validateEmail(email)
-    // Only registration enforces the password rules, so changing them never
-    // locks out existing users
-    const passwordErrors = password ? [] : ['Password is required']
-    
-    if (emailErrors.length > 0 || passwordErrors.length > 0) {
-      setErrors({
-        email: emailErrors[0],
-        password: passwordErrors[0]
-      })
-      return
-    }
+    if (isLoading) return
 
-    setErrors({})
+    const valid = validate(e.currentTarget, {
+      email: validateEmail(values.email)[0],
+      // Only registration enforces the password rules, so changing them never
+      // locks out existing users
+      password: values.password ? undefined : 'Password is required',
+    })
+    if (!valid) return
+
+    setFormError(null)
     setIsLoading(true)
-
     try {
-      const data = await loginUser(email, password)
-      login(data.access_token, data.refresh_csrf, email)
-      navigate('/notes')
+      const data = await loginUser(values.email, values.password)
+      // GuestRoute moves the user on once they are signed in
+      login(data.access_token, data.refresh_csrf, values.email)
     } catch (err) {
-      setErrors({ general: getErrorMessage(err) })
+      setFormError(getErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
   }
 
+  // While submitting, inputs are read-only and the button aria-disabled
+  // rather than disabled: a disabled element drops keyboard focus
   return (
-    <div className="login-page">
+    <div className="auth-page">
+      <PageTitle>Login</PageTitle>
       <div className="auth-container">
         <div className="auth-card">
-          <h2>Login</h2>
+          <h1 id="login-heading">Login</h1>
 
-          <form onSubmit={handleSubmit} className="auth-form" data-testid="login-form">
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (errors.email) {
-                    setErrors(prev => ({ ...prev, email: undefined }))
-                  }
-                }}
-                disabled={isLoading}
-                required
-                className={`form-input ${errors.email ? 'error' : ''}`}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                maxLength={EMAIL_MAX_LENGTH}
-              />
-              {errors.email && (
-                <div className="field-error" id="email-error" data-testid="email-error">
-                  {errors.email}
-                </div>
-              )}
-            </div>
+          {location.state?.registered && (
+            <p className="success-message" role="status">
+              Registration successful. Please log in.
+            </p>
+          )}
 
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  if (errors.password) {
-                    setErrors(prev => ({ ...prev, password: undefined }))
-                  }
-                }}
-                disabled={isLoading}
-                required
-                className={`form-input ${errors.password ? 'error' : ''}`}
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? 'password-error' : undefined}
-                maxLength={PASSWORD_MAX_LENGTH}
-              />
-              {errors.password && (
-                <div className="field-error" id="password-error" data-testid="password-error">
-                  {errors.password}
-                </div>
-              )}
-            </div>
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="auth-form"
+            aria-labelledby="login-heading"
+          >
+            <FormField
+              id="email"
+              label="Email"
+              type="email"
+              autoComplete="email"
+              value={values.email}
+              onChange={handleChange}
+              error={errors.email}
+              readOnly={isLoading}
+              required
+              maxLength={EMAIL_MAX_LENGTH}
+            />
+            <FormField
+              id="password"
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              value={values.password}
+              onChange={handleChange}
+              error={errors.password}
+              readOnly={isLoading}
+              required
+              maxLength={PASSWORD_MAX_LENGTH}
+            />
 
-            {errors.general && (
-              <div className="error-message" data-testid="error-message">
-                {errors.general}
-              </div>
-            )}
+            {formError && <div className="error-message" role="alert">{formError}</div>}
 
-            <button 
-              type="submit"
-              disabled={isLoading}
-              className="btn btn-primary btn-block"
-            > 
+            <button type="submit" aria-disabled={isLoading} className="btn btn-primary btn-block">
               {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
           <p className="auth-footer">
             Don't have an account?{' '}
-            <Link to="/register" className="auth-link">
-              Register
-            </Link>
+            <Link to="/register" className="auth-link">Register</Link>
           </p>
         </div>
       </div>

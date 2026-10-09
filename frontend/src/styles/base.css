@@ -1,0 +1,19 @@
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Layout focuses <main> on navigation so screen readers start at the new
+   page; it is not a control, so it gets no ring */
+main:focus {
+  outline: none;
+}

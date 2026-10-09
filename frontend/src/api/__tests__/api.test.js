@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { api } from '../api'
-import { storage } from '../../utils/storage'
-import { errorBody, notesPage, tokens } from '../../test/fixtures'
-import { setupMswServer } from '../../test/server'
+import { storage } from '@/auth/storage'
+import { errorBody, tokens } from '@/test/fixtures'
+import { setupMswServer } from '@/test/server'
 
 // No default handlers: each test mocks exactly the endpoints it expects
 const server = setupMswServer()
@@ -36,7 +36,7 @@ function mockBackend() {
       if (request.headers.get('Authorization') !== `Bearer ${state.validToken}`) {
         return expired()
       }
-      return HttpResponse.json(notesPage())
+      return HttpResponse.json({ notes: [] })
     })
   )
 
@@ -49,7 +49,6 @@ describe('api client configuration', () => {
   it('uses the /api base URL with credentials', () => {
     expect(api.defaults.baseURL).toBe('/api')
     expect(api.defaults.withCredentials).toBe(true)
-    expect(api.defaults.headers['Content-Type']).toBe('application/json')
   })
 })
 
@@ -137,14 +136,16 @@ describe('expired access token', () => {
     expect(backend.refreshCalls).toHaveLength(1)
   })
 
-  it('logs out and redirects when the refresh is rejected', async () => {
+  // AuthProvider sees the cleared storage and the route guard sends the user
+  // to log in: no page reload
+  it('ends the session, without reloading, when the refresh is rejected', async () => {
     mockBackend()
     storage.setRefreshCsrf('wrong')
 
     await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
-    expect(window.location.href).toBe('/login')
+    expect(window.location.href).toBe('http://localhost/')
   })
 
   it.each([
@@ -233,14 +234,14 @@ describe('invalid or missing token', () => {
       HttpResponse.json(errorBody(code), { status: 401 }))
   )
 
-  it('logs out and redirects on an invalid token', async () => {
+  it('ends the session, without reloading, on an invalid token', async () => {
     storage.setAccessToken('forged')
     rejectWith('get', '/notes', 'AUTH_INVALID_TOKEN')
 
     await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
-    expect(window.location.href).toBe('/login')
+    expect(window.location.href).toBe('http://localhost/')
   })
 
   it('leaves logout failures to the caller', async () => {

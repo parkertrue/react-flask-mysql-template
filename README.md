@@ -342,7 +342,7 @@ npm run test          # Watch mode (auto re-runs on changes)
 npm run test:coverage # Unit tests with coverage (coverage/ folder); what CI runs
 ```
 
-Coverage below the thresholds in `vite.config.js` fails the run. Tests run in a shuffled order; replay one with `npx vitest run --sequence.seed=<seed>`, using the seed printed at the start of the run. A test also fails if React reports a state update outside `act()`, which means it asserted before the page settled: await the final state with `findBy*` or `waitFor`. Tests that fake the network build responses from `src/test/fixtures.js`, whose list of error codes is checked against the backend's, and start MSW with `setupMswServer` from `src/test/server.js`.
+Coverage below the thresholds in `vite.config.js` fails the run. Tests run in a shuffled order; replay one with `npx vitest run --sequence.seed=<seed>`, using the seed printed at the start of the run. A test also fails if React reports a state update outside `act()`, which means it asserted before the page settled: await the final state with `findBy*` or `waitFor`. Tests that fake the network build responses from `src/test/fixtures.js`, whose list of error codes is checked against the backend's, and start MSW with `setupMswServer` from `src/test/server.js`; a feature keeps its own fake responses and handlers in its `__tests__/fixtures.js`. Pages are rendered through the real router and `AuthProvider` with `renderRoutes` from `src/test/router.jsx`, and `signIn()` stores a session the way logging in does.
 
 ## End-to-End Tests
 
@@ -355,6 +355,8 @@ npx playwright install chromium   # First time only
 npm run test:e2e                  # Builds and starts the stack, then runs the tests
 npm run test:e2e:ui               # Interactive mode
 ```
+
+`accessibility.spec.js` runs [axe](https://github.com/dequelabs/axe-core) on every page against the WCAG 2.2 A and AA rules, catching what jsdom cannot, such as color contrast.
 
 ## Continuous Integration
 
@@ -385,11 +387,10 @@ To stop a failing check from merging, require these status checks on `main` (Set
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the notes files in `frontend/src/{api/services,hooks,components,pages}`, and their tests: unit, integration (`test_mysql_limits.py`, `test_mysql_cascade.py`) and E2E (`notes-crud.spec.js`).
-2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/components/health/`, `hooks/useHealth.js`, `api/services/healthService.js` and `styles/components/api-status.css` with their tests, the `api-status.css` import in `styles/base/index.css`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Update the `Note` fixtures in `backend/tests/conftest.py`, and the note builders and `/api/notes` handlers in `frontend/src/test/fixtures.js` and `server.js`.
-4. Update the note-length validators in `frontend/src/utils/validation.js`.
-5. Update the nav link in `frontend/src/components/layout/Navbar.jsx` and the post-login redirects in `LoginPage` and `RegisterPage`.
-6. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
-7. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
-8. Rewrite this README and `CLAUDE.md` for your app.
+1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the folder `frontend/src/features/notes/` and its route in `frontend/src/routes.jsx`, and their tests: unit, integration (`test_mysql_limits.py`, `test_mysql_cascade.py`), the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and E2E (`notes-crud.spec.js`).
+2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
+3. Update the `Note` fixtures in `backend/tests/conftest.py`.
+4. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`components/layout/PageTitle.jsx`) and the `<title>` in `index.html`.
+5. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
+6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
+7. Rewrite this README and `CLAUDE.md` for your app.

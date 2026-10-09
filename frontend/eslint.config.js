@@ -22,6 +22,19 @@ export default defineConfig([
     },
   },
   {
+    // Shared code never depends on a feature or a page, so deleting a
+    // feature folder cannot break it
+    files: ['src/{api,auth,components,utils}/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['@/features/*', '@/pages/*', '@/routes', '**/features/*', '**/pages/*'],
+          message: 'Shared code must not import a feature or a page.',
+        }],
+      }],
+    },
+  },
+  {
     // Build and test tooling runs under Node, not in the browser
     files: ['*.config.js', 'e2e/**'],
     languageOptions: {
