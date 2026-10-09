@@ -1,11 +1,8 @@
 import axios from 'axios'
-import { storage } from '../utils/storage'
+import { storage } from '@/auth/storage'
 
 export const api = axios.create({
   baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json'
-  },
   withCredentials: true
 })
 
@@ -59,7 +56,7 @@ api.interceptors.request.use(config => {
   }
 
   return config
-}, error => Promise.reject(error))
+})
 
 api.interceptors.response.use(
   response => response,
@@ -109,9 +106,10 @@ api.interceptors.response.use(
         // Only a 401 means the session is over. A 429, a 503 or a network
         // error is temporary: keep the session, fail just these requests with
         // the refresh's own message, and let the next request try again.
+        // Clearing storage ends the session everywhere: AuthProvider re-renders
+        // and ProtectedRoute sends the user to log in, without a page reload.
         if (refreshError.response?.status === 401) {
           storage.clearAuth()
-          window.location.href = '/login'
         }
 
         return Promise.reject(refreshError)
@@ -123,7 +121,6 @@ api.interceptors.response.use(
       !url.startsWith('/auth/logout')
     ) {
       storage.clearAuth()
-      window.location.href = '/login'
     }
 
     return Promise.reject(error)

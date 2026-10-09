@@ -1,0 +1,5 @@
+.api-status {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: var(--color-surface-muted);
+}

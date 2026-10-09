@@ -1,41 +1,40 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { describe, it, expect } from 'vitest'
+import { screen } from '@testing-library/react'
+import { Link } from 'react-router-dom'
 import Layout from '../Layout'
-import { AuthProvider } from '../../../contexts/AuthProvider'
-import { storage } from '../../../utils/storage'
+import { renderRoutes } from '@/test/router'
 
-vi.mock('../../../utils/storage')
-
-function renderAt(path) {
-  render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<p>Home content</p>} />
-            <Route path="about" element={<p>About content</p>} />
-          </Route>
-        </Routes>
-      </AuthProvider>
-    </MemoryRouter>
-  )
+function renderLayout(path = '/') {
+  return renderRoutes([{
+    path: '/',
+    element: <Layout />,
+    children: [
+      { index: true, element: <Link to="/about">About us</Link> },
+      { path: 'about', element: <p>About content</p> },
+    ],
+  }], path)
 }
 
 describe('Layout', () => {
-  beforeEach(() => {
-    storage.getAccessToken.mockReturnValue(null)
-    storage.getRefreshCsrf.mockReturnValue(null)
-    storage.getEmail.mockReturnValue(null)
+  it('puts the page in the main area, under the navbar', () => {
+    renderLayout('/about')
+
+    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation'))
+    expect(screen.getByRole('main')).toHaveTextContent('About content')
   })
 
-  it.each([
-    ['/', 'Home content'],
-    ['/about', 'About content'],
-  ])('puts the page for %s in the main area, under the navbar', (path, content) => {
-    renderAt(path)
+  it('leaves focus alone on the first page', () => {
+    renderLayout()
 
-    expect(screen.getByRole('navigation')).toBeInTheDocument()
-    expect(screen.getByRole('main')).toHaveTextContent(content)
+    expect(screen.getByRole('main')).not.toHaveFocus()
+  })
+
+  it('moves focus to the new page\'s content on navigation', async () => {
+    const { user } = renderLayout()
+
+    await user.click(screen.getByRole('link', { name: 'About us' }))
+
+    expect(await screen.findByText('About content')).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveFocus()
   })
 })

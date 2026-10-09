@@ -1,8 +1,14 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'url'
 
 export default defineConfig({
   plugins: [react()],
+  // `@/x` is src/x, so an import survives its file moving. jsconfig.json
+  // maps the same path for the editor.
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }
+  },
   server: {
     // localhost only: the dev server proxies to Flask in debug mode, whose
     // tracebacks should not be reachable from the LAN. Opt in to LAN access

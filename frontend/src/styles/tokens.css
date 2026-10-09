@@ -1,0 +1,13 @@
+/* Every pairing meets WCAG AA: text on or in these colors is at least 4.5:1
+   against white, borders and focus rings at least 3:1 */
+:root {
+  --color-primary: #207ab7;
+  --color-secondary: #667879;
+  --color-danger: #c0392b;
+  --color-danger-surface: #fee;
+  --color-success: #1e864a;
+  --color-text-muted: #6b7280;
+  --color-border: #8a8a8a;
+  --color-surface-muted: #f5f5f5;
+  --color-navbar: #2c3e50;
+}

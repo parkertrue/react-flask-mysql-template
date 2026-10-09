@@ -29,23 +29,6 @@ export function errorBody(code, message = 'Request failed') {
   return { error: { code, message } }
 }
 
-/** A note as GET/POST /api/notes return it; created_at is UTC with an offset */
-export function note(overrides = {}) {
-  const id = overrides.id ?? 1
-  return {
-    id,
-    user_id: 1,
-    content: `Note ${id}`,
-    created_at: '2026-01-01T12:00:00+00:00',
-    ...overrides,
-  }
-}
-
-/** One page of GET /api/notes; partial notes are filled in with note() */
-export function notesPage(notes = [], next_cursor = null) {
-  return { notes: notes.map(note), next_cursor }
-}
-
 /** The body of a successful login or refresh */
 export function tokens(access_token = 'access-token', refresh_csrf = 'refresh-csrf') {
   return { access_token, refresh_csrf }
