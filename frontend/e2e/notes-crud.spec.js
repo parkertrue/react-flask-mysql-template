@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { addNote, logout, noteInput, registerAndLogin } from './helpers'
+import { addNote, logout, noNotesYet, noteInput, registerAndLogin } from './helpers'
 
 test.describe('Notes CRUD Operations', () => {
   // A fresh account and page per test, so each one runs (and retries) alone
@@ -11,7 +11,7 @@ test.describe('Notes CRUD Operations', () => {
     for (const noteText of ['First note', 'Second note', 'Third note']) {
       await addNote(page, noteText)
     }
-    await expect(page.getByTestId('note-item')).toHaveCount(3)
+    await expect(page.getByRole('listitem')).toHaveCount(3)
   })
 
   test('can update a note', async ({ page }) => {
@@ -73,10 +73,11 @@ test.describe('Notes CRUD Operations', () => {
   })
 
   test('empty note submission shows validation', async ({ page }) => {
-    await noteInput(page).fill('')
+    await page.getByRole('button', { name: 'Add Note' }).click()
 
-    // Button should be disabled for empty input (client-side validation)
-    await expect(page.getByRole('button', { name: 'Add Note' })).toBeDisabled()
+    // Explained on the field, which gets focus so a screen reader reads it
+    await expect(noteInput(page)).toHaveAccessibleDescription('Note content is required')
+    await expect(noteInput(page)).toBeFocused()
   })
 
   test('notes persist across page reloads', async ({ page }) => {
@@ -93,11 +94,10 @@ test.describe('Notes CRUD Operations', () => {
     await addNote(page, firstUserNote)
 
     await logout(page)
-    await page.waitForURL(/\/$/, { timeout: 10000 })
     await registerAndLogin(page, 'second-user')
 
     // The second user's list has loaded, and the first user's note is not in it
-    await expect(page.getByTestId('notes-empty')).toBeVisible()
+    await expect(noNotesYet(page)).toBeVisible()
     await expect(page.getByText(firstUserNote)).not.toBeVisible()
   })
 
@@ -115,13 +115,13 @@ test.describe('Notes CRUD Operations', () => {
     await page.reload()
 
     // Newest first: the oldest note is on the second page
-    await expect(page.getByTestId('note-item')).toHaveCount(20)
+    await expect(page.getByRole('listitem')).toHaveCount(20)
     await expect(page.getByText('Note number 21', { exact: true })).toBeVisible()
     await expect(page.getByText('Note number 1', { exact: true })).not.toBeVisible()
 
     await page.getByRole('button', { name: 'Load more' }).click()
 
-    await expect(page.getByTestId('note-item')).toHaveCount(21)
+    await expect(page.getByRole('listitem')).toHaveCount(21)
     await expect(page.getByText('Note number 1', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Load more' })).not.toBeVisible()
   })

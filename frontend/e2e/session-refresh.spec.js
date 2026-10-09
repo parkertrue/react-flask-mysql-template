@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
-  TEST_PASSWORD, expireAccessToken, login, logout, registerAndLogin, uniqueEmail,
+  TEST_PASSWORD, expireAccessToken, login, logout, logoutAllDevices, noNotesYet,
+  registerAndLogin, uniqueEmail,
 } from './helpers'
 
 test('an expired session refreshes repeatedly, and logout revokes it', async ({ page }) => {
@@ -23,7 +24,7 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
 
     expect((await refreshed).status(), `refresh #${round}`).toBe(200)
     await expect(page).toHaveURL(/\/notes/)
-    await expect(page.getByTestId('notes-empty')).toBeVisible()
+    await expect(noNotesYet(page)).toBeVisible()
   }
 
   // Keep the session's credentials to replay after logout
@@ -53,8 +54,7 @@ test('logout from all devices signs the other device out', async ({ page, browse
     await other.goto('/login')
     await login(other, email)
 
-    await logout(page, 'Logout All Devices')
-    await page.waitForURL(/\/$/)
+    await logoutAllDevices(page)
 
     // The other device notices at its next refresh: rejected, so it is sent
     // to the login page rather than left with a broken session
@@ -75,7 +75,7 @@ test('two tabs refreshing at once both stay signed in', async ({ page, context }
   await registerAndLogin(page, 'e2e-two-tabs')
   const second = await context.newPage()
   await second.goto('/notes')
-  await expect(second.getByTestId('notes-empty')).toBeVisible()
+  await expect(noNotesYet(second)).toBeVisible()
 
   // Force the order that signs a tab out: the first refresh reaches the
   // server, but its tab hears back only after the second tab has sent its
@@ -103,12 +103,12 @@ test('two tabs refreshing at once both stay signed in', async ({ page, context }
   await Promise.all([page.reload(), second.reload()])
 
   for (const tab of [page, second]) {
-    await expect(tab.getByTestId('notes-empty')).toBeVisible()
+    await expect(noNotesYet(tab)).toBeVisible()
     await expect(tab).toHaveURL(/\/notes/)
   }
   expect(refreshes).toBe(1)
 
   // And the session that survived is the real one
   await page.reload()
-  await expect(page.getByTestId('notes-empty')).toBeVisible()
+  await expect(noNotesYet(page)).toBeVisible()
 })

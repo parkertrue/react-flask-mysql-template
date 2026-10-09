@@ -26,10 +26,10 @@ test.describe('Critical User Journey', () => {
     // Click register button
     await page.getByRole('button', { name: /register|creating account/i }).click()
     
-    // Success shows a message, then redirects to login. If registration fails,
-    // this assertion fails and the failure screenshot shows the error.
-    await expect(page.getByTestId('success-message')).toBeVisible()
+    // Success goes straight to login, which confirms it. If registration
+    // fails, this fails and the failure screenshot shows the error.
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 })
+    await expect(page.getByRole('status')).toHaveText(/registration successful/i)
 
     // 3. Login with newly created account
     await login(page, testEmail)
@@ -46,8 +46,7 @@ test.describe('Critical User Journey', () => {
 
     // 6. Logout, which returns to the home page
     await logout(page)
-    await page.waitForURL(/\/$/, { timeout: 10000 })
-    
+
     // Verify user is logged out by checking they can't access notes
     await page.goto('/notes')
     await expect(page).toHaveURL(/\/login/)
@@ -69,7 +68,7 @@ test.describe('Critical User Journey', () => {
     await page.getByLabel(/password/i).fill('WrongPassword123')
     await page.getByRole('button', { name: /login|logging in/i }).click()
 
-    await expect(page.getByTestId('error-message')).toHaveText(/invalid email or password/i)
+    await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i)
     
     // Should still be on login page
     await expect(page).toHaveURL(/\/login/)
@@ -82,7 +81,7 @@ test.describe('Critical User Journey', () => {
     // Try to register again with same email
     await submitRegistration(page, existingEmail)
     
-    await expect(page.getByTestId('error-message')).toHaveText(/already registered/i)
+    await expect(page.getByRole('alert')).toHaveText(/already registered/i)
     await expect(page).toHaveURL(/\/register/)
   })
 })
