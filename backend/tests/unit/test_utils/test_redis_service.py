@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import redis
 
+from app.utils import redis_service
 from app.utils.redis_service import RedisService
 
 
@@ -175,10 +176,11 @@ class TestTokenManagement:
 
         assert service.is_token_valid(1, 'test-jti') is False
 
-    def test_is_token_valid_error(self, service, caplog):
+    def test_is_token_valid_error_is_not_a_revocation(self, service, caplog):
+        """None, not False: the caller must not sign the user out over an outage"""
         service._client.zscore.side_effect = redis.RedisError('Read failed')
 
-        assert service.is_token_valid(1, 'jti') is False
+        assert service.is_token_valid(1, 'jti') is None
         assert 'Read failed' in caplog.text
 
     def test_revoke_token_success(self, service):
@@ -211,6 +213,82 @@ class TestTokenManagement:
 
         assert service.revoke_all_user_tokens(1) is None
         assert 'Could not revoke the sessions of user 1' in caplog.text
+
+
+class TestSkipRedisAfterConnectionFailure:
+    """After Redis proves unreachable, calls fail at once for a while instead
+    of each spending seconds on the connection (and the name lookup)"""
+
+    @pytest.fixture
+    def clock(self, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr('app.utils.redis_service.time.monotonic', lambda: now[0])
+        return now
+
+    @pytest.fixture
+    def service(self, app, clock):
+        with patch('app.utils.redis_service.redis.Redis'):
+            return RedisService(host='localhost', port=6379, db=0, username='app',
+                                password='x', max_connections=5)
+
+    # Every public method, with what it returns on a failure
+    CALLS = {
+        'is_token_valid': (lambda s: s.is_token_valid(1, 'jti'), None),
+        'revoke_token': (lambda s: s.revoke_token(1, 'jti'), False),
+        'revoke_all_user_tokens': (lambda s: s.revoke_all_user_tokens(1), None),
+        'store_refresh_token': (lambda s: s.store_refresh_token(1, 'jti', 60), False),
+        'rotate_refresh_token': (lambda s: s.rotate_refresh_token(1, 'a', 'b', 60), None),
+    }
+
+    @staticmethod
+    def break_connection(service, error):
+        service._client.zscore.side_effect = error
+        service._client.zrem.side_effect = error
+        service._client.pipeline.return_value.execute.side_effect = error
+        service._record_token.side_effect = error
+
+    @staticmethod
+    def redis_calls(service):
+        return (service._client.zscore.call_count + service._client.zrem.call_count
+                + service._client.pipeline.call_count + service._record_token.call_count)
+
+    @pytest.mark.parametrize('call, failed', CALLS.values(), ids=CALLS.keys())
+    @pytest.mark.parametrize('error', [redis.ConnectionError, redis.TimeoutError])
+    def test_skips_redis_after_it_proves_unreachable(self, service, call, failed, error):
+        self.break_connection(service, error('down'))
+        service.is_token_valid(1, 'jti')
+        calls_so_far = self.redis_calls(service)
+
+        assert call(service) == failed
+        assert self.redis_calls(service) == calls_so_far
+
+    def test_tries_again_after_the_interval(self, service, clock):
+        self.break_connection(service, redis.ConnectionError('down'))
+        service.is_token_valid(1, 'jti')
+        service._client.zscore.side_effect = None
+        service._client.zscore.return_value = None
+
+        clock[0] += redis_service.RECONNECT_INTERVAL_SECONDS
+
+        assert service.is_token_valid(1, 'jti') is False
+        assert service._client.zscore.call_count == 2
+
+    def test_other_errors_do_not_pause_redis(self, service):
+        """A full Redis or a NOPERM answers fast; only unreachable means wait"""
+        service._client.zscore.side_effect = redis.ResponseError('OOM')
+        service.is_token_valid(1, 'jti')
+
+        service.is_token_valid(1, 'jti')
+
+        assert service._client.zscore.call_count == 2
+
+    def test_logs_the_failure_once_per_outage(self, service, caplog):
+        self.break_connection(service, redis.ConnectionError('down'))
+
+        for _ in range(3):
+            service.is_token_valid(1, 'jti')
+
+        assert caplog.text.count('Could not check a refresh token') == 1
 
 
 class TestFailFastWhenRedisIsDown:

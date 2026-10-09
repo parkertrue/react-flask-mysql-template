@@ -10,7 +10,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import get_config
 from app.utils.errors import error_response
 from app.utils.passwords import PasswordHashingBusy, init_password_hashing
-from app.utils.redis_service import connect_redis, get_redis_service
+from app.utils.redis_service import (
+    TokenStoreUnavailable, connect_redis, get_redis_service)
 
 
 jwt = JWTManager()
@@ -43,7 +44,8 @@ def create_app():
     migrate.init_app(app, db)
 
     # A Redis failure must not stop the app from booting; get_redis_service()
-    # retries later, and the blocklist loader below fails closed meanwhile.
+    # retries later, and the blocklist loader below refuses refresh tokens
+    # meanwhile.
     app.extensions['redis_service'] = None
     if app.config['USES_SERVICES']:
         connect_redis(app)
@@ -83,26 +85,25 @@ def create_app():
         if jwt_payload.get('type') != 'refresh':
             return False
 
-        # Fail closed: without Redis we cannot tell a live refresh token from a
-        # revoked one, so treat them all as revoked rather than honouring
-        # tokens the user already logged out of.
-        redis_service = get_redis_service()
-        if redis_service is None:
-            return True
-
         jti = jwt_payload.get('jti')
         user_id = jwt_payload.get('sub')
-
         if not jti or not user_id:
             return True
-
-        # Returns True if token is revoked (not found in Redis)
         try:
             user_id_int = int(user_id)
-            is_valid = redis_service.is_token_valid(user_id_int, jti)
-            return not is_valid
         except (ValueError, TypeError):
             return True
+
+        # Fail closed: without Redis we cannot tell a live refresh token from a
+        # revoked one, so refuse it rather than honour tokens the user already
+        # logged out of. Refuse it as a 503, not a revocation: the client
+        # keeps its session and tries again once Redis is back.
+        redis_service = get_redis_service()
+        is_valid = redis_service.is_token_valid(user_id_int, jti) if redis_service else None
+        if is_valid is None:
+            raise TokenStoreUnavailable()
+        # Not in the allowlist: logged out, rotated, or expired
+        return not is_valid
 
     # JWT error handlers
     @jwt.unauthorized_loader
@@ -144,6 +145,14 @@ def create_app():
             code='VALIDATION_ERROR',
             message='Invalid input',
             status=422
+        )
+
+    @app.errorhandler(TokenStoreUnavailable)
+    def token_store_unavailable(e):
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='Sign-in is unavailable, please try again shortly',
+            status=503
         )
 
     @app.errorhandler(PasswordHashingBusy)

@@ -106,8 +106,8 @@ class TestRedisReconnect:
         response = client.post(
             '/api/auth/refresh', headers={'X-CSRF-REFRESH-TOKEN': csrf})
 
-        assert response.status_code == 401
-        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
 
 
 class TestJsonErrors:
