@@ -62,13 +62,24 @@ class Config:
         # any restart or network blip drops them all; without a ping, the next
         # request on each dead pooled connection fails with a 500. Recycling
         # well before wait_timeout keeps the ping from finding many dead ones.
-        self.SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_pre_ping': True,
-            'pool_recycle': 1800,
+        connect_args = {
             # Every timestamp is UTC, and the API says so. NOW() and
             # CURRENT_TIMESTAMP follow the connection's time zone, which would
             # otherwise be whatever the server is set to.
-            'connect_args': {'init_command': "SET time_zone = '+00:00'"},
+            'init_command': "SET time_zone = '+00:00'",
+            'connect_timeout': 5,
+        }
+        # PyMySQL waits on a query forever by default, so a hung database (a
+        # full disk, a lock) would hold a request thread long after nginx gave
+        # up at 60s, until every thread is stuck. The migrate service sets 0
+        # (no limit): a migration on a big table may legitimately run longer.
+        query_timeout = int(os.getenv('DB_QUERY_TIMEOUT', '15'))
+        if query_timeout:
+            connect_args.update(read_timeout=query_timeout, write_timeout=query_timeout)
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 1800,
+            'connect_args': connect_args,
         }
 
         # Redis configuration

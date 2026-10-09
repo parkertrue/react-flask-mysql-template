@@ -379,6 +379,25 @@ class TestConfigValues:
         options = config_class().SQLALCHEMY_ENGINE_OPTIONS
         assert options['connect_args']['init_command'] == "SET time_zone = '+00:00'"
 
+    @pytest.mark.parametrize('config_class', [DevelopmentConfig, IntegrationConfig])
+    def test_database_calls_time_out(self, config_class, monkeypatch):
+        """A hung database must not hold request threads forever.
+        tests/integration/test_mysql_timeouts.py shows it working."""
+        monkeypatch.delenv('DB_QUERY_TIMEOUT', raising=False)
+
+        args = config_class().SQLALCHEMY_ENGINE_OPTIONS['connect_args']
+
+        assert (args['connect_timeout'], args['read_timeout'], args['write_timeout']) == (5, 15, 15)
+
+    def test_query_timeout_can_be_lifted_for_migrations(self, monkeypatch):
+        """The migrate service sets 0: a migration may run longer than a request"""
+        monkeypatch.setenv('DB_QUERY_TIMEOUT', '0')
+
+        args = DevelopmentConfig().SQLALCHEMY_ENGINE_OPTIONS['connect_args']
+
+        assert 'read_timeout' not in args and 'write_timeout' not in args
+        assert args['connect_timeout'] == 5
+
     def test_database_port_default(self, monkeypatch):
         """Database should use default port 3306"""
         monkeypatch.setenv('APP_ENV', 'development')

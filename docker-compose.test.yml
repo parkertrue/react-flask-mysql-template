@@ -86,6 +86,7 @@ services:
       DB_USER: root
       DB_PASSWORD: ${DB_ROOT_PASSWORD}
       APP_DB_USER: ${DB_USER}
+      DB_QUERY_TIMEOUT: "0"  # as in docker-compose.yml
       REDIS_HOST: redis
       REDIS_USERNAME: app
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -101,6 +102,9 @@ services:
 
   backend:
     build: ./backend
+    dns_opt:  # as in docker-compose.yml
+      - timeout:1
+      - attempts:1
     # Same hardening as docker-compose.yml, so E2E catches anything it breaks
     security_opt:
       - no-new-privileges:true
