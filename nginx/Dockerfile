@@ -4,18 +4,17 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
-RUN npm run build
 # Compress once here so nginx serves the .gz (gzip_static) instead of
 # compressing the same bundle on every request. Tiny files aren't worth it.
-RUN find dist -type f -size +1k \
+RUN npm run build \
+    && find dist -type f -size +1k \
       \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' \) \
       -exec gzip -9 -k {} +
 
 # ---------- Stage 2: nginx ----------
 # Pinned so a rebuild never silently changes the web server version
 FROM nginx:1.31-alpine
-RUN rm /etc/nginx/nginx.conf
-RUN rm /etc/nginx/conf.d/default.conf
+RUN rm /etc/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/proxy_params.conf /etc/nginx/proxy_params.conf
 COPY nginx/security_headers.conf /etc/nginx/security_headers.conf

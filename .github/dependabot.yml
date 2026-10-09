@@ -1,13 +1,17 @@
 # Weekly update PRs, one per ecosystem and directory, with minor and patch
 # bumps grouped so the queue stays short. Majors arrive one PR each, since
-# they are the ones that need reading. Security fixes are not delayed by this
-# schedule: Dependabot opens those as soon as an advisory is published.
+# they are the ones that need reading. A release is proposed only once it is a
+# week old (cooldown): a hijacked release is usually caught and pulled within
+# days. Security fixes skip both the schedule and the cooldown: Dependabot
+# opens those as soon as an advisory is published.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /backend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -16,6 +20,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -26,11 +32,15 @@ updates:
     directories: [/backend, /nginx]
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     ignore:
       # Stay on the 8.4 LTS line; MySQL 9.x releases are short-lived
       - dependency-name: mysql
@@ -40,6 +50,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
