@@ -12,5 +12,7 @@ Flask-Limiter
 Flask-Migrate
 Flask-SQLAlchemy
 redis
-pydantic[email]
+pydantic
+# app/schemas/auth.py calls it directly, for options EmailStr cannot set
+email-validator
 PyMySQL

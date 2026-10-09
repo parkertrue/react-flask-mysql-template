@@ -3,7 +3,7 @@ from pydantic import ValidationError
 
 from app.models import User
 from app.models.user import EMAIL_MAX_LENGTH
-from app.schemas.auth import RegisterRequest, LoginRequest
+from app.schemas.auth import PASSWORD_MAX_LENGTH, RegisterRequest, LoginRequest
 
 
 class TestRegisterRequest:
@@ -368,3 +368,104 @@ class TestSchemaConsistency:
 
         with pytest.raises(ValidationError):
             LoginRequest(email='test@example.com', password=password_129)
+
+
+class TestEmailFormat:
+    """Only a plain address that any mail server can deliver to"""
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize('email', [
+        'Name <a@example.com>',     # display name
+        '<a@example.com>',
+        '"a b"@example.com',        # quoted local part
+        'a@[192.0.2.1]',            # IP literal
+        'josé@example.com',         # non-ASCII before the @ needs SMTPUTF8
+        '😀@example.com',
+        'a@😀.com',                  # IDNA refuses emoji in a domain
+        'a@example.com\u200d',
+    ])
+    def test_rejects(self, schema, email):
+        with pytest.raises(ValidationError):
+            schema(email=email, password='ValidPass123')
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize(('email', 'stored'), [
+        # An international domain is kept in the ASCII form every server takes
+        ('a@bücher.de', 'a@xn--bcher-kva.de'),
+        ('a@xn--bcher-kva.de', 'a@xn--bcher-kva.de'),
+        ('User@EXAMPLE.com', 'User@example.com'),
+    ])
+    def test_stores_the_ascii_form(self, schema, email, stored):
+        assert schema(email=email, password='ValidPass123').email == stored
+
+    def test_counts_the_length_of_the_stored_form(self):
+        """The column holds the ASCII form, which is longer than the Unicode one"""
+        domain = 'ü' * 50 + '.de'
+        email = 'a' * (EMAIL_MAX_LENGTH - len(domain) - 1) + '@' + domain
+        assert len(email) == EMAIL_MAX_LENGTH
+
+        with pytest.raises(ValidationError, match=f'at most {EMAIL_MAX_LENGTH}'):
+            RegisterRequest(email=email, password='ValidPass123')
+
+
+class TestPasswordCharacters:
+    """The same characters at login as at sign-up"""
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize('password', [
+        'Valid Pass123',            # space
+        'ValidPass123\t',
+        'Valid\u00a0Pass123',       # no-break space
+        'Valid\u3000Pass123',       # ideographic space
+    ])
+    def test_rejects_spaces(self, schema, password):
+        with pytest.raises(ValidationError, match='must not contain spaces'):
+            schema(email='test@example.com', password=password)
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize('password', [
+        'ValidPass123😀',
+        'ValidPass123🚀',
+        'ValidPass123\u2764',        # heavy heart, a symbol emoji
+        'ValidPass123\U0001F1FA\U0001F1F8',  # a flag: regional indicators
+        'ValidPass1\u20e3',          # keycap: 1 + combining enclosing keycap
+        'ValidPass123\ufe0f',        # emoji variation selector
+        'ValidPass123\U0001F3FB',    # skin-tone modifier
+        'ValidPass123\u200d',        # zero-width joiner
+        'ValidPass123©',
+        'ValidPass123°',
+    ])
+    def test_rejects_emoji_and_other_symbols(self, schema, password):
+        with pytest.raises(ValidationError, match='must not contain emoji'):
+            schema(email='test@example.com', password=password)
+
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize('password', [
+        'ValidPass123!@#$%^&*()_+-=[]{};:\'",.<>/?\\|`~',
+        'ValidPass123€£¥',
+        'ValidPass123éßøñ',
+        'ValidPass123日本語',
+        'ValidPass123×÷±',
+    ])
+    def test_accepts_letters_punctuation_and_symbols_of_any_language(self, schema, password):
+        assert schema(email='test@example.com', password=password).password == password
+
+
+class TestPasswordNormalization:
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    @pytest.mark.parametrize(('typed', 'hashed'), [
+        # é as one character, or as e plus a combining accent
+        ('Caf\u00e9Pass123', 'Caf\u00e9Pass123'),
+        ('Cafe\u0301Pass123', 'Caf\u00e9Pass123'),
+        # Full-width letters and digits
+        ('\uff36alid\uff30ass\uff11\uff12\uff13', 'ValidPass123'),
+    ])
+    def test_normalizes_to_nfkc(self, schema, typed, hashed):
+        assert schema(email='test@example.com', password=typed).password == hashed
+
+    def test_counts_the_length_after_normalizing(self):
+        """\ufdfa is one character that NFKC expands to eighteen"""
+        assert len('\ufdfa' * 8) == 8
+
+        with pytest.raises(ValidationError, match=f'at most {PASSWORD_MAX_LENGTH}'):
+            LoginRequest(email='test@example.com', password='\ufdfa' * 8)

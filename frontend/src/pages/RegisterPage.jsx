@@ -79,7 +79,7 @@ export default function RegisterPage() {
               value={values.password}
               onChange={handleChange}
               error={errors.password}
-              hint={`At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number.`}
+              hint={`At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number. No spaces or emoji.`}
               readOnly={isLoading}
               required
               maxLength={PASSWORD_MAX_LENGTH}

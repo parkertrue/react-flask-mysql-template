@@ -7,6 +7,8 @@ describe('validateNoteContent', () => {
   it.each([
     ['one character', 'a'],
     ['the maximum length', 'a'.repeat(NOTE_MAX_LENGTH)],
+    // Counted as the backend counts, one per character, not per UTF-16 unit
+    ['the maximum length in emoji', '🚀'.repeat(NOTE_MAX_LENGTH)],
     ['special characters and numbers', 'Note 123 with @#$% chars!'],
     // The backend trims too, so surrounding space never counts
     ['surrounding whitespace', '  Valid note  '],
@@ -21,8 +23,11 @@ describe('validateNoteContent', () => {
     }
   )
 
-  it('rejects a note longer than the notes.content column', () => {
-    expect(validateNoteContent('a'.repeat(NOTE_MAX_LENGTH + 1)))
+  it.each([
+    ['letters', 'a'.repeat(NOTE_MAX_LENGTH + 1)],
+    ['emoji', '🚀'.repeat(NOTE_MAX_LENGTH + 1)],
+  ])('rejects a note longer than the notes.content column, in %s', (_, content) => {
+    expect(validateNoteContent(content))
       .toEqual([`Note must be at most ${NOTE_MAX_LENGTH} characters`])
   })
 })

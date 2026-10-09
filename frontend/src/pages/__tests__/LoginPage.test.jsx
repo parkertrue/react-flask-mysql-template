@@ -53,6 +53,13 @@ describe('LoginPage', () => {
     it.each([
       ['a malformed email', { email: 'not-an-email' }, 'email', 'Please enter a valid email address'],
       ['an empty password', { password: '' }, 'password', 'Password is required'],
+      // The characters registration allows apply here too
+      ['a password with a space', { password: 'Pass word123' }, 'password',
+        'Password must not contain spaces'],
+      ['a password with an emoji', { password: 'Password123😀' }, 'password',
+        'Password must not contain emoji or other symbols like © or °'],
+      ['an email with non-ASCII before the @', { email: 'josé@example.com' }, 'email',
+        'Before the @, an email can use only English letters, numbers and symbols like . _ + -'],
     ])('stops %s, explains, and focuses the field', async (_, values, name, message) => {
       const { user } = renderPage()
       await fill(user, values)
@@ -65,7 +72,7 @@ describe('LoginPage', () => {
       expect(loginUser).not.toHaveBeenCalled()
     })
 
-    it('does not apply the registration password rules', async () => {
+    it('does not apply the registration password strength rules', async () => {
       // Tightening them must never lock out passwords that predate the change
       loginUser.mockResolvedValue(tokens())
       const { user } = renderPage()

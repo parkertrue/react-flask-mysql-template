@@ -6,7 +6,12 @@ import { getErrorMessage } from '@/api/errors'
 import FormField from '@/components/forms/FormField'
 import { useFormFields } from '@/components/forms/useFormFields'
 import PageTitle from '@/components/layout/PageTitle'
-import { validateEmail, PASSWORD_MAX_LENGTH, EMAIL_MAX_LENGTH } from '@/utils/validation'
+import {
+  validateEmail,
+  validatePasswordCharacters,
+  PASSWORD_MAX_LENGTH,
+  EMAIL_MAX_LENGTH
+} from '@/utils/validation'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -21,9 +26,11 @@ export default function LoginPage() {
 
     const valid = validate(e.currentTarget, {
       email: validateEmail(values.email)[0],
-      // Only registration enforces the password rules, so changing them never
-      // locks out existing users
-      password: values.password ? undefined : 'Password is required',
+      // The allowed characters apply here too, but only registration enforces
+      // the strength rules, so changing them never locks out existing users
+      password: values.password
+        ? validatePasswordCharacters(values.password)[0]
+        : 'Password is required',
     })
     if (!valid) return
 
