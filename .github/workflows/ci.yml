@@ -91,3 +91,84 @@ jobs:
           docker compose --env-file .env.dev -f docker-compose.dev.yml config --quiet
           docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e config --quiet
           docker compose --env-file .env.prod.example config --quiet
+
+  workflows:
+    name: Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Security analyzer for .github/ (workflows and dependabot.yml): template
+      # injection, credential leaks, over-broad permissions. The read-only
+      # token lets its online audits check each pinned action commit against
+      # its tag and against known advisories.
+      - name: Lint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run --spec zizmor==1.30.1 zizmor --format=github .
+
+  dockerfiles:
+    name: Dockerfiles
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pinned by digest for the same reason as the actions above. Dependabot
+      # does not watch workflow images, so bump this by hand.
+      - name: Lint
+        run: |
+          for f in backend/Dockerfile nginx/Dockerfile; do
+            echo "$f"
+            docker run --rm -i hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d < "$f"
+          done
+
+  nginx:
+    name: Nginx config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # nginx/certs/ is gitignored; nginx -T only needs a pair to load.
+      - name: Generate self-signed certificates
+        run: |
+          mkdir -p nginx/certs
+          openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+            -keyout nginx/certs/privkey.pem \
+            -out nginx/certs/fullchain.pem \
+            -subj "/CN=localhost"
+
+      # Renders the templates the way the container does at start, in the
+      # image nginx/Dockerfile pins, then nginx -T checks the result and dumps
+      # it as one file. The NGINX_* values are nginx/Dockerfile's defaults.
+      - name: Validate
+        run: |
+          image=$(sed -n 's/^FROM \(nginx:[^ ]*\).*/\1/p' nginx/Dockerfile)
+          docker run --rm \
+            -e NGINX_ENTRYPOINT_QUIET_LOGS=1 -e NGINX_ENVSUBST_FILTER='^NGINX_' \
+            -e NGINX_SERVER_NAME=example.com \
+            -e NGINX_AUTH_RATE=20r/m -e NGINX_API_RATE=30r/s \
+            -v "$PWD/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            -v "$PWD/nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro" \
+            -v "$PWD/nginx/security_headers.conf:/etc/nginx/security_headers.conf:ro" \
+            -v "$PWD/nginx/templates:/etc/nginx/templates:ro" \
+            -v "$PWD/nginx/certs:/etc/nginx/certs:ro" \
+            "$image" nginx -T > "$RUNNER_TEMP/nginx.conf"
+
+      # Security analyzer (gixy-ng, the maintained fork of Yandex's gixy).
+      # Skipped: hsts_header fires on the port-80 redirect server, where
+      # browsers ignore HSTS anyway (RFC 6797 8.1), and e2e/nginx.spec.js
+      # asserts it over HTTPS; try_files_is_evil_too is a performance opinion
+      # that doesn't matter for a few static files.
+      - name: Lint
+        run: |
+          pipx run --spec gixy-ng==0.2.55 gixy \
+            --skips hsts_header,try_files_is_evil_too "$RUNNER_TEMP/nginx.conf"
