@@ -169,7 +169,9 @@ class TestNotesPagination:
         assert other_user_note.id not in [n['id'] for n in page['notes']]
 
     @pytest.mark.parametrize('query', [
-        '?limit=0', '?limit=101', '?limit=abc', '?before=0', '?before=x'])
+        '?limit=0', '?limit=101', '?limit=abc', '?before=0', '?before=x',
+        # Past the largest INT id, where SQLite's driver used to overflow
+        f'?before={2**31}', f'?before={"9" * 19}'])
     def test_invalid_query_is_validation_error(self, client, auth_headers, query):
         response = client.get(f'/api/notes{query}', headers=auth_headers)
 

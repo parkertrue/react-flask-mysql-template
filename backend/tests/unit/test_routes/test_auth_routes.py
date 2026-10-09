@@ -651,6 +651,25 @@ class TestAuthenticationFlow:
         notes_response = client.get('/api/notes', headers=headers)
         assert notes_response.status_code == 200
 
+    def test_password_typed_either_way_logs_in(self, client, db):
+        """é as one character at sign-up, as e plus an accent at login"""
+        register = client.post('/api/auth/register', json={
+            'email': 'cafe@example.com', 'password': 'CaféPass123'})
+        login = client.post('/api/auth/login', json={
+            'email': 'cafe@example.com', 'password': 'CaféPass123'})
+
+        assert register.status_code == 201
+        assert login.status_code == 200
+
+    def test_international_domain_is_one_account_however_spelled(self, client, db):
+        first = client.post('/api/auth/register', json={
+            'email': 'a@bücher.de', 'password': 'ValidPass123'})
+        second = client.post('/api/auth/register', json={
+            'email': 'a@xn--bcher-kva.de', 'password': 'ValidPass123'})
+
+        assert first.status_code == 201
+        assert second.status_code == 409
+
     def test_cannot_register_same_email_twice(self, client):
         """Attempting to register same email twice should fail."""
         payload = {

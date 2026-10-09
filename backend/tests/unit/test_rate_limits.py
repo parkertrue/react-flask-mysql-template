@@ -77,6 +77,15 @@ def test_account_limit_ignores_email_case(limited_app):
     assert login(client, '198.51.100.9', 'nobody@example.com').status_code == 429
 
 
+def test_account_limit_covers_every_spelling_of_a_domain(limited_app):
+    """An international domain and its ASCII form are one account, one bucket"""
+    client = limited_app.test_client()
+    for _ in range(5):
+        login(client, '203.0.113.7', 'nobody@bücher.de')
+
+    assert login(client, '198.51.100.9', 'nobody@xn--bcher-kva.de').status_code == 429
+
+
 @pytest.mark.parametrize('body', [{'email': 123, 'password': 'x'}, ['not', 'an', 'object']])
 def test_a_malformed_login_is_a_validation_error_not_a_crash(limited_app, body):
     """The per-account limit reads the email before the schema has checked it"""

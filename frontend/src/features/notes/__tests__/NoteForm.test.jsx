@@ -11,7 +11,7 @@ function renderForm({ loading = false, onSubmit = vi.fn().mockResolvedValue() } 
 
 const input = () => screen.getByLabelText('New note')
 const button = () => screen.getByRole('button', { name: /add note|adding/i })
-// Sets the value outright, as a paste or a script can, past maxLength too
+// Sets the value outright, as a paste does
 const setValue = text => fireEvent.change(input(), { target: { value: text } })
 
 describe('NoteForm', () => {
@@ -19,7 +19,6 @@ describe('NoteForm', () => {
     renderForm()
 
     expect(input()).toBe(screen.getByPlaceholderText('Write a note...'))
-    expect(input()).toHaveAttribute('maxLength', String(NOTE_MAX_LENGTH))
   })
 
   it('counts down the characters left', async () => {
@@ -29,6 +28,38 @@ describe('NoteForm', () => {
     await user.type(input(), 'Hello')
 
     expect(screen.getByText(`${NOTE_MAX_LENGTH - 5} characters remaining`)).toBeInTheDocument()
+  })
+
+  it('counts an emoji as one character, as the backend does', () => {
+    renderForm()
+
+    setValue('🚀🚀')
+
+    expect(screen.getByText(`${NOTE_MAX_LENGTH - 2} characters remaining`)).toBeInTheDocument()
+  })
+
+  describe('stops at the limit', () => {
+    it.each([
+      ['letters', 'x'],
+      // Two UTF-16 units each, so maxLength would have stopped at half
+      ['emoji', '🚀'],
+    ])('cuts a paste of %s short at the limit', (_, char) => {
+      renderForm()
+
+      setValue(char.repeat(NOTE_MAX_LENGTH + 5))
+
+      expect(input()).toHaveValue(char.repeat(NOTE_MAX_LENGTH))
+      expect(screen.getByText('0 characters remaining')).toBeInTheDocument()
+    })
+
+    it('ignores typing once the note is full', async () => {
+      const { user } = renderForm()
+      setValue('x'.repeat(NOTE_MAX_LENGTH))
+
+      await user.type(input(), 'abc')
+
+      expect(input()).toHaveValue('x'.repeat(NOTE_MAX_LENGTH))
+    })
   })
 
   it('submits the trimmed note on Enter, then clears the field', async () => {
@@ -55,9 +86,6 @@ describe('NoteForm', () => {
     it.each([
       ['an empty note', '', 'Note content is required'],
       ['a blank note', '   ', 'Note content is required'],
-      // maxLength stops typing past it, but not a pasted or scripted value
-      ['an over-long note', 'x'.repeat(NOTE_MAX_LENGTH + 1),
-        `Note must be at most ${NOTE_MAX_LENGTH} characters`],
     ])('refuses %s, explains why, and focuses the field', async (_, text, message) => {
       const { onSubmit, user } = renderForm()
       if (text) setValue(text)
@@ -70,13 +98,16 @@ describe('NoteForm', () => {
       expect(input()).toHaveFocus()
     })
 
-    it('accepts a note of exactly the maximum length', async () => {
+    it.each([
+      ['letters', 'x'.repeat(NOTE_MAX_LENGTH)],
+      ['emoji', '🚀'.repeat(NOTE_MAX_LENGTH)],
+    ])('accepts a note of exactly the maximum length in %s', async (_, text) => {
       const { onSubmit, user } = renderForm()
-      setValue('x'.repeat(NOTE_MAX_LENGTH))
+      setValue(text)
 
       await user.click(button())
 
-      expect(onSubmit).toHaveBeenCalledWith('x'.repeat(NOTE_MAX_LENGTH))
+      expect(onSubmit).toHaveBeenCalledWith(text)
       await waitFor(() => expect(input()).toHaveValue(''))
     })
 

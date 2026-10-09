@@ -21,6 +21,7 @@ from werkzeug.security import generate_password_hash
 from app import db, limiter
 from app.models import User
 from app.schemas import RegisterRequest, LoginRequest
+from app.schemas.auth import normalize_email
 from app.utils.errors import error_response
 from app.utils.passwords import verify_password
 from app.utils.redis_service import get_redis_service
@@ -37,14 +38,21 @@ def _login_email_key():
 
     A per-IP limit alone either locks out everyone behind a shared address or,
     set loosely, lets one attacker guess an account's password from many. The
-    email is lowercased like MySQL's case-insensitive match on users.email,
-    and hashed so the limiter's Redis keys hold no addresses.
+    email is normalized as the schema stores it, so every spelling of one
+    address shares a bucket, then lowercased like MySQL's case-insensitive
+    match on users.email, and hashed so the limiter's Redis keys hold no
+    addresses.
     """
     body = request.get_json(silent=True)
     email = body.get('email') if isinstance(body, dict) else None
     if not isinstance(email, str):
         email = ''
-    return 'email:' + hashlib.sha256(email.strip().lower().encode()).hexdigest()
+    try:
+        email = normalize_email(email)
+    except ValueError:
+        # The login itself will answer 422; any key will do
+        email = email.strip()
+    return 'email:' + hashlib.sha256(email.lower().encode()).hexdigest()
 
 
 def _refresh_user_id():

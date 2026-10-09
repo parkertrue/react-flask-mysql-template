@@ -1,3 +1,5 @@
+import { charCount } from '@/utils/validation'
+
 export const NOTE_MAX_LENGTH = 256
 
 /**
@@ -13,7 +15,7 @@ export function validateNoteContent(content) {
     return errors
   }
 
-  if (trimmed.length > NOTE_MAX_LENGTH) {
+  if (charCount(trimmed) > NOTE_MAX_LENGTH) {
     errors.push(`Note must be at most ${NOTE_MAX_LENGTH} characters`)
   }
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { charCount, limitChars } from '@/utils/validation'
 import { validateNoteContent, NOTE_MAX_LENGTH } from './validation'
 
 export default function NoteForm({ onSubmit, loading }) {
@@ -28,7 +29,9 @@ export default function NoteForm({ onSubmit, loading }) {
   }
 
   const handleChange = (e) => {
-    setContent(e.target.value)
+    // Stops at the limit like maxLength, but counting characters as the
+    // backend does, so a note of emoji gets the whole limit
+    setContent(limitChars(content, e.target.value, NOTE_MAX_LENGTH))
     setError('')
   }
 
@@ -49,7 +52,6 @@ export default function NoteForm({ onSubmit, loading }) {
           className="form-input"
           aria-invalid={!!error}
           aria-describedby={error ? 'note-error' : undefined}
-          maxLength={NOTE_MAX_LENGTH}
         />
         <button type="submit" aria-disabled={loading} className="btn btn-primary">
           {loading ? 'Adding...' : 'Add Note'}
@@ -59,7 +61,7 @@ export default function NoteForm({ onSubmit, loading }) {
       <div className="note-form-footer">
         {error && <p className="field-error" id="note-error">{error}</p>}
         <p className="char-counter">
-          {NOTE_MAX_LENGTH - content.length} characters remaining
+          {NOTE_MAX_LENGTH - charCount(content)} characters remaining
         </p>
       </div>
     </form>

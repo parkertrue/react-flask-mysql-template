@@ -5,6 +5,7 @@ import {
   validatePassword,
   validateEmail,
   validatePasswordMatch,
+  limitChars,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
   EMAIL_MAX_LENGTH
@@ -15,8 +16,14 @@ describe('validatePassword', () => {
     ['all requirements met', 'Password123'],
     ['the minimum length', 'Pass123!'],
     ['the maximum length', 'A'.repeat(63) + 'a'.repeat(63) + '12'],
+    // 𠀀 is a CJK letter outside the BMP: one character to the backend,
+    // though two UTF-16 units
+    ['the maximum length in characters', 'Aa1' + '𠀀'.repeat(PASSWORD_MAX_LENGTH - 3)],
+    ['the minimum length in characters', 'Aa1' + '𠀀'.repeat(PASSWORD_MIN_LENGTH - 3)],
     ['special characters', 'P@ssw0rd!'],
-    ['spaces', 'Pass word 123'],
+    ['letters, punctuation and symbols of any language', 'Password123€£éß日本×÷'],
+    // NFKC turns full-width letters and digits into plain ones
+    ['full-width letters', 'Ｐassword１２３'],
   ])('accepts %s', (_, password) => {
     expect(validatePassword(password)).toEqual([])
   })
@@ -27,11 +34,21 @@ describe('validatePassword', () => {
 
   it.each([
     ['too short', 'Pass1', `Password must be at least ${PASSWORD_MIN_LENGTH} characters`],
+    // Nine UTF-16 units, but six characters
+    ['too short in characters', 'Aa1𠀀𠀀𠀀', `Password must be at least ${PASSWORD_MIN_LENGTH} characters`],
     ['too long', 'Aa1' + 'x'.repeat(PASSWORD_MAX_LENGTH - 2),
       `Password must be at most ${PASSWORD_MAX_LENGTH} characters`],
     ['without an uppercase letter', 'password123', 'Password must contain at least one uppercase letter'],
     ['without a lowercase letter', 'PASSWORD123', 'Password must contain at least one lowercase letter'],
     ['without a number', 'Password', 'Password must contain at least one number'],
+    ...[' ', '\t', ' ', '　'].map(space =>
+      [`with ${JSON.stringify(space)}`, `Pass${space}word123`, 'Password must not contain spaces']),
+    ...['😀', '❤', '🇺🇸', '1⃣', '️', '\u{1F3FB}', '‍', '©', '°'].map(symbol =>
+      [`with ${JSON.stringify(symbol)}`, `Password123${symbol}`,
+        'Password must not contain emoji or other symbols like © or °']),
+    // 128 characters as typed, but NFKC expands ㌕ to the five of キログラム
+    ['that grows too long when normalized', 'Aa1' + 'x'.repeat(PASSWORD_MAX_LENGTH - 4) + '㌕',
+      `Password must be at most ${PASSWORD_MAX_LENGTH} characters`],
   ])('rejects a password %s', (_, password, message) => {
     expect(validatePassword(password)).toEqual([message])
   })
@@ -54,6 +71,9 @@ describe('validateEmail', () => {
     'user+tag@example.com',
     'user-name@example.com',
     'user_name@example.com',
+    // An international domain is fine; the backend stores its ASCII form
+    'user@bücher.de',
+    'user@xn--bcher-kva.de',
   ])('accepts %s', (email) => {
     expect(validateEmail(email)).toEqual([])
   })
@@ -70,13 +90,50 @@ describe('validateEmail', () => {
     'user name@example.com',
     'user@@example.com',
     '@',
+    // A plain address only: no display name, quoting or IP literal
+    'Name <user@example.com>',
+    '<user@example.com>',
+    '"user name"@example.com',
+    'user@[192.0.2.1]',
+    'user..name@example.com',
+    '.user@example.com',
+    'user@-example.com',
+    'user@example..com',
+    'user@😀.com',
   ])('rejects %s as malformed', (email) => {
-    expect(validateEmail(email)).toContain('Please enter a valid email address')
+    expect(validateEmail(email)).toEqual(['Please enter a valid email address'])
   })
 
   it('rejects an email longer than the users.email column', () => {
     expect(validateEmail('a'.repeat(EMAIL_MAX_LENGTH) + '@example.com'))
       .toContain(`Email must be at most ${EMAIL_MAX_LENGTH} characters`)
+  })
+
+  it.each(['josé@example.com', '😀@example.com'])('explains that %s needs an ASCII local part', (email) => {
+    expect(validateEmail(email)).toEqual(
+      ['Before the @, an email can use only English letters, numbers and symbols like . _ + -'])
+  })
+
+  it('counts the length of the ASCII form the backend stores', () => {
+    const domain = 'ü'.repeat(50) + '.de'
+    const email = 'a'.repeat(EMAIL_MAX_LENGTH - domain.length - 1) + '@' + domain
+    expect(email.length).toBe(EMAIL_MAX_LENGTH)
+
+    expect(validateEmail(email)).toEqual([`Email must be at most ${EMAIL_MAX_LENGTH} characters`])
+  })
+})
+
+describe('limitChars', () => {
+  it.each([
+    ['under the limit, unchanged', 'abc', 'abcd', 'abcd'],
+    ['typing at the end, cut to fit', 'abc', 'abcde', 'abcd'],
+    // Like maxLength: the text already there stays, only the insert is cut
+    ['typing in the middle, keeping the end', 'abcd', 'abXcd', 'abcd'],
+    ['a paste in the middle, keeping the end', 'ab', 'aXYZb', 'aXYb'],
+    ['a paste over a selection', 'abcd', 'aXYZWd', 'aXYd'],
+    ['emoji as one character each', '🚀🚀', '🚀🚀🚀🚀🚀', '🚀🚀🚀🚀'],
+  ])('handles %s', (_, previous, next, expected) => {
+    expect(limitChars(previous, next, 4)).toBe(expected)
   })
 })
 

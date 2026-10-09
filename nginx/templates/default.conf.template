@@ -47,7 +47,10 @@ server {
     client_max_body_size 16k;
     client_body_buffer_size 16k;
     client_header_buffer_size 1k;
-    large_client_header_buffers 4 16k;
+    # No longer than gunicorn's own limit on one header (8190 bytes), so a
+    # header nginx accepts is never refused behind it. The app's own headers
+    # (a JWT, its cookies) are well under 1 KB.
+    large_client_header_buffers 4 8k;
     
     # Timeouts
     client_body_timeout 12;
