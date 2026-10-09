@@ -14,11 +14,13 @@ COPY . .
 
 # Run as a non-root user. The code stays root-owned, so a compromised app
 # process cannot rewrite it; nothing needs to write under /app at runtime.
+# USER is numeric so a runtime (e.g. Kubernetes runAsNonRoot) can verify it
+# is not root without reading the image's /etc/passwd.
 RUN chmod +x entrypoint.sh \
-    && addgroup --system appgroup \
-    && adduser --system --ingroup appgroup appuser
+    && addgroup --system --gid 10001 appgroup \
+    && adduser --system --uid 10001 --ingroup appgroup appuser
 
-USER appuser
+USER 10001:10001
 
 ENTRYPOINT ["./entrypoint.sh"]
 

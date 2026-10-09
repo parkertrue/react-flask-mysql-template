@@ -362,14 +362,14 @@ npm run test:e2e:ui               # Interactive mode
 
 GitHub Actions (`.github/workflows/`):
 
-* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, and validates all three compose files, on every push and pull request to `main`.
+* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, validates all three compose files, lints the workflows and Dependabot config (zizmor) and both Dockerfiles (hadolint), and checks the rendered nginx config (`nginx -T`, then the gixy-ng security analyzer), on every push and pull request to `main`.
 * **Integration & E2E** (`integration-e2e.yml`) runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
 
 Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
 
 Dependabot (`.github/dependabot.yml`) opens weekly update PRs for the Python locks, npm, Docker images and GitHub Actions. For it to also open security fixes as soon as an advisory is published, enable Dependabot alerts and security updates under the repository's Settings > Advanced Security.
 
-To stop a failing check from merging, require these status checks on `main` (Settings > Branches): Backend unit, Frontend unit, Compose files, Backend integration and Playwright E2E.
+To stop a failing check from merging, require these status checks on `main` (Settings > Branches): Backend unit, Frontend unit, Compose files, Workflows, Dockerfiles, Nginx config, Backend integration and Playwright E2E.
 
 ---
 
