@@ -136,6 +136,58 @@ describe('expired access token', () => {
     expect(backend.refreshCalls).toHaveLength(1)
   })
 
+  it('fails every waiting request when the shared refresh fails', async () => {
+    const backend = mockBackend()
+    // Hold the refresh until both requests have failed, so the second one is
+    // queued behind it rather than starting its own
+    let expiredCount = 0
+    let bothExpired
+    const gate = new Promise(resolve => { bothExpired = resolve })
+    server.use(
+      http.get('/api/notes', () => {
+        expiredCount += 1
+        if (expiredCount === 2) bothExpired()
+        return expired()
+      }),
+      http.post('/api/auth/refresh', async () => {
+        await gate
+        backend.refreshCalls.push('held')
+        return HttpResponse.json(errorBody('AUTH_TOKEN_REVOKED'), { status: 401 })
+      })
+    )
+
+    const results = await Promise.allSettled([api.get('/notes'), api.get('/notes')])
+
+    expect(results.map(r => r.status)).toEqual(['rejected', 'rejected'])
+    expect(results.map(r => r.reason.response.data.error.code))
+      .toEqual(['AUTH_TOKEN_REVOKED', 'AUTH_TOKEN_REVOKED'])
+    expect(backend.refreshCalls).toEqual(['held'])
+    expect(storage.getAccessToken()).toBeNull()
+  })
+
+  it('refreshes at most once for a request that stays expired', async () => {
+    // The refresh succeeds, but the retried request is still rejected (clock
+    // skew, a backend bug): it must fail, not refresh again in a loop. Any
+    // second refresh is refused, so a loop ends in this test as a wrong
+    // answer instead of hanging the run.
+    let refreshes = 0
+    server.use(
+      http.get('/api/notes', () => expired()),
+      http.post('/api/auth/refresh', () => {
+        refreshes += 1
+        return refreshes === 1
+          ? HttpResponse.json(tokens('access-1', 'csrf-1'))
+          : HttpResponse.json(errorBody('RATE_LIMITED'), { status: 429 })
+      })
+    )
+    storage.setAccessToken('stale-token')
+
+    const error = await api.get('/notes').catch(e => e)
+
+    expect(error.response.data.error.code).toBe('AUTH_TOKEN_EXPIRED')
+    expect(refreshes).toBe(1)
+  })
+
   // AuthProvider sees the cleared storage and the route guard sends the user
   // to log in: no page reload
   it('ends the session, without reloading, when the refresh is rejected', async () => {
