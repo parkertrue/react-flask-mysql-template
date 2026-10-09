@@ -5,6 +5,8 @@ import pytest
 from app.utils.errors import error_response
 
 
+# jsonify needs an app context, which the app fixture holds open
+@pytest.mark.usefixtures('app')
 class TestErrorResponse:
     """Test suite for error_response utility function."""
 
