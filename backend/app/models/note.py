@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from app.models import User
 
 # The schemas validate against this, so an over-long note is a 422, not a
-# database error. frontend/src/utils/validation.js mirrors it.
+# database error. frontend/src/features/notes/validation.js mirrors it.
 NOTE_MAX_LENGTH = 256
 
 

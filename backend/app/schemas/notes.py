@@ -3,6 +3,11 @@ from datetime import datetime, timezone
 
 from app.models.note import NOTE_MAX_LENGTH
 
+# The largest id an INT primary key holds. A cursor is always a note's id, so
+# anything past this is malformed; unbounded, a long enough number overflows
+# the database driver and answers 500 instead of 422.
+ID_MAX = 2**31 - 1
+
 
 class NoteCreateRequest(BaseModel):
     # Stored as the user typed it, markup included. Output safety belongs to
@@ -17,7 +22,7 @@ class NoteCreateRequest(BaseModel):
 
 class NotesListQuery(BaseModel):
     """GET /api/notes query string: ?before=<next_cursor>&limit=<n>"""
-    before: int | None = Field(default=None, ge=1)
+    before: int | None = Field(default=None, ge=1, le=ID_MAX)
     limit: int = Field(default=20, ge=1, le=100)
 
 
