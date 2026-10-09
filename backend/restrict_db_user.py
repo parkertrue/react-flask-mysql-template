@@ -31,6 +31,10 @@ def main():
     if not re.fullmatch(r'\w+', database):
         sys.exit(f'Refusing unexpected database name: {database!r}')
     app_user = os.environ['APP_DB_USER']
+    # In GRANT and REVOKE, `_` in a database name is a wildcard. The MySQL
+    # image escapes it when it grants ALL, so the grant row to narrow is
+    # `app\_db`; a statement on `app_db` would touch a different row.
+    escaped = database.replace('_', r'\_')
 
     connection = pymysql.connect(
         host=os.environ['DB_HOST'],
@@ -43,10 +47,16 @@ def main():
         # deploy keeps its data access throughout. IF EXISTS makes revoking
         # privileges already gone (every run after the first) a no-op.
         cursor.execute(
-            f"GRANT {DATA_PRIVILEGES} ON `{database}`.* TO %s@'%%'", (app_user,))
+            f"GRANT {DATA_PRIVILEGES} ON `{escaped}`.* TO %s@'%%'", (app_user,))
         cursor.execute(
-            f"REVOKE IF EXISTS {SCHEMA_PRIVILEGES} ON `{database}`.* FROM %s@'%%'",
+            f"REVOKE IF EXISTS {SCHEMA_PRIVILEGES} ON `{escaped}`.* FROM %s@'%%'",
             (app_user,))
+        if escaped != database:
+            # Earlier versions of this script granted on the unescaped
+            # pattern, which also matches other databases (`appXdb`)
+            cursor.execute(
+                f"REVOKE IF EXISTS ALL PRIVILEGES ON `{database}`.* FROM %s@'%%'",
+                (app_user,))
     print(f'{app_user} restricted to {DATA_PRIVILEGES} on {database}')
 
 

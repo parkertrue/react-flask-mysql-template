@@ -25,16 +25,33 @@ def _connect(user, password, database=None):
     )
 
 
-@pytest.fixture
-def probe_user(integration_db, monkeypatch):
-    """A user with GRANT ALL on the database, as the MySQL image creates"""
+def _escaped(database):
+    return database.replace('_', r'\_')
+
+
+# The grant rows a deployment can start from. The MySQL image grants ALL on
+# the escaped name (`appdb\_test`); a database restricted by an earlier
+# version of the script also has a row on the unescaped pattern.
+GRANT_STATES = {
+    'image': [_escaped],
+    'older script run': [_escaped, lambda database: database],
+}
+
+
+@pytest.fixture(params=GRANT_STATES.values(), ids=GRANT_STATES.keys())
+def probe_user(integration_db, monkeypatch, request):
+    """A user holding the grants a deployment starts from"""
     database = os.environ['DB_NAME']
+    # The bug this guards against only shows on a name with `_`
+    assert '_' in database
     root = _connect('root', os.environ['DB_ROOT_PASSWORD'])
     with root.cursor() as cursor:
         cursor.execute("DROP USER IF EXISTS %s@'%%'", (PROBE_USER,))
         cursor.execute(
             "CREATE USER %s@'%%' IDENTIFIED BY %s", (PROBE_USER, PROBE_PASSWORD))
-        cursor.execute(f"GRANT ALL ON `{database}`.* TO %s@'%%'", (PROBE_USER,))
+        for pattern in request.param:
+            cursor.execute(
+                f"GRANT ALL ON `{pattern(database)}`.* TO %s@'%%'", (PROBE_USER,))
 
     # The migrate service's environment: admin credentials, app user to restrict
     monkeypatch.setenv('DB_USER', 'root')
@@ -77,6 +94,21 @@ def test_app_user_cannot_change_the_schema(probe_user, statement):
         with pytest.raises(pymysql.err.OperationalError) as error:
             cursor.execute(statement)
     assert error.value.args[0] == 1142  # ER_TABLEACCESS_DENIED_ERROR
+
+
+def test_leaves_one_grant_row_with_data_privileges_only(probe_user):
+    """No other row may widen the user's rights, here or on other databases"""
+    restrict_db_user.main()
+
+    root = _connect('root', os.environ['DB_ROOT_PASSWORD'])
+    with root, root.cursor() as cursor:
+        cursor.execute('SHOW GRANTS FOR %s@%s', (PROBE_USER, '%'))
+        grants = sorted(row[0] for row in cursor.fetchall())
+    assert grants == [
+        f'GRANT SELECT, INSERT, UPDATE, DELETE ON `{_escaped(probe_user)}`.* '
+        f'TO `{PROBE_USER}`@`%`',
+        f'GRANT USAGE ON *.* TO `{PROBE_USER}`@`%`',
+    ]
 
 
 def test_running_twice_is_harmless(probe_user):
