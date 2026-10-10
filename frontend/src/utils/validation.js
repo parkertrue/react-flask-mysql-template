@@ -34,7 +34,7 @@ export function limitChars(previous, next, max) {
 // currency or modifier symbol (so no emoji, nor © or °), plus the emoji
 // variation selectors and skin-tone modifiers, which fall in those classes.
 const PASSWORD_FORBIDDEN =
-  /[^\p{L}\p{Mn}\p{Mc}\p{N}\p{P}\p{Sm}\p{Sc}\p{Sk}]|[︀-️]|\p{Emoji_Modifier}/u
+  /[^\p{L}\p{Mn}\p{Mc}\p{N}\p{P}\p{Sm}\p{Sc}\p{Sk}]|[\uFE00-\uFE0F]|\p{Emoji_Modifier}/u
 
 /**
  * The characters any password may use, checked at login as well as at
@@ -144,9 +144,6 @@ export function validateEmail(email) {
   return errors
 }
 
-/**
- * Check if passwords match
- */
 export function validatePasswordMatch(password, confirmPassword) {
   if (password !== confirmPassword) {
     return ['Passwords do not match']

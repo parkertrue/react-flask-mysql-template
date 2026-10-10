@@ -7,6 +7,11 @@
 # platform-specific binaries
 frontend/node_modules/
 
+# Secrets stay out of the build context, even though nothing copies them:
+# a future broader COPY would bake them into the image
+.env*
+nginx/certs/
+
 # Build and test output
 frontend/dist/
 frontend/coverage/

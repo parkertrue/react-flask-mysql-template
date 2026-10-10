@@ -271,9 +271,10 @@ The dev server listens on localhost only. To open it from another device on your
 
 ## Database Schema Changes (During Dev)
 
-To modify SQLAlchemy models, from `backend/`:
+`run_dev.sh` applies pending migrations each time it starts. To generate one after changing the SQLAlchemy models, from `backend/` with the virtualenv active and the dev database running, load the dev environment first (the `flask` command needs it):
 
 ```bash
+set -a && source ../.env.dev && set +a
 flask db migrate -m "describe change"
 flask db upgrade
 ```
@@ -391,6 +392,6 @@ To stop a failing check from merging, require these status checks on `main` (Set
 2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
 3. Update the `Note` fixtures in `backend/tests/conftest.py`.
 4. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`components/layout/PageTitle.jsx`) and the `<title>` in `index.html`.
-5. Generate a migration for your new tables (`flask db migrate -m "..."`). It chains onto `0001_users`, which holds the auth table every app keeps.
+5. Generate a migration for your new tables (`flask db migrate -m "..."`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev)). It chains onto `0001_users`, which holds the auth table every app keeps.
 6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
 7. Rewrite this README and `CLAUDE.md` for your app.
