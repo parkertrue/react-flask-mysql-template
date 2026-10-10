@@ -6,6 +6,7 @@ import { NOTE_MAX_LENGTH } from '../validation'
 import { note, notesPage } from './fixtures'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
+import { APP_NAME } from '@/appName'
 
 vi.mock('../notesService')
 
@@ -44,7 +45,7 @@ describe('NotesPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'My Notes' })).toBeInTheDocument()
     expect(screen.getByText('Loading notes...')).toHaveAttribute('role', 'status')
-    expect(document.title).toBe('My Notes | React + Flask Template')
+    expect(document.title).toBe(`My Notes | ${APP_NAME}`)
 
     expect(await screen.findByText('Second')).toBeInTheDocument()
     expect(listed()).toHaveLength(2)

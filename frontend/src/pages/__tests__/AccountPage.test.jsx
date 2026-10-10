@@ -5,6 +5,7 @@ import { storage } from '@/auth/storage'
 import { logoutAllDevices, clearAuthCookies } from '@/auth/authService'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
+import { APP_NAME } from '@/appName'
 
 vi.mock('@/auth/authService')
 
@@ -34,7 +35,7 @@ describe('AccountPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeInTheDocument()
     expect(screen.getByText('user@example.com')).toBeInTheDocument()
-    expect(document.title).toBe('Account | React + Flask Template')
+    expect(document.title).toBe(`Account | ${APP_NAME}`)
   })
 
   it('signs every device out, ends this session and goes home', async () => {

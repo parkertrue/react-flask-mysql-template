@@ -1,4 +1,4 @@
-const APP_NAME = 'React + Flask Template'
+import { APP_NAME } from '@/appName'
 
 // React puts a <title> rendered anywhere into the document head, so each page
 // names itself in the browser tab and to screen readers

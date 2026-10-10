@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import HomePage from '../HomePage'
 import { renderRoutes, signIn } from '@/test/router'
+import { APP_NAME } from '@/appName'
 
 // Tested on its own; a stub keeps these tests off the health endpoint
 vi.mock('@/features/health/ApiStatus', () => ({ default: () => <p>API status demo</p> }))
@@ -16,9 +17,9 @@ describe('HomePage', () => {
   it('welcomes the visitor and shows the API status demo', () => {
     renderPage()
 
-    expect(screen.getByRole('heading', { level: 1, name: /welcome/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeInTheDocument()
     expect(screen.getByText('API status demo')).toBeInTheDocument()
-    expect(document.title).toBe('React + Flask Template')
+    expect(document.title).toBe(APP_NAME)
   })
 
   it('offers a visitor registration and login', () => {

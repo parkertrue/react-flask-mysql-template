@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { addNote, registerAndLogin } from './helpers'
+import { APP_NAME } from '../src/appName.js'
 
 // axe checks what jsdom cannot, such as color contrast, against the WCAG 2.2
 // A and AA rules. Each page is checked as rendered, with any error states shown.
@@ -15,10 +16,10 @@ async function expectNoViolations(page) {
 test.describe('Accessibility', () => {
   test.describe('a visitor', () => {
     for (const [path, title, heading] of [
-      ['/', 'React + Flask Template', /welcome/i],
-      ['/login', 'Login | React + Flask Template', 'Login'],
-      ['/register', 'Register | React + Flask Template', 'Register'],
-      ['/no-such-page', 'Page not found | React + Flask Template', 'Page not found'],
+      ['/', APP_NAME, `Welcome to ${APP_NAME}`],
+      ['/login', `Login | ${APP_NAME}`, 'Login'],
+      ['/register', `Register | ${APP_NAME}`, 'Register'],
+      ['/no-such-page', `Page not found | ${APP_NAME}`, 'Page not found'],
     ]) {
       test(`${path} has a title, a heading and no violations`, async ({ page }) => {
         await page.goto(path)
@@ -55,7 +56,7 @@ test.describe('Accessibility', () => {
     test('the notes page has no violations', async ({ page }) => {
       await addNote(page, 'A note to check')
 
-      await expect(page).toHaveTitle('My Notes | React + Flask Template')
+      await expect(page).toHaveTitle(`My Notes | ${APP_NAME}`)
       await expectNoViolations(page)
     })
 
@@ -78,7 +79,7 @@ test.describe('Accessibility', () => {
     test('the account page is reached from the navbar, and has no violations', async ({ page }) => {
       await page.getByRole('link', { name: /\(account\)$/ }).click()
 
-      await expect(page).toHaveTitle('Account | React + Flask Template')
+      await expect(page).toHaveTitle(`Account | ${APP_NAME}`)
       // Focus moved to the new page's heading, which a screen reader reads
       await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeFocused()
       await expectNoViolations(page)
