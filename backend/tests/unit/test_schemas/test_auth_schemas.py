@@ -211,17 +211,15 @@ class TestRegisterRequest:
         assert data['password'] == 'ValidPass123'
 
     def test_model_dump_excludes_password(self):
-        """Consider excluding password from dumps for security."""
+        """model_dump includes the password unless excluded."""
         request = RegisterRequest(
             email='test@example.com',
             password='ValidPass123'
         )
 
-        # Standard dump includes password
         data = request.model_dump()
         assert 'password' in data
 
-        # Can exclude password explicitly if needed
         data_safe = request.model_dump(exclude={'password'})
         assert 'password' not in data_safe
         assert 'email' in data_safe
@@ -280,26 +278,16 @@ class TestLoginRequest:
             )
 
     def test_login_no_password_validation(self):
-        """Login should NOT validate password strength (only length)."""
-        # Login accepts any password that meets length requirements
-        # No uppercase/lowercase/number requirements
-
+        """Login checks length and characters, but not strength."""
         passwords_accepted_for_login = [
             'alllowercase12345',  # No uppercase (but 8+ chars)
             'ALLUPPERCASE12345',  # No lowercase (but 8+ chars)
             'NoNumbersButLongEnough',  # No numbers (but 8+ chars)
         ]
 
-        # These should fail registration but might pass login schema
-        # if login doesn't have the same validators
         for password in passwords_accepted_for_login:
-            if len(password) >= 8:
-                # Login schema only checks length, not complexity
-                request = LoginRequest(
-                    email='test@example.com',
-                    password=password
-                )
-                assert request.password == password
+            request = LoginRequest(email='test@example.com', password=password)
+            assert request.password == password
 
     def test_extra_fields_forbidden(self):
         """Schema should reject extra fields."""
@@ -348,19 +336,16 @@ class TestSchemaConsistency:
 
     def test_password_length_consistency(self):
         """Both schemas should have same password length requirements."""
-        # 8 chars should work for both
         password_8 = 'Valid123'
 
         RegisterRequest(email='test@example.com', password=password_8)
         LoginRequest(email='test@example.com', password=password_8)
 
-        # 128 chars should work for both
         password_128 = 'A1' + 'a' * 126
 
         RegisterRequest(email='test@example.com', password=password_128)
         LoginRequest(email='test@example.com', password=password_128)
 
-        # 129 chars should fail for both
         password_129 = 'A1' + 'a' * 127
 
         with pytest.raises(ValidationError):

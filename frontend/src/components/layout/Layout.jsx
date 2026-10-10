@@ -8,12 +8,20 @@ export default function Layout() {
   const shownPath = useRef(pathname)
 
   // Changing pages in an SPA leaves focus on the link just used, so a screen
-  // reader announces nothing. Focus the new page's content instead, where a
-  // full page load would start. The first page keeps the browser's default.
+  // reader announces nothing. Focus the new page's h1 instead: screen readers
+  // read the heading, which names the page, and the next Tab starts at the
+  // top of its content. <main> stands in for a page without one. The first
+  // page keeps the browser's default.
   useEffect(() => {
     if (shownPath.current === pathname) return
     shownPath.current = pathname
-    mainRef.current.focus()
+    const heading = mainRef.current.querySelector('h1')
+    if (heading) {
+      heading.tabIndex = -1
+      heading.focus()
+    } else {
+      mainRef.current.focus()
+    }
   }, [pathname])
 
   return (

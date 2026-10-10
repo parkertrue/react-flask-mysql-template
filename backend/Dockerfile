@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -32,4 +31,6 @@ ENTRYPOINT ["./entrypoint.sh"]
 # raised to match. A distributed login flood still saturates the CPU;
 # stopping that belongs to a CDN or WAF.
 ENV WEB_CONCURRENCY=2
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "wsgi:app"]
+# No control socket: nothing uses it, and in this read-only container with no
+# home directory, creating it logs an error on every start.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "--no-control-socket", "wsgi:app"]

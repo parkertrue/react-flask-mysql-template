@@ -489,14 +489,26 @@ class TestRefreshEndpoint:
         assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
 
     def test_refresh_fails_closed_without_redis(self, app, client, sample_user, monkeypatch):
-        """With no Redis there is no allowlist, so every refresh token is revoked"""
+        """With no Redis there is no allowlist: refuse the token, but as an
+        outage the client retries, not a revocation that signs the user out"""
         csrf = login(client)
         monkeypatch.setitem(app.extensions, 'redis_service', None)
 
         response = client.post('/api/auth/refresh', headers=csrf)
 
-        assert response.status_code == 401
-        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_REVOKED'
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+
+    def test_refresh_fails_closed_when_the_check_fails(
+            self, client, sample_user, fake_redis, monkeypatch):
+        csrf = login(client)
+        monkeypatch.setattr(fake_redis, 'is_token_valid', lambda user_id, jti: None)
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert len(fake_redis.tokens) == 1  # nothing rotated
 
     def test_refresh_for_a_deleted_user_is_rejected(
             self, client, sample_user, fake_redis, db):

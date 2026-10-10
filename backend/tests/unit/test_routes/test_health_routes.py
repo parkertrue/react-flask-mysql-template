@@ -26,22 +26,18 @@ class TestHealthEndpoint:
 
     def test_health_check_no_authentication_required(self, client):
         """Health check should work without authentication."""
-        # No auth headers provided
         response = client.get('/api/health')
 
         assert response.status_code == 200
 
     def test_health_check_accepts_only_get(self, client):
         """Health check should only accept GET requests."""
-        # POST should not be allowed
         response = client.post('/api/health')
         assert response.status_code == 405
 
-        # PUT should not be allowed
         response = client.put('/api/health')
         assert response.status_code == 405
 
-        # DELETE should not be allowed
         response = client.delete('/api/health')
         assert response.status_code == 405
 

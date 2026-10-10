@@ -151,6 +151,7 @@ services:
       DB_USER: root
       DB_PASSWORD: ${DB_ROOT_PASSWORD}
       APP_DB_USER: ${DB_USER}
+      DB_QUERY_TIMEOUT: "0"  # a migration may outlast the app's 15s limit
     depends_on:
       db:
         condition: service_healthy
@@ -171,6 +172,12 @@ services:
     <<: [*security, *backend-hardening]
     build: ./backend
     environment: *backend-env
+    # Looking up a stopped container's name (Redis or MySQL during an outage)
+    # waits on DNS servers this network cannot reach: 4s per try by default.
+    # One 1s try lets the app's own timeouts fail requests fast.
+    dns_opt:
+      - timeout:1
+      - attempts:1
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -112,6 +112,30 @@ def test_each_client_has_its_own_bucket(limited_app):
     assert login(client, '198.51.100.9', 'other@example.com').status_code == 401
 
 
+def register(client, ip):
+    # One email throughout: after the first, each is a fast 409 that still counts
+    return client.post(
+        '/api/auth/register',
+        json={'email': 'new@example.com', 'password': 'TestPassword123'},
+        headers={'X-Forwarded-For': ip})
+
+
+def test_eleventh_registration_from_one_address_in_an_hour_is_rate_limited(limited_app):
+    client = limited_app.test_client()
+
+    statuses = [register(client, '203.0.113.7').status_code for _ in range(11)]
+
+    assert statuses == [201] + [409] * 9 + [429]
+
+
+def test_registration_limit_is_per_address(limited_app):
+    client = limited_app.test_client()
+    for _ in range(11):
+        register(client, '203.0.113.7')
+
+    assert register(client, '198.51.100.9').status_code == 409
+
+
 class TestRefreshLimit:
     """Refresh is limited per user, so a shared address never trips it"""
 

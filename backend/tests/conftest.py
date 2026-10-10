@@ -147,8 +147,8 @@ def integration_app():
                     raise RuntimeError(
                         f"Test services not ready after {max_retries} attempts "
                         f"({max_retries}s). Error: {e}\n"
-                        f"Make sure 'docker compose -f docker-compose.test.yml "
-                        f"up -d' is running."
+                        f"Run ./run_tests.sh integration, or 'docker compose "
+                        f"--env-file .env.test -f docker-compose.test.yml up -d --wait'."
                     )
                 time.sleep(retry_delay)
 
@@ -157,7 +157,7 @@ def integration_app():
         # Redis-backed test skip and the suite report green.
         if app.extensions['redis_service'] is None:
             raise RuntimeError(
-                'Redis failed to initialise; see the log above. Make sure '
+                'Redis failed to initialize; see the log above. Make sure '
                 'docker-compose.test.yml services are healthy.')
 
         yield app
@@ -212,7 +212,7 @@ def integration_user(integration_db):
 
 
 # ============================================================================
-# SHARED FIXTURES - users, tokens, and notes
+# UNIT FIXTURES - users, tokens, and notes (on the unit db)
 # ============================================================================
 
 @pytest.fixture

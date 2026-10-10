@@ -3,8 +3,8 @@ import { charCount } from '@/utils/validation'
 export const NOTE_MAX_LENGTH = 256
 
 /**
- * Validate note content
- * Must be non-blank and at most 256 characters once trimmed
+ * Non-blank and at most NOTE_MAX_LENGTH characters once trimmed, as
+ * backend/app/models/note.py allows
  */
 export function validateNoteContent(content) {
   const errors = []

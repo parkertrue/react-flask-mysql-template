@@ -23,7 +23,6 @@ test.describe('Critical User Journey', () => {
     await page.getByLabel(/^password$/i).fill(TEST_PASSWORD)
     await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
     
-    // Click register button
     await page.getByRole('button', { name: /register|creating account/i }).click()
     
     // Success goes straight to login, which confirms it. If registration
@@ -53,10 +52,8 @@ test.describe('Critical User Journey', () => {
   })
 
   test('cannot access protected routes without authentication', async ({ page }) => {
-    // Try to access notes page directly
     await page.goto('/notes')
     
-    // Should redirect to login
     await expect(page).toHaveURL(/\/login/)
     await expect(page.getByRole('heading', { name: /login/i })).toBeVisible()
   })
@@ -70,7 +67,6 @@ test.describe('Critical User Journey', () => {
 
     await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i)
     
-    // Should still be on login page
     await expect(page).toHaveURL(/\/login/)
   })
 

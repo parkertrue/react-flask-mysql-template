@@ -93,8 +93,7 @@ class TestGlobalErrorHandlers:
         assert response.content_type == 'application/json'
 
     def test_pydantic_validation_error_handler(self, client, auth_headers):
-        """Pydantic validation errors should return 400 with details."""
-        # Send invalid data that triggers Pydantic validation
+        """Pydantic validation errors return 422 VALIDATION_ERROR."""
         payload = {
             'content': ''  # Empty content violates min_length
         }
@@ -208,7 +207,6 @@ class TestErrorConsistency:
 
     def test_error_codes_are_uppercase(self, client):
         """Error codes should be uppercase with underscores."""
-        # Test various error scenarios
         response = client.get('/api/notes')  # Missing token
         data = json.loads(response.data)
         assert data['error']['code'].isupper()

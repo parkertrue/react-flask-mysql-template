@@ -22,7 +22,7 @@ _PASSWORD_CATEGORIES = {'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Mn', 'Mc', 'Nd', 'Nl', 'N
                         'Pc', 'Pd', 'Ps', 'Pe', 'Pi', 'Pf', 'Po', 'Sm', 'Sc', 'Sk'}
 # Emoji parts that fall in allowed categories: variation selectors (Mn) and
 # skin-tone modifiers (Sk)
-_EMOJI_COMPONENTS = re.compile('[︀-️\U0001f3fb-\U0001f3ff]')
+_EMOJI_COMPONENTS = re.compile('[\ufe00-\ufe0f\U0001f3fb-\U0001f3ff]')
 
 
 def normalize_email(value: str) -> str:

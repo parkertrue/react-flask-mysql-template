@@ -1,6 +1,7 @@
 # Rendered into /etc/nginx/conf.d/ by the nginx image's entrypoint (envsubst),
 # so the rates can differ per stack without a second copy of the config. The
 # production defaults are set in nginx/Dockerfile; docker-compose.test.yml
-# relaxes them because the E2E suite logs in many times from one address.
+# relaxes the auth rate, since the E2E suite logs in many times from one
+# address.
 limit_req_zone $binary_remote_addr zone=auth:10m rate=${NGINX_AUTH_RATE};
 limit_req_zone $binary_remote_addr zone=api:10m rate=${NGINX_API_RATE};

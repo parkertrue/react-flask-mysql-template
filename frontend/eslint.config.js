@@ -20,6 +20,11 @@ export default defineConfig([
         ecmaFeatures: { jsx: true },
       },
     },
+    // Debug output stays out of shipped code (`debugger` is already an
+    // error in js.configs.recommended)
+    rules: {
+      'no-console': 'error',
+    },
   },
   {
     // Shared code never depends on a feature or a page, so deleting a
@@ -40,11 +45,17 @@ export default defineConfig([
     languageOptions: {
       globals: globals.node,
     },
+    rules: {
+      'no-console': 'off',
+    },
   },
   {
     files: ['src/**/__tests__/**', 'src/test/**', '**/*.test.{js,jsx}'],
     languageOptions: {
       globals: { ...globals.node, ...globals.vitest },
+    },
+    rules: {
+      'no-console': 'off',
     },
   },
 ])

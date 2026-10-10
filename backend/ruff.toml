@@ -1,8 +1,14 @@
 # Errors (pyflakes and syntax) catch real bugs such as unused imports and
-# undefined names. The one style rule, Q, keeps quotes consistent: single for
-# strings, double for docstrings. Widen `select` if you want more.
+# undefined names. Q keeps quotes consistent: single for strings, double for
+# docstrings. T20 (print) and ERA (commented-out code) keep debug leftovers
+# out; the app logs through `logging`. Widen `select` if you want more.
 [lint]
-select = ["E4", "E7", "E9", "F", "Q"]
+select = ["E4", "E7", "E9", "F", "Q", "T20", "ERA"]
+
+# Command-line scripts whose output is their job
+[lint.per-file-ignores]
+"restrict_db_user.py" = ["T20"]
+"wait_for_services.py" = ["T20"]
 
 [lint.flake8-quotes]
 inline-quotes = "single"

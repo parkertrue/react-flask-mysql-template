@@ -48,7 +48,6 @@ stop_test_services() {
 }
 
 load_test_env() {
-    # Load .env.test from parent directory (project root)
     if [ -f "../.env.test" ]; then
         set -a
         . ../.env.test
@@ -85,7 +84,6 @@ TEST_TYPE="$1"
 NO_COVERAGE=false
 VERBOSE=""
 
-# Parse options
 shift
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -132,7 +130,6 @@ case "$TEST_TYPE" in
         echo -e "${GREEN}Running INTEGRATION tests${NC}"
         echo -e "${GREEN}================================${NC}"
         
-        # Start Docker services (env already loaded)
         start_test_services
         
         # Run integration tests
@@ -153,21 +150,17 @@ case "$TEST_TYPE" in
         # Start services for integration tests (env already loaded)
         start_test_services
         
-        # Run unit tests first (generates .coverage)
         echo -e "${YELLOW}[1/2] Running unit tests...${NC}"
         pytest tests/unit/ --cov=app --cov-report= $VERBOSE
         
-        # Run integration tests (appends to .coverage)
         echo -e "${YELLOW}[2/2] Running integration tests...${NC}"
         pytest tests/integration/ --cov=app --cov-append --cov-report= $VERBOSE
         
-        # Generate combined coverage report
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}COMBINED COVERAGE REPORT${NC}"
         echo -e "${GREEN}================================${NC}"
         coverage report -m
         
-        # Generate HTML report
         coverage html
         echo -e "${GREEN}✅ HTML coverage report: htmlcov/index.html${NC}"
 
@@ -178,7 +171,6 @@ case "$TEST_TYPE" in
         echo -e "${GREEN}ALL TESTS (separate reports)${NC}"
         echo -e "${GREEN}================================${NC}"
         
-        # Run unit tests
         echo -e "${YELLOW}[1/2] Unit tests...${NC}"
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/unit/ $VERBOSE

@@ -186,7 +186,7 @@ def login():
 
 @auth_bp.route('/refresh', methods=['POST'])
 # Per user, not per IP: everyone behind a shared address refreshes from it,
-# and a 429 here used to log them all out. A request without a valid cookie
+# and a 429 here would log them all out. A request without a valid cookie
 # is exempt, since @jwt_required turns it away cheaply with a 401.
 @limiter.limit(
     '10 per minute',

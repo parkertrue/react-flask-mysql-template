@@ -62,13 +62,24 @@ class Config:
         # any restart or network blip drops them all; without a ping, the next
         # request on each dead pooled connection fails with a 500. Recycling
         # well before wait_timeout keeps the ping from finding many dead ones.
-        self.SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_pre_ping': True,
-            'pool_recycle': 1800,
+        connect_args = {
             # Every timestamp is UTC, and the API says so. NOW() and
             # CURRENT_TIMESTAMP follow the connection's time zone, which would
             # otherwise be whatever the server is set to.
-            'connect_args': {'init_command': "SET time_zone = '+00:00'"},
+            'init_command': "SET time_zone = '+00:00'",
+            'connect_timeout': 5,
+        }
+        # PyMySQL waits on a query forever by default, so a hung database (a
+        # full disk, a lock) would hold a request thread long after nginx gave
+        # up at 60s, until every thread is stuck. The migrate service sets 0
+        # (no limit): a migration on a big table may legitimately run longer.
+        query_timeout = int(os.getenv('DB_QUERY_TIMEOUT', '15'))
+        if query_timeout:
+            connect_args.update(read_timeout=query_timeout, write_timeout=query_timeout)
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_pre_ping': True,
+            'pool_recycle': 1800,
+            'connect_args': connect_args,
         }
 
         # Redis configuration
@@ -79,6 +90,7 @@ class Config:
         # "default" user and gives the app its own ACL user, "app"
         self.REDIS_USERNAME = os.getenv('REDIS_USERNAME')
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+        # Per worker: well above its 4 threads, so no request waits on the pool
         self.REDIS_MAX_CONNECTIONS = 50
 
         self.REDIS_URI = None
@@ -189,13 +201,9 @@ class ProductionConfig(Config):
 def get_config():
     """Get configuration based on environment
 
-    APP_ENV is the only switch. E2E_MODE deliberately cannot promote or
-    demote a config class: previously E2E_MODE=true silently replaced
-    ProductionConfig with a weaker one, so a single env var could disable
-    rate limiting on a production deployment.
-
-    Not FLASK_ENV: Flask stopped reading that in 2.3, and the name suggested
-    it still had a say. Unset means production, the strictest class.
+    APP_ENV is the only switch: no other variable (E2E_MODE included) may
+    swap a config class, or one env var could weaken production. Unset means
+    production, the strictest class.
     """
     app_env = os.getenv('APP_ENV', 'production')
 

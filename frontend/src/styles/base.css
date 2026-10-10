@@ -12,8 +12,9 @@ p {
   outline-offset: 2px;
 }
 
-/* Layout focuses <main> on navigation so screen readers start at the new
-   page; it is not a control, so it gets no ring */
-main:focus {
+/* Layout focuses the new page's h1 (or <main>) on navigation so screen
+   readers start at the new page; neither is a control, so no ring */
+main:focus,
+h1:focus {
   outline: none;
 }

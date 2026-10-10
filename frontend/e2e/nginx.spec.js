@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 // What nginx itself promises (nginx/templates/default.conf.template), checked
-// over the wire. Each of these has broken before without any other test
-// noticing, since the app works the same either way.
+// over the wire. The app works the same without any of these, so only this
+// file notices one breaking.
 
 const HTTP = 'http://localhost:8080'
 

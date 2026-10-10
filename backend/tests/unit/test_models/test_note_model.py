@@ -99,7 +99,6 @@ class TestNoteModel:
 
     def test_note_content_max_length(self, db, sample_user):
         """Note content should respect max length constraint."""
-        # Database allows 256 chars
         content_256 = 'x' * 256
         note = Note(user_id=sample_user.id, content=content_256)
         db.session.add(note)
@@ -227,7 +226,6 @@ class TestNoteModel:
         db.session.add(note)
         db.session.commit()
 
-        # Just verify it doesn't crash
         repr_str = repr(note)
         assert repr_str is not None
         assert isinstance(repr_str, str)
@@ -253,13 +251,8 @@ class TestNoteModel:
         assert note.content == unicode_content
 
     def test_note_with_empty_string(self, db, sample_user):
-        """Empty string content should fail nullable constraint."""
-        # Empty string is different from NULL
-        # This should succeed unless we add custom validation
+        """The column takes an empty string; NoteCreateRequest is what refuses one."""
         note = Note(user_id=sample_user.id, content='')
         db.session.add(note)
-
-        # This should work at DB level (not NULL)
-        # But Pydantic schema will reject it
         db.session.commit()
         assert note.content == ''
