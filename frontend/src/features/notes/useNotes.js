@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getErrorMessage } from '@/api/errors'
 import { useAuth } from '@/auth/useAuth'
-import { fetchNotes, createNote } from './notesService'
+import { fetchNotes, createNote, updateNote, deleteNote } from './notesService'
+
+// A failed request as an Error whose message is ready to show
+const failure = err => new Error(getErrorMessage(err), { cause: err })
 
 export function useNotes() {
   const { isAuthenticated } = useAuth()
@@ -64,13 +67,34 @@ export function useNotes() {
       // new one never turns up again on a later page.
       setNotes(prev => [newNote, ...prev])
       setError(null)
-      return newNote
     } catch (err) {
-      const errorMsg = getErrorMessage(err)
-      setError(errorMsg)
-      throw new Error(errorMsg, { cause: err })
+      const failed = failure(err)
+      setError(failed.message)
+      throw failed
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  // The note's row tracks its own busy state and shows its own error, so
+  // these only apply the result, and rethrow a failure for the row to show
+  const editNote = async (id, content) => {
+    try {
+      const updated = await updateNote(id, content)
+      setNotes(prev => prev.map(note => note.id === id ? updated : note))
+    } catch (err) {
+      throw failure(err)
+    }
+  }
+
+  // The cursor is the oldest loaded note's id, which stays a valid "before"
+  // even once that note is gone
+  const removeNote = async (id) => {
+    try {
+      await deleteNote(id)
+      setNotes(prev => prev.filter(note => note.id !== id))
+    } catch (err) {
+      throw failure(err)
     }
   }
 
@@ -82,6 +106,8 @@ export function useNotes() {
     submitting,
     error,
     loadMore,
-    addNote
+    addNote,
+    editNote,
+    removeNote
   }
 }

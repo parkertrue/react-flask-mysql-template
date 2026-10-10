@@ -1,0 +1,33 @@
+.confirm-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  /* The reset's margin: 0 would pin it to the top-left corner */
+  margin: auto;
+  padding: 1.5rem;
+  /* Invisible, except in forced-colors mode, where it is the dialog's edge */
+  border: 1px solid transparent;
+  background-color: var(--color-surface);
+}
+
+.confirm-dialog::backdrop {
+  background-color: var(--color-backdrop);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+}
+
+.confirm-dialog-body {
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-body p {
+  margin: 0 0 0.5rem;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}

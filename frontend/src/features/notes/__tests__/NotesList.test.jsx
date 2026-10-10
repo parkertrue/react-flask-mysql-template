@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import NotesList from '../NotesList'
 
-const listed = () => screen.getAllByRole('listitem').map(item => item.textContent)
+// Each row's text, less its Edit and Delete buttons
+const listed = () => screen.getAllByRole('listitem')
+  .map(item => item.textContent.replace(/EditDelete$/, ''))
 
 describe('NotesList', () => {
   it('shows only a loading message while loading', () => {
@@ -24,6 +26,19 @@ describe('NotesList', () => {
     render(<NotesList notes={[{ id: 3, content: 'Third' }, { id: 1, content: 'First' }]} loading={false} />)
 
     expect(listed()).toEqual(['Third(#3)', 'First(#1)'])
+  })
+
+  it.each([
+    [0, 'Edit note #3', 'Third'],
+    [1, 'Delete note #3', 'Third'],
+    [2, 'Edit note #1', 'First'],
+    [3, 'Delete note #1', 'First'],
+  ])('offers Edit and Delete per note, named by number and described by text (button %i)', (index, name, text) => {
+    render(<NotesList notes={[{ id: 3, content: 'Third' }, { id: 1, content: 'First' }]} loading={false} />)
+
+    const button = screen.getAllByRole('button')[index]
+    expect(button).toHaveAccessibleName(name)
+    expect(button).toHaveAccessibleDescription(text)
   })
 
   it('shows markup as text, never as HTML', () => {

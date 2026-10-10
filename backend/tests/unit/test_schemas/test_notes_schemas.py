@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.notes import NoteCreateRequest
+from app.schemas.notes import NoteCreateRequest, NoteUpdateRequest
 
 
 class TestCreateNoteRequestSchema:
@@ -82,3 +82,18 @@ class TestCreateNoteRequestSchema:
     def test_rejects_newlines_only(self):
         with pytest.raises(ValidationError):
             NoteCreateRequest(content='\n\n\n')
+
+
+class TestNoteUpdateRequestSchema:
+    """An edited note follows the same rules as a new one"""
+
+    def test_trims_content(self):
+        assert NoteUpdateRequest(content='  edited  ').content == 'edited'
+
+    @pytest.mark.parametrize('kwargs', [
+        {}, {'content': ''}, {'content': ' \n\t'}, {'content': 'x' * 257},
+        {'content': 'ok', 'id': 2},
+    ])
+    def test_rejects_what_create_rejects(self, kwargs):
+        with pytest.raises(ValidationError):
+            NoteUpdateRequest(**kwargs)

@@ -50,6 +50,22 @@ test.describe('Accessibility', () => {
       await expectNoViolations(page)
     })
 
+    test('a note open for editing has no violations', async ({ page }) => {
+      await addNote(page, 'A note to edit')
+      await page.getByRole('button', { name: /^Edit note #/ }).click()
+
+      await expect(page.getByRole('textbox', { name: /^Edit note #/ })).toBeFocused()
+      await expectNoViolations(page)
+    })
+
+    test('the delete confirmation has no violations', async ({ page }) => {
+      await addNote(page, 'A note to delete')
+      await page.getByRole('button', { name: /^Delete note #/ }).click()
+
+      await expect(page.getByRole('dialog', { name: 'Delete this note?' })).toBeVisible()
+      await expectNoViolations(page)
+    })
+
     test('the account page is reached from the navbar, and has no violations', async ({ page }) => {
       await page.getByRole('link', { name: /\(account\)$/ }).click()
 

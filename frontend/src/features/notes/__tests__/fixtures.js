@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw'
 // Fake notes API responses, built like test/fixtures.js's: a mocked response
 // cannot drift from the real one.
 
-/** A note as GET/POST /api/notes return it; created_at is UTC with an offset */
+/** A note as the notes endpoints return it; created_at is UTC with an offset */
 export function note(overrides = {}) {
   const id = overrides.id ?? 1
   return {
@@ -27,4 +27,9 @@ export const notesHandlers = [
     const { content } = await request.json()
     return HttpResponse.json(note({ content }), { status: 201 })
   }),
+  http.put('/api/notes/:id', async ({ params, request }) => {
+    const { content } = await request.json()
+    return HttpResponse.json(note({ id: Number(params.id), content }))
+  }),
+  http.delete('/api/notes/:id', () => new HttpResponse(null, { status: 204 })),
 ]
