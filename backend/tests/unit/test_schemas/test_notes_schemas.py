@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.notes import NoteCreateRequest, NoteUpdateRequest
+from app.schemas.notes import NoteCreateRequest, NoteUpdateRequest, NotesListQuery
 
 
 class TestCreateNoteRequestSchema:
@@ -112,3 +112,10 @@ class TestNoteUpdateRequestSchema:
     def test_rejects_what_create_rejects(self, kwargs):
         with pytest.raises(ValidationError):
             NoteUpdateRequest(**kwargs)
+
+
+class TestNotesListQuerySchema:
+    def test_rejects_an_unknown_key(self):
+        """A misspelled ?befor= must not quietly return the first page"""
+        with pytest.raises(ValidationError):
+            NotesListQuery.model_validate({'befor': '5'})

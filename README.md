@@ -8,7 +8,7 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 * Hybrid development setup (local app + Dockerized database)
 * Flask application using the factory pattern
 * MySQL database with Alembic migrations
-* JWT auth: short-lived access tokens plus rotating, revocable refresh tokens in HttpOnly cookies
+* JWT auth: short-lived access tokens plus rotating, revocable refresh tokens in HttpOnly cookies; a session ends 30 days after login
 * Redis for refresh-token tracking and rate limiting
 * Unit, integration, and end-to-end tests, run in GitHub Actions
 

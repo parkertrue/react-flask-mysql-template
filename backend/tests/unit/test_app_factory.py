@@ -101,13 +101,36 @@ class TestRedisReconnect:
             token = create_refresh_token(identity='1')
             csrf = decode_token(token)['csrf']
         client = app.test_client()
-        client.set_cookie('refresh_token_cookie', token, path='/api/auth')
+        client.set_cookie('__Secure-refresh_token', token, path='/api/auth')
 
         response = client.post(
             '/api/auth/refresh', headers={'X-CSRF-REFRESH-TOKEN': csrf})
 
         assert response.status_code == 503
         assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+
+
+class TestCacheControl:
+    """Tokens and private notes must not be kept by any cache"""
+
+    def test_api_responses_are_not_stored(self, client, sample_user, auth_headers):
+        responses = [
+            client.post('/api/auth/login',
+                        json={'email': 'test@example.com', 'password': 'TestPassword123'}),
+            client.get('/api/notes', headers=auth_headers),
+            client.get('/api/notes/does-not-exist'),
+        ]
+
+        assert [r.headers.get('Cache-Control') for r in responses] == ['no-store'] * 3
+
+    def test_a_route_can_set_its_own(self, monkeypatch):
+        app = build_app(monkeypatch)
+
+        @app.route('/_cached')
+        def cached():
+            return {}, 200, {'Cache-Control': 'max-age=60'}
+
+        assert app.test_client().get('/_cached').headers['Cache-Control'] == 'max-age=60'
 
 
 class TestJsonErrors:

@@ -170,7 +170,9 @@ class TestNotesPagination:
     @pytest.mark.parametrize('query', [
         '?limit=0', '?limit=101', '?limit=abc', '?before=0', '?before=x',
         # Past the largest INT id (ID_MAX), which the driver would overflow
-        f'?before={2**31}', f'?before={"9" * 19}'])
+        f'?before={2**31}', f'?before={"9" * 19}',
+        # Unknown keys, a typo or a guess at someone else's notes
+        '?befor=5', '?user_id=1'])
     def test_invalid_query_is_validation_error(self, client, auth_headers, query):
         response = client.get(f'/api/notes{query}', headers=auth_headers)
 
