@@ -36,6 +36,15 @@ test.describe('Accessibility', () => {
       await expect(page.getByLabel('Email')).toBeFocused()
       await expectNoViolations(page)
     })
+
+    // Forced colors (Windows High Contrast) drop a button's background, its
+    // only edge, so the stylesheet gives it a border there instead
+    test('buttons keep an edge in forced-colors mode', async ({ page }) => {
+      await page.emulateMedia({ forcedColors: 'active' })
+      await page.goto('/login')
+
+      await expect(page.getByRole('button', { name: 'Login' })).toHaveCSS('border-top-style', 'solid')
+    })
   })
 
   test.describe('a signed-in user', () => {

@@ -1,6 +1,6 @@
 import NoteItem from './NoteItem'
 
-export default function NotesList({ notes, loading, onEdit, onDelete, emptiedFocusRef }) {
+export default function NotesList({ ref, notes, loading, onEdit, onDelete, emptiedFocusRef }) {
   if (loading) {
     return <p className="notes-loading" role="status">Loading notes...</p>
   }
@@ -10,7 +10,7 @@ export default function NotesList({ notes, loading, onEdit, onDelete, emptiedFoc
   }
 
   return (
-    <ul className="notes-list">
+    <ul ref={ref} className="notes-list">
       {notes.map(note => (
         <NoteItem
           key={note.id}

@@ -40,6 +40,18 @@ export default defineConfig([
     },
   },
   {
+    // Fields go through FormField, which ties the label, hint and message to
+    // the input for screen readers
+    files: ['src/**/*.jsx'],
+    ignores: ['src/components/forms/**'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: 'JSXOpeningElement[name.name=/^(input|textarea|select)$/]',
+        message: 'Use FormField (src/components/forms) instead of a raw form control.',
+      }],
+    },
+  },
+  {
     // Build and test tooling runs under Node, not in the browser
     files: ['*.config.js', 'e2e/**'],
     languageOptions: {

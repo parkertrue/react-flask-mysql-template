@@ -192,6 +192,20 @@ describe('useNotes', () => {
       expect(result.current.notes).toEqual([loaded[0], edited])
     })
 
+    it('clears the status while the next action runs, so the same words are read again', async () => {
+      updateNote.mockResolvedValue(loaded[1])
+      const result = await renderLoaded()
+      await act(async () => {
+        await result.current.editNote(1, 'One')
+      })
+      expect(result.current.status).toBe('Note #1 saved')
+
+      updateNote.mockReturnValue(new Promise(() => {}))
+      act(() => { result.current.editNote(1, 'One') })
+
+      expect(result.current.status).toBe('')
+    })
+
     it('removeNote drops only that note and keeps the cursor', async () => {
       deleteNote.mockResolvedValue()
       const result = await renderLoaded()

@@ -11,32 +11,6 @@
   margin-bottom: 2rem;
 }
 
-.note-form .form-label {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.note-form-group {
-  display: flex;
-  gap: 1rem;
-}
-
-.note-form-group .form-input {
-  flex: 1;
-}
-
-.note-form-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-}
-
-.char-counter {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin: 0 0 0 auto;
-}
-
 .notes-list {
   display: flex;
   flex-direction: column;
@@ -96,10 +70,6 @@
 }
 
 @media (max-width: 768px) {
-  .note-form-group {
-    flex-direction: column;
-  }
-
   .note-item {
     gap: 0.5rem;
   }

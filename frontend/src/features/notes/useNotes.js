@@ -14,6 +14,9 @@ export function useNotes() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  // What the last add, save, delete or Load more did, for screen readers.
+  // Cleared when the next one starts, so the same words are read again.
+  const [status, setStatus] = useState('')
 
   const loadNotes = useCallback(async () => {
     setLoading(true)
@@ -41,17 +44,20 @@ export function useNotes() {
     return () => {
       setNotes([])
       setNextCursor(null)
+      setStatus('')
     }
   }, [isAuthenticated, loadNotes])
 
   const loadMore = async () => {
     if (nextCursor === null || loadingMore) return
     setLoadingMore(true)
+    setStatus('')
     try {
       const page = await fetchNotes(nextCursor)
       setNotes(prev => [...prev, ...page.notes])
       setNextCursor(page.next_cursor)
       setError(null)
+      setStatus(page.next_cursor === null ? 'All notes loaded' : 'More notes loaded')
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -61,12 +67,14 @@ export function useNotes() {
 
   const addNote = async (content) => {
     setSubmitting(true)
+    setStatus('')
     try {
       const newNote = await createNote(content)
       // Newest first. The cursor points below the oldest loaded note, so the
       // new one never turns up again on a later page.
       setNotes(prev => [newNote, ...prev])
       setError(null)
+      setStatus(`Note #${newNote.id} added`)
     } catch (err) {
       const failed = failure(err)
       setError(failed.message)
@@ -79,9 +87,11 @@ export function useNotes() {
   // The note's row tracks its own busy state and shows its own error, so
   // these only apply the result, and rethrow a failure for the row to show
   const editNote = async (id, content) => {
+    setStatus('')
     try {
       const updated = await updateNote(id, content)
       setNotes(prev => prev.map(note => note.id === id ? updated : note))
+      setStatus(`Note #${id} saved`)
     } catch (err) {
       throw failure(err)
     }
@@ -90,9 +100,11 @@ export function useNotes() {
   // The cursor is the oldest loaded note's id, which stays a valid "before"
   // even once that note is gone
   const removeNote = async (id) => {
+    setStatus('')
     try {
       await deleteNote(id)
       setNotes(prev => prev.filter(note => note.id !== id))
+      setStatus(`Note #${id} deleted`)
     } catch (err) {
       throw failure(err)
     }
@@ -105,6 +117,7 @@ export function useNotes() {
     hasMore: nextCursor !== null,
     submitting,
     error,
+    status,
     loadMore,
     addNote,
     editNote,

@@ -67,7 +67,8 @@ test.describe('Notes CRUD Operations', () => {
     await page.getByRole('button', { name: 'Add Note' }).click()
 
     // Explained on the field, which gets focus so a screen reader reads it
-    await expect(noteInput(page)).toHaveAccessibleDescription('Note content is required')
+    await expect(noteInput(page)).toHaveAccessibleDescription(
+      'Note content is required 256 characters remaining')
     await expect(noteInput(page)).toBeFocused()
   })
 
