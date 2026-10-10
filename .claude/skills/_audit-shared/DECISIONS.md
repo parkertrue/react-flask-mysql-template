@@ -53,6 +53,28 @@ opinion that doesn't matter for a few static files. See the `nginx` job in
 ./run_dev.sh` turns it off for one run. Production forces it off in
 `ProductionConfig`.
 
+**Access tokens outlive logout by up to 15 minutes.** Logout and "Logout All
+Devices" revoke refresh tokens only; an access token already issued works
+until it expires. Revoking those too would put a Redis lookup on every API
+request and make every request depend on Redis.
+*Revisit when:* the app holds data where a 15-minute window after logout
+matters.
+
+**No nginx healthcheck.** Compose uses healthchecks only to order startup and
+never restarts an unhealthy container, and nothing depends on nginx, so a
+healthcheck would do nothing. *Revisit when:* a monitor or orchestrator acts
+on container health.
+
+**Unreachable CVEs in base-image OS packages are low.** A scanner flagging an
+Alpine library in the nginx or backend image (e.g. libexpat, libtiff, pcre2
+in `nginx:*-alpine`) is a finding only if this configuration can reach it:
+a loaded module uses it, or visitor input reaches it. Unreachable ones are
+fixed by the upstream image's regular rebuilds, picked up with
+`docker compose build --pull`, not by `apk upgrade` in the Dockerfile, which
+makes builds unrepeatable and fails hadolint (DL3017). *Revisit when:* an
+nginx module that uses one is enabled (XSLT, image filter), or the CVE is in
+a library the app does use (OpenSSL, musl, zlib).
+
 **No mutation-testing tool.** New tests are mutation-checked by hand (CLAUDE.md
 Test Architecture). *Revisit when:* the suites grow past what spot checks can
 cover; mutmut and Stryker are the candidates (SOURCES.md, Testing).
@@ -81,6 +103,9 @@ recovery check is blocked by the missing backups). They are not new findings.
   `can update a note` / `can delete a note` E2E tests assert nothing until the
   feature exists. When it lands, those tests must assert.
 - **Account deletion** on `AccountPage`; **email verification**.
+- **Account security beyond the basics:** no password change, password
+  reset, multi-factor login, or common/breached-password check (ASVS 5.0
+  chapter 6, Authentication). Reset and change wait on email verification.
 - **No deployment yet**, so these don't exist: automated backups and a
   restore procedure, server hardening (SSH, firewall, Fail2ban), certificate
   auto-renewal, CD, monitoring, centralized logging, a CDN.

@@ -53,10 +53,9 @@ test.describe('Accessibility', () => {
     test('the account page is reached from the navbar, and has no violations', async ({ page }) => {
       await page.getByRole('link', { name: /\(account\)$/ }).click()
 
-      await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeVisible()
       await expect(page).toHaveTitle('Account | React + Flask Template')
-      // Focus moved to the new page's content, where a screen reader starts
-      await expect(page.getByRole('main')).toBeFocused()
+      // Focus moved to the new page's heading, which a screen reader reads
+      await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeFocused()
       await expectNoViolations(page)
     })
   })

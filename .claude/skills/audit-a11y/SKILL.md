@@ -28,7 +28,7 @@ Read every page, layout and form component in `frontend/src/` (`pages/`,
   success announced (`role="status"`), `aria-invalid` on invalid fields.
 - Busy states: `aria-disabled` or `readOnly` rather than `disabled`, with
   handlers guarded; the busy state visible (and its label still legible).
-- Navigation: focus moves to `<main>` on route change (CLAUDE.md's design);
+- Navigation: focus moves to the new page's `h1` on route change (CLAUDE.md's design);
   back and forward work.
 - Dynamic content: "Load more" moves or keeps focus sensibly and announces new
   items; the API status demo announces changes without being noisy.
