@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { APP_NAME } from '../src/appName.js'
 import { TEST_PASSWORD, uniqueEmail } from './helpers'
 
 test.describe('System Health Check', () => {
@@ -15,7 +16,7 @@ test.describe('System Health Check', () => {
   test('frontend loads correctly', async ({ page }) => {
     await page.goto('/')
     
-    await expect(page.getByText(/Welcome to Flask/i)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeVisible({ timeout: 10000 })
   })
 
   test('can navigate to register page', async ({ page }) => {

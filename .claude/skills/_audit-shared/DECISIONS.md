@@ -36,6 +36,14 @@ backstop.
 **Rate limits fall back to per-worker memory while Redis is down.** Limits get
 looser (per worker, reset on restart) instead of every limited route failing.
 
+**Flask rate limits are off in E2E.** E2E registers dozens of accounts from
+one address, which register's `10 per hour` would block, so the E2E backend
+runs `IntegrationConfig` with limits off. The keying on the client IP
+(`TRUSTED_PROXY_COUNT` and nginx's `X-Forwarded-For`) is unit-tested with
+hand-made headers, and the Redis counters are integration-tested; the real
+nginx → Flask client-IP path runs only in production. *Revisit when:* a
+deployment exists, or the proxy chain changes (a CDN hop, a second proxy).
+
 **User text stored verbatim.** No server-side sanitizing; output escaping is
 the render layer's job (React escapes text). Sanitizing on input corrupts data
 and still misses other output contexts.

@@ -6,6 +6,7 @@ import { storage } from '@/auth/storage'
 import { loginUser } from '@/auth/authService'
 import { errorBody, tokens } from '@/test/fixtures'
 import { renderRoutes } from '@/test/router'
+import { APP_NAME } from '@/appName'
 
 vi.mock('@/auth/authService')
 
@@ -40,7 +41,7 @@ describe('LoginPage', () => {
     expect(field.email()).toHaveAttribute('autocomplete', 'email')
     expect(field.password()).toHaveAttribute('autocomplete', 'current-password')
     expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register')
-    expect(document.title).toBe('Login | React + Flask Template')
+    expect(document.title).toBe(`Login | ${APP_NAME}`)
   })
 
   it('confirms a registration that just happened', () => {

@@ -5,6 +5,7 @@ import LoginPage from '../LoginPage'
 import { registerUser } from '@/auth/authService'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes } from '@/test/router'
+import { APP_NAME } from '@/appName'
 
 vi.mock('@/auth/authService')
 
@@ -41,7 +42,7 @@ describe('RegisterPage', () => {
     // Up front, not one at a time after each failed attempt
     expect(field.password()).toHaveAccessibleDescription(/at least 8 characters.*uppercase.*lowercase.*number/i)
     expect(screen.getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login')
-    expect(document.title).toBe('Register | React + Flask Template')
+    expect(document.title).toBe(`Register | ${APP_NAME}`)
   })
 
   describe('validation', () => {

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import {
   TEST_PASSWORD, addNote, login, logout, register, submitRegistration, uniqueEmail,
 } from './helpers'
+import { APP_NAME } from '../src/appName.js'
 
 test.describe('Critical User Journey', () => {
   let testEmail
@@ -13,7 +14,7 @@ test.describe('Critical User Journey', () => {
   test('complete user journey: register → login → create note → logout', async ({ page }) => {
     // 1. Navigate to home page
     await page.goto('/')
-    await expect(page.getByText(/Welcome to Flask \+ React \+ MySQL Template App/i)).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeVisible()
 
     // 2. Register new user - click "Get Started" button (primary CTA)
     await page.getByRole('link', { name: /get started/i }).click()
