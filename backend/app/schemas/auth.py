@@ -7,22 +7,12 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 # Checked after normalizing, so the stored form always fits the users.email
 # column.
 from app.models.user import EMAIL_MAX_LENGTH
+from app.utils.text import UNSUPPORTED_CHARACTERS_MESSAGE, is_plain_text
 
 # Only the hash is stored, so these are policy rather than a column size.
 # frontend/src/utils/validation.js mirrors them.
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 128
-
-# Unicode general categories a new password may use: letters, combining
-# marks, numbers, punctuation, and math, currency and modifier symbols. Left
-# out: separators (every kind of space), control and format characters (the
-# zero-width joiner that builds emoji sequences), enclosing marks (keycaps)
-# and "other symbols", which hold every emoji along with signs like © and °.
-_PASSWORD_CATEGORIES = {'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Mn', 'Mc', 'Nd', 'Nl', 'No',
-                        'Pc', 'Pd', 'Ps', 'Pe', 'Pi', 'Pf', 'Po', 'Sm', 'Sc', 'Sk'}
-# Emoji parts that fall in allowed categories: variation selectors (Mn) and
-# skin-tone modifiers (Sk)
-_EMOJI_COMPONENTS = re.compile('[\ufe00-\ufe0f\U0001f3fb-\U0001f3ff]')
 
 
 def normalize_email(value: str) -> str:
@@ -58,9 +48,8 @@ def _check_password_characters(value: str) -> str:
     # tried at all
     if any(c.isspace() for c in value):
         raise ValueError('Password must not contain spaces')
-    if (any(unicodedata.category(c) not in _PASSWORD_CATEGORIES for c in value)
-            or _EMOJI_COMPONENTS.search(value)):
-        raise ValueError('Password must not contain emoji or other symbols like © or °')
+    if not is_plain_text(value):
+        raise ValueError(f'Password {UNSUPPORTED_CHARACTERS_MESSAGE}')
     return value
 
 

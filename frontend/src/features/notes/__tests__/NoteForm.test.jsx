@@ -30,25 +30,14 @@ describe('NoteForm', () => {
     expect(screen.getByText(`${NOTE_MAX_LENGTH - 5} characters remaining`)).toBeInTheDocument()
   })
 
-  it('counts an emoji as one character, as the backend does', () => {
-    renderForm()
-
-    setValue('🚀🚀')
-
-    expect(screen.getByText(`${NOTE_MAX_LENGTH - 2} characters remaining`)).toBeInTheDocument()
-  })
-
   describe('stops at the limit', () => {
-    it.each([
-      ['letters', 'x'],
-      // Two UTF-16 units each, so maxLength would have stopped at half
-      ['emoji', '🚀'],
-    ])('cuts a paste of %s short at the limit', (_, char) => {
-      renderForm()
+    it('cuts a paste short at the limit', async () => {
+      const { user } = renderForm()
+      await user.click(input())
 
-      setValue(char.repeat(NOTE_MAX_LENGTH + 5))
+      await user.paste('x'.repeat(NOTE_MAX_LENGTH + 5))
 
-      expect(input()).toHaveValue(char.repeat(NOTE_MAX_LENGTH))
+      expect(input()).toHaveValue('x'.repeat(NOTE_MAX_LENGTH))
       expect(screen.getByText('0 characters remaining')).toBeInTheDocument()
     })
 
@@ -86,6 +75,7 @@ describe('NoteForm', () => {
     it.each([
       ['an empty note', '', 'Note content is required'],
       ['a blank note', '   ', 'Note content is required'],
+      ['a note with an emoji', 'Launch 🚀', 'Note must not contain emoji or other symbols like © or °'],
     ])('refuses %s, explains why, and focuses the field', async (_, text, message) => {
       const { onSubmit, user } = renderForm()
       if (text) setValue(text)
@@ -98,10 +88,8 @@ describe('NoteForm', () => {
       expect(input()).toHaveFocus()
     })
 
-    it.each([
-      ['letters', 'x'.repeat(NOTE_MAX_LENGTH)],
-      ['emoji', '🚀'.repeat(NOTE_MAX_LENGTH)],
-    ])('accepts a note of exactly the maximum length in %s', async (_, text) => {
+    it('accepts a note of exactly the maximum length', async () => {
+      const text = 'x'.repeat(NOTE_MAX_LENGTH)
       const { onSubmit, user } = renderForm()
       setValue(text)
 

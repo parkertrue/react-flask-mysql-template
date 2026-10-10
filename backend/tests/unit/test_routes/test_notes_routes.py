@@ -597,7 +597,7 @@ class TestNotesEdgeCases:
 
     def test_create_note_with_unicode(self, client, auth_headers):
         """POST /api/notes should handle Unicode characters."""
-        payload = {'content': 'Unicode: 你好 مرحبا שלום 🎉'}
+        payload = {'content': 'Unicode: 你好 مرحبا שלום'}
 
         response = client.post(
             '/api/notes',
@@ -609,20 +609,19 @@ class TestNotesEdgeCases:
         data = json.loads(response.data)
         assert data['content'] == payload['content']
 
-    def test_create_note_with_newlines(self, client, auth_headers):
-        """POST /api/notes should handle newlines in content."""
-        payload = {'content': 'Line 1\nLine 2\nLine 3'}
-
+    @pytest.mark.parametrize('content', ['Launch 🚀', 'Line 1\nLine 2'])
+    def test_create_note_with_unsupported_characters_rejected(
+            self, client, auth_headers, content):
+        """Emoji and control characters are a 422, and nothing is stored"""
         response = client.post(
             '/api/notes',
-            data=json.dumps(payload),
+            data=json.dumps({'content': content}),
             headers=auth_headers
         )
 
-        assert response.status_code == 201
-        data = json.loads(response.data)
-        assert 'Line 1' in data['content']
-        assert 'Line 2' in data['content']
+        assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert client.get('/api/notes', headers=auth_headers).get_json()['notes'] == []
 
     def test_create_note_whitespace_only_rejected(self, client, auth_headers):
         """Whitespace-only content is trimmed to '' and fails min_length."""

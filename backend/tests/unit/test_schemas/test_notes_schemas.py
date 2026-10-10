@@ -16,13 +16,12 @@ class TestCreateNoteRequestSchema:
 
     def test_valid_unicode_preserved(self):
         """Unicode characters should be stored untouched."""
-        text = 'Unicode: 你好 مرحبا שלום 🎉'
+        text = 'Unicode: 你好 مرحبا שלום'
         req = NoteCreateRequest(content=text)
         assert req.content == text
 
-    def test_valid_newlines_preserved(self):
-        """Newline characters are plain text and must be kept."""
-        text = 'Line 1\nLine 2\nLine 3'
+    def test_valid_symbols_and_inner_spaces_preserved(self):
+        text = 'Costs €5 × 2 ≥ £8, ok?'
         req = NoteCreateRequest(content=text)
         assert req.content == text
 
@@ -65,6 +64,22 @@ class TestCreateNoteRequestSchema:
         with pytest.raises(ValidationError):
             NoteCreateRequest(content='x' * 257)
 
+    @pytest.mark.parametrize('text', [
+        'Launch 🚀',                 # beyond the Basic Multilingual Plane
+        'Love \u2764',               # heavy heart, a symbol emoji
+        'Copyright ©',
+        '20°',
+        'Key 1\u20e3',               # keycap: 1 + combining enclosing keycap
+        'Text\ufe0f',                # emoji variation selector
+        'a\u200db',                  # zero-width joiner
+        'Line 1\nLine 2',            # control characters
+        'Tab\there',
+        'Old \U00020000',            # a CJK letter beyond the Basic Multilingual Plane
+    ])
+    def test_rejects_emoji_symbols_and_control_characters(self, text):
+        with pytest.raises(ValidationError, match='Note must not contain emoji'):
+            NoteCreateRequest(content=text)
+
     def test_rejects_extra_fields(self):
         """extra='forbid' must reject unknown keys."""
         with pytest.raises(ValidationError):
@@ -92,7 +107,7 @@ class TestNoteUpdateRequestSchema:
 
     @pytest.mark.parametrize('kwargs', [
         {}, {'content': ''}, {'content': ' \n\t'}, {'content': 'x' * 257},
-        {'content': 'ok', 'id': 2},
+        {'content': 'ok', 'id': 2}, {'content': '🚀'},
     ])
     def test_rejects_what_create_rejects(self, kwargs):
         with pytest.raises(ValidationError):

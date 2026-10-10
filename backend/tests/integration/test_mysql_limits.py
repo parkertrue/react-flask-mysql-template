@@ -28,9 +28,9 @@ def test_database_rejects_an_overlong_note(integration_db, integration_user):
     integration_db.session.rollback()
 
 
-def test_longest_note_survives_in_four_byte_characters(integration_client, integration_user):
-    """The limit counts characters, so a note of emoji fits like one of letters"""
-    content = '🚀' * NOTE_MAX_LENGTH
+def test_longest_note_survives_in_multibyte_characters(integration_client, integration_user):
+    """The limit counts characters, not bytes: three-byte 日 fits like a letter"""
+    content = '日' * NOTE_MAX_LENGTH
     token = create_access_token(identity=str(integration_user.id))
     headers = {'Authorization': f'Bearer {token}'}
 

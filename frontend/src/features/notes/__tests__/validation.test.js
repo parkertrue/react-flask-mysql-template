@@ -7,9 +7,8 @@ describe('validateNoteContent', () => {
   it.each([
     ['one character', 'a'],
     ['the maximum length', 'a'.repeat(NOTE_MAX_LENGTH)],
-    // Counted as the backend counts, one per character, not per UTF-16 unit
-    ['the maximum length in emoji', '🚀'.repeat(NOTE_MAX_LENGTH)],
     ['special characters and numbers', 'Note 123 with @#$% chars!'],
+    ['letters, punctuation and symbols of any language', 'Grüße — 日本 €5 × 2'],
     // The backend trims too, so surrounding space never counts
     ['surrounding whitespace', '  Valid note  '],
   ])('accepts %s', (_, content) => {
@@ -23,13 +22,18 @@ describe('validateNoteContent', () => {
     }
   )
 
-  it.each([
-    ['letters', 'a'.repeat(NOTE_MAX_LENGTH + 1)],
-    ['emoji', '🚀'.repeat(NOTE_MAX_LENGTH + 1)],
-  ])('rejects a note longer than the notes.content column, in %s', (_, content) => {
-    expect(validateNoteContent(content))
+  it('rejects a note longer than the notes.content column', () => {
+    expect(validateNoteContent('a'.repeat(NOTE_MAX_LENGTH + 1)))
       .toEqual([`Note must be at most ${NOTE_MAX_LENGTH} characters`])
   })
+
+  it.each(['🚀', '❤', '1⃣', '️', '‍', '©', '°', '𠀀', 'a\nb'])(
+    'rejects a note with %o, as the backend does',
+    (symbol) => {
+      expect(validateNoteContent(`Note ${symbol}`))
+        .toEqual(['Note must not contain emoji or other symbols like © or °'])
+    }
+  )
 })
 
 // The backend's limit is the real one; this only spares the user a round trip

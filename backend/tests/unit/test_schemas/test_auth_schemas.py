@@ -417,6 +417,7 @@ class TestPasswordCharacters:
         'ValidPass123\ufe0f',        # emoji variation selector
         'ValidPass123\U0001F3FB',    # skin-tone modifier
         'ValidPass123\u200d',        # zero-width joiner
+        'ValidPass123\U00020000',    # a CJK letter beyond the Basic Multilingual Plane
         'ValidPass123©',
         'ValidPass123°',
     ])

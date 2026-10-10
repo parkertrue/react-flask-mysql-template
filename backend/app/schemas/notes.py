@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, field_validator
 from datetime import datetime, timezone
 
 from app.models import ID_MAX
 from app.models.note import NOTE_MAX_LENGTH
+from app.utils.text import UNSUPPORTED_CHARACTERS_MESSAGE, is_plain_text
 
 
 class NoteCreateRequest(BaseModel):
@@ -14,6 +15,13 @@ class NoteCreateRequest(BaseModel):
 
     # Trimmed before the length checks, so whitespace-only notes are rejected
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+
+    @field_validator('content')
+    @classmethod
+    def check_characters(cls, v):
+        if not is_plain_text(v):
+            raise ValueError(f'Note {UNSUPPORTED_CHARACTERS_MESSAGE}')
+        return v
 
 
 class NoteUpdateRequest(NoteCreateRequest):

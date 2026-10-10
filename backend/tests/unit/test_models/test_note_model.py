@@ -242,7 +242,7 @@ class TestNoteModel:
 
     def test_note_with_unicode(self, db, sample_user):
         """Note should handle Unicode characters."""
-        unicode_content = 'Unicode: 你好 مرحبا שלום 🎉'
+        unicode_content = 'Unicode: 你好 مرحبا שלום'
         note = Note(user_id=sample_user.id, content=unicode_content)
         db.session.add(note)
         db.session.commit()
