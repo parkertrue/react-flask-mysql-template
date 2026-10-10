@@ -21,7 +21,7 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 * **Reverse proxy (prod)**: Nginx
 * **Containers**: Docker / Docker Compose
 
-The app ships with auth and a minimal **notes** feature. Notes is a deliberately thin example of one feature wired end to end (model, schema, route, API service, hook, components, tests), meant to be replaced by your real app. See [Starting a New App](#starting-a-new-app-from-this-template).
+The app ships with auth and a minimal **notes** feature: list, create, edit and delete. Notes is a deliberately thin example of one feature wired end to end (model, schema, route, API service, hook, components, tests), meant to be replaced by your real app. See [Starting a New App](#starting-a-new-app-from-this-template).
 
 ---
 

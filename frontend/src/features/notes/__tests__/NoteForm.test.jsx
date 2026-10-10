@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import NoteForm from '../NoteForm'
 import { NOTE_MAX_LENGTH } from '../validation'
 
-function renderForm({ loading = false, onSubmit = vi.fn().mockResolvedValue() } = {}) {
-  render(<NoteForm onSubmit={onSubmit} loading={loading} />)
+function renderForm({ submitting = false, onSubmit = vi.fn().mockResolvedValue() } = {}) {
+  render(<NoteForm onSubmit={onSubmit} submitting={submitting} />)
   return { onSubmit, user: userEvent.setup() }
 }
 
@@ -124,7 +124,7 @@ describe('NoteForm', () => {
   })
 
   it('stays focusable but refuses another submit while a note is being saved', async () => {
-    const { onSubmit, user } = renderForm({ loading: true })
+    const { onSubmit, user } = renderForm({ submitting: true })
     setValue('Second note')
 
     await user.click(button())

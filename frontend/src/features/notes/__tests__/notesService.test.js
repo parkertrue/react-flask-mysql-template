@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { fetchNotes, createNote } from '../notesService'
+import { fetchNotes, createNote, updateNote, deleteNote } from '../notesService'
 import { api } from '@/api/api'
 import { note, notesPage } from './fixtures'
 
@@ -61,6 +61,40 @@ describe('notesService', () => {
       api.post.mockRejectedValue(error)
 
       await expect(createNote('Test note')).rejects.toThrow('Failed to create note')
+    })
+  })
+
+  describe('updateNote', () => {
+    it('should PUT the new content to /notes/:id', async () => {
+      const mockNote = note({ id: 7, content: 'Edited' })
+      api.put.mockResolvedValue({ data: mockNote })
+
+      const result = await updateNote(7, 'Edited')
+
+      expect(api.put).toHaveBeenCalledWith('/notes/7', { content: 'Edited' })
+      expect(result).toEqual(mockNote)
+    })
+
+    it('should propagate errors from API', async () => {
+      api.put.mockRejectedValue(new Error('Failed to update note'))
+
+      await expect(updateNote(7, 'Edited')).rejects.toThrow('Failed to update note')
+    })
+  })
+
+  describe('deleteNote', () => {
+    it('should DELETE /notes/:id', async () => {
+      api.delete.mockResolvedValue({ status: 204 })
+
+      await expect(deleteNote(7)).resolves.toBeUndefined()
+
+      expect(api.delete).toHaveBeenCalledWith('/notes/7')
+    })
+
+    it('should propagate errors from API', async () => {
+      api.delete.mockRejectedValue(new Error('Failed to delete note'))
+
+      await expect(deleteNote(7)).rejects.toThrow('Failed to delete note')
     })
   })
 })

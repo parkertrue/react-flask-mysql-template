@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import PageTitle from '@/components/layout/PageTitle'
 import { useNotes } from './useNotes'
 import NotesList from './NotesList'
@@ -6,19 +7,28 @@ import './notes.css'
 
 export default function NotesPage() {
   const {
-    notes, loading, loadingMore, hasMore, submitting, error, addNote, loadMore
+    notes, loading, loadingMore, hasMore, submitting, error,
+    addNote, editNote, removeNote, loadMore
   } = useNotes()
+  // Where focus goes when the last note is deleted
+  const headingRef = useRef(null)
 
   return (
     <div className="notes-page">
       <PageTitle>My Notes</PageTitle>
-      <h1>My Notes</h1>
+      <h1 ref={headingRef} tabIndex={-1}>My Notes</h1>
 
-      <NoteForm onSubmit={addNote} loading={submitting} />
+      <NoteForm onSubmit={addNote} submitting={submitting} />
 
       {error && <div className="error-message" role="alert">{error}</div>}
 
-      <NotesList notes={notes} loading={loading} />
+      <NotesList
+        notes={notes}
+        loading={loading}
+        onEdit={editNote}
+        onDelete={removeNote}
+        emptiedFocusRef={headingRef}
+      />
 
       {hasMore && !loading && (
         <button

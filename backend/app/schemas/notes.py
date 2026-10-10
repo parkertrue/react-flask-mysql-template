@@ -1,12 +1,8 @@
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from datetime import datetime, timezone
 
+from app.models import ID_MAX
 from app.models.note import NOTE_MAX_LENGTH
-
-# The largest id an INT primary key holds. A cursor is always a note's id, so
-# anything past this is malformed; unbounded, a long enough number overflows
-# the database driver and answers 500 instead of 422.
-ID_MAX = 2**31 - 1
 
 
 class NoteCreateRequest(BaseModel):
@@ -18,6 +14,10 @@ class NoteCreateRequest(BaseModel):
 
     # Trimmed before the length checks, so whitespace-only notes are rejected
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+
+
+class NoteUpdateRequest(NoteCreateRequest):
+    """PUT /api/notes/<id>: the note's new content, under the same rules"""
 
 
 class NotesListQuery(BaseModel):

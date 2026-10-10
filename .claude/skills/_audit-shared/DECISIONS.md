@@ -79,6 +79,13 @@ a library the app does use (OpenSSL, musl, zlib).
 Test Architecture). *Revisit when:* the suites grow past what spot checks can
 cover; mutmut and Stryker are the candidates (SOURCES.md, Testing).
 
+**`ConfirmDialog` keeps the native `<dialog>` defaults.** A click on the
+backdrop does not close it (only Cancel, Escape or the confirm button do),
+and Tab from its last button passes through the browser's own toolbar before
+wrapping back into it. Both are how `showModal()` behaves in every browser;
+overriding them means hand-written focus trapping and click handling, which
+CLAUDE.md's prefer-the-built-in rule argues against.
+
 ## Deferred until the app grows
 
 **TanStack Query.** It would replace the hand-written loading, error and
@@ -98,10 +105,6 @@ when:* the app adopts a server-rendering framework.
 A check mentions these only when its findings bear on one (for example, the
 recovery check is blocked by the missing backups). They are not new findings.
 
-- **Notes update/delete.** The API has GET and POST only; `updateNote` and
-  `deleteNote` in `features/notes/notesService.js` are commented out, and the
-  `can update a note` / `can delete a note` E2E tests assert nothing until the
-  feature exists. When it lands, those tests must assert.
 - **Account deletion** on `AccountPage`; **email verification**.
 - **Account security beyond the basics:** no password change, password
   reset, multi-factor login, or common/breached-password check (ASVS 5.0
@@ -109,5 +112,9 @@ recovery check is blocked by the missing backups). They are not new findings.
 - **No deployment yet**, so these don't exist: automated backups and a
   restore procedure, server hardening (SSH, firewall, Fail2ban), certificate
   auto-renewal, CD, monitoring, centralized logging, a CDN.
-- **TLS between containers and encryption at rest** (MySQL volume, Redis,
-  backups) are undecided.
+- **TLS between containers** is not needed while every service shares one
+  host: MySQL and Redis traffic stays on the `internal` network, and anyone
+  who can sniff that bridge already has root on the host. It becomes required
+  once the database or Redis moves off-host (a managed service, a second
+  machine); the backend's PyMySQL connection is plaintext until then.
+- **Encryption at rest** (MySQL volume, Redis, backups) is undecided.

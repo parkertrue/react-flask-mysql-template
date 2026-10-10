@@ -408,21 +408,152 @@ class TestCreateNote:
         assert user2_notes[0]['content'] == 'User 2 note'
 
 
+class TestUpdateNote:
+    """PUT /api/notes/<id> replaces one of the user's own notes' content"""
+
+    def put(self, client, headers, note_id, content):
+        return client.put(f'/api/notes/{note_id}', json={'content': content},
+                          headers=headers)
+
+    def test_requires_authentication(self, client, sample_note):
+        response = client.put(f'/api/notes/{sample_note.id}', json={'content': 'x'})
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
+
+    def test_updates_content_and_returns_the_note(
+            self, client, auth_headers, sample_note):
+        response = self.put(client, auth_headers, sample_note.id, '  Edited  ')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        # Trimmed, like a new note
+        assert data['content'] == 'Edited'
+        assert data['id'] == sample_note.id
+        assert data['user_id'] == sample_note.user_id
+        assert datetime.fromisoformat(data['created_at']).utcoffset() == timedelta(0)
+
+    def test_persists_and_keeps_its_place(
+            self, client, auth_headers, sample_notes, db):
+        middle = sample_notes[1]
+
+        self.put(client, auth_headers, middle.id, 'Edited')
+
+        db.session.expire_all()
+        assert db.session.get(Note, middle.id).content == 'Edited'
+        listed = client.get('/api/notes', headers=auth_headers).get_json()['notes']
+        assert [n['content'] for n in listed] == ['Third note', 'Edited', 'First note']
+
+    def test_other_users_note_is_not_found_and_unchanged(
+            self, client, auth_headers, other_user_note, db):
+        response = self.put(client, auth_headers, other_user_note.id, 'Hijacked')
+
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+        db.session.expire_all()
+        assert db.session.get(Note, other_user_note.id).content == 'Note from another user'
+
+    def test_missing_note_is_not_found(self, client, auth_headers, sample_user):
+        response = self.put(client, auth_headers, 999, 'Anything')
+
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+
+    @pytest.mark.parametrize('payload', [
+        {}, {'content': ''}, {'content': '   '}, {'content': 'x' * 257},
+        {'content': 'ok', 'user_id': 2},
+    ])
+    def test_invalid_body_is_validation_error_and_unchanged(
+            self, client, auth_headers, sample_note, db, payload):
+        response = client.put(f'/api/notes/{sample_note.id}', json=payload,
+                              headers=auth_headers)
+
+        assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        db.session.expire_all()
+        assert db.session.get(Note, sample_note.id).content == 'This is a test note'
+
+    def test_accepts_the_maximum_length(self, client, auth_headers, sample_note):
+        response = self.put(client, auth_headers, sample_note.id, 'x' * 256)
+
+        assert response.status_code == 200
+        assert response.get_json()['content'] == 'x' * 256
+
+
+class TestDeleteNote:
+    """DELETE /api/notes/<id> removes one of the user's own notes"""
+
+    def test_requires_authentication(self, client, sample_note):
+        response = client.delete(f'/api/notes/{sample_note.id}')
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
+
+    def test_deletes_only_that_note(self, client, auth_headers, sample_notes, db):
+        response = client.delete(f'/api/notes/{sample_notes[1].id}', headers=auth_headers)
+
+        assert response.status_code == 204
+        assert response.data == b''
+        remaining = db.session.scalars(select(Note.content).order_by(Note.id)).all()
+        assert remaining == ['First note', 'Third note']
+
+    def test_deleting_twice_is_not_found(self, client, auth_headers, sample_note):
+        url = f'/api/notes/{sample_note.id}'
+        client.delete(url, headers=auth_headers)
+
+        response = client.delete(url, headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+
+    def test_other_users_note_is_not_found_and_kept(
+            self, client, auth_headers, other_user_note, db):
+        response = client.delete(f'/api/notes/{other_user_note.id}', headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+        db.session.expire_all()
+        assert db.session.get(Note, other_user_note.id) is not None
+
+
+class TestNoteIds:
+    """The id in /api/notes/<id> is a positive INT, or the route is not found"""
+
+    @pytest.mark.parametrize('note_id', ['0', '-1', 'abc', '1.5', str(2**31), '9' * 19])
+    @pytest.mark.parametrize('method, body', [('PUT', {'content': 'x'}), ('DELETE', None)])
+    def test_out_of_range_id_is_not_found(
+            self, client, auth_headers, sample_user, note_id, method, body):
+        response = client.open(f'/api/notes/{note_id}', method=method, json=body,
+                               headers=auth_headers)
+
+        assert response.status_code == 404
+        assert response.get_json()['error']['code'] == 'NOT_FOUND'
+
+    def test_post_to_a_note_is_not_allowed(self, client, auth_headers, sample_note):
+        response = client.post(f'/api/notes/{sample_note.id}', json={'content': 'x'},
+                               headers=auth_headers)
+
+        assert response.status_code == 405
+        assert response.get_json()['error']['code'] == 'METHOD_NOT_ALLOWED'
+
+
 class TestNotesEdgeCases:
     """Test edge cases and error scenarios."""
 
-    @pytest.mark.parametrize('request_kwargs', [
-        {'method': 'GET'},
-        {'method': 'POST', 'json': {'content': 'x'}},
+    @pytest.mark.parametrize('url, request_kwargs', [
+        ('/api/notes', {'method': 'GET'}),
+        ('/api/notes', {'method': 'POST', 'json': {'content': 'x'}}),
+        ('/api/notes/1', {'method': 'PUT', 'json': {'content': 'x'}}),
+        ('/api/notes/1', {'method': 'DELETE'}),
     ])
     def test_deleted_users_access_token_is_rejected(
-            self, client, auth_headers, sample_user, db, request_kwargs):
+            self, client, auth_headers, sample_user, db, url, request_kwargs):
         """An access token outlives its account until it expires; every
         protected route must still turn it away"""
         db.session.delete(sample_user)
         db.session.commit()
 
-        response = client.open('/api/notes', headers=auth_headers, **request_kwargs)
+        response = client.open(url, headers=auth_headers, **request_kwargs)
 
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useNotes } from '../useNotes'
-import { fetchNotes, createNote } from '../notesService'
+import { fetchNotes, createNote, updateNote, deleteNote } from '../notesService'
 import { AuthProvider } from '@/auth/AuthProvider'
 import { useAuth } from '@/auth/useAuth'
 import { signIn } from '@/test/router'
@@ -103,13 +103,11 @@ describe('useNotes', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      let returnedNote
       await act(async () => {
-        returnedNote = await result.current.addNote('New note')
+        await result.current.addNote('New note')
       })
 
       expect(result.current.notes).toContainEqual(newNote)
-      expect(returnedNote).toEqual(newNote)
       expect(createNote).toHaveBeenCalledWith('New note')
     })
 
@@ -164,6 +162,64 @@ describe('useNotes', () => {
       // Check error state after act completes
       expect(result.current.error).toBe('Failed to create')
       expect(result.current.notes).toEqual([])
+    })
+  })
+
+  describe('editNote and removeNote', () => {
+    const loaded = [{ id: 2, content: 'Two' }, { id: 1, content: 'One' }]
+
+    async function renderLoaded() {
+      fetchNotes.mockResolvedValue(page(loaded, 1))
+      const view = renderHook(() => useNotes(), { wrapper })
+      await waitFor(() => expect(view.result.current.notes).toEqual(loaded))
+      return view.result
+    }
+
+    beforeEach(() => {
+      signIn()
+    })
+
+    it('editNote replaces the note in place', async () => {
+      const edited = { id: 1, content: 'One, edited' }
+      updateNote.mockResolvedValue(edited)
+      const result = await renderLoaded()
+
+      await act(async () => {
+        await result.current.editNote(1, 'One, edited')
+      })
+
+      expect(updateNote).toHaveBeenCalledWith(1, 'One, edited')
+      expect(result.current.notes).toEqual([loaded[0], edited])
+    })
+
+    it('removeNote drops only that note and keeps the cursor', async () => {
+      deleteNote.mockResolvedValue()
+      const result = await renderLoaded()
+
+      await act(async () => {
+        await result.current.removeNote(2)
+      })
+
+      expect(deleteNote).toHaveBeenCalledWith(2)
+      expect(result.current.notes).toEqual([loaded[1]])
+      expect(result.current.hasMore).toBe(true)
+    })
+
+    it.each([
+      ['editNote', () => updateNote, current => current.editNote(1, 'Changed')],
+      ['removeNote', () => deleteNote, current => current.removeNote(1)],
+    ])('%s rethrows a failure for the row to show, leaving the notes and page error alone', async (_, service, run) => {
+      service().mockRejectedValue(new Error('Network error'))
+      const result = await renderLoaded()
+
+      let thrown
+      await act(async () => {
+        await run(result.current).catch(err => { thrown = err })
+      })
+
+      expect(thrown.message).toBe('Network error')
+      expect(result.current.error).toBeNull()
+      expect(result.current.notes).toEqual(loaded)
     })
   })
 

@@ -25,6 +25,30 @@ afterEach(() => {
   }
 })
 
+// jsdom has <dialog> but none of its methods. This stands in for the part
+// ConfirmDialog uses: open, close with a return value (firing "close"), and
+// Escape, which fires "cancel" and then closes. Playwright runs the real one.
+HTMLDialogElement.prototype.showModal = function () {
+  this.returnValue = ''
+  this.open = true
+}
+HTMLDialogElement.prototype.close = function (returnValue) {
+  if (!this.open) return
+  if (returnValue !== undefined) this.returnValue = returnValue
+  this.open = false
+  this.dispatchEvent(new Event('close'))
+}
+document.addEventListener('keydown', (e) => {
+  const dialog = document.querySelector('dialog[open]')
+  if (e.key === 'Escape' && dialog?.dispatchEvent(new Event('cancel', { cancelable: true }))) {
+    dialog.close()
+  }
+})
+
+// React Router's <ScrollRestoration> scrolls on every navigation, which jsdom
+// does not implement; unstubbed, each one logs a warning that buries real ones
+window.scrollTo = () => {}
+
 Object.defineProperty(window, 'location', {
   writable: true,
   value: {

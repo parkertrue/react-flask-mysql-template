@@ -15,61 +15,52 @@ test.describe('Notes CRUD Operations', () => {
   })
 
   test('can update a note', async ({ page }) => {
-    // Create a note to update
-    const originalText = 'Original note text'
-    const noteInputField = noteInput(page)
-    await addNote(page, originalText)
+    await addNote(page, 'Original note text')
 
-    // Find and click edit button for this note
-    // Look for edit button near the note text
-    const noteContainer = page.locator(`text=${originalText}`).locator('..')
-    const editButton = noteContainer.getByRole('button', { name: /edit/i }).or(
-      noteContainer.locator('button').filter({ hasText: /edit/i })
-    )
+    await page.getByRole('button', { name: /^Edit note #/ }).click()
+    const field = page.getByRole('textbox', { name: /^Edit note #/ })
+    await expect(field).toBeFocused()
+    await expect(field).toHaveValue('Original note text')
+    await field.fill('Updated note text')
+    await page.getByRole('button', { name: 'Save' }).click()
 
-    // Wait a moment for any animations
-    await page.waitForTimeout(500)
+    await expect(page.getByText('Updated note text')).toBeVisible()
+    await expect(page.getByText('Original note text')).not.toBeVisible()
 
-    if (await editButton.isVisible()) {
-      await editButton.click()
-
-      // Update the note
-      const updatedText = 'Updated note text'
-      await noteInputField.fill(updatedText)
-      await page.getByRole('button', { name: /save|update/i }).click()
-
-      // Verify update
-      await expect(page.getByText(updatedText)).toBeVisible()
-      await expect(page.getByText(originalText)).not.toBeVisible()
-    }
+    // Saved by the server, not only on screen
+    await page.reload()
+    await expect(page.getByText('Updated note text')).toBeVisible()
   })
 
   test('can delete a note', async ({ page }) => {
-    // Create a note to delete
-    const noteText = 'Note to be deleted'
-    await addNote(page, noteText)
+    await addNote(page, 'Note to keep')
+    await addNote(page, 'Note to be deleted')
 
-    // Find and click delete button for this note
-    const noteContainer = page.locator(`text=${noteText}`).locator('..')
-    const deleteButton = noteContainer.getByRole('button', { name: /delete/i }).or(
-      noteContainer.locator('button').filter({ hasText: /delete/i })
-    )
+    const row = page.getByRole('listitem').filter({ hasText: 'Note to be deleted' })
+    const deleteButton = row.getByRole('button', { name: /^Delete note #/ })
+    const dialog = page.getByRole('dialog', { name: 'Delete this note?' })
 
-    // Wait a moment for any animations
-    await page.waitForTimeout(500)
+    // Escape keeps the note, and focus goes back to the button that asked
+    await deleteButton.click()
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+    // Centered, not pinned to a corner by the CSS reset's margin: 0
+    const box = await dialog.boundingBox()
+    expect(Math.abs(box.x + box.width / 2 - page.viewportSize().width / 2)).toBeLessThan(2)
+    await page.keyboard.press('Escape')
+    await expect(dialog).not.toBeVisible()
+    await expect(deleteButton).toBeFocused()
 
-    if (await deleteButton.isVisible()) {
-      await deleteButton.click()
+    await deleteButton.click()
+    await dialog.getByRole('button', { name: 'Delete' }).click()
 
-      // Handle confirmation dialog if present
-      const confirmButton = page.getByRole('button', { name: /confirm|yes|ok/i })
-      if (await confirmButton.isVisible().catch(() => false)) {
-        await confirmButton.click()
-      }
+    // The row, not the text: the closing dialog quotes the note too
+    await expect(row).toHaveCount(0)
+    // Focus moved to the remaining note rather than being lost
+    await expect(page.getByRole('button', { name: /^Edit note #/ })).toBeFocused()
 
-      // Verify note is removed
-      await expect(page.getByText(noteText)).not.toBeVisible()
-    }
+    await page.reload()
+    await expect(page.getByRole('listitem')).toHaveCount(1)
+    await expect(page.getByText('Note to keep')).toBeVisible()
   })
 
   test('empty note submission shows validation', async ({ page }) => {
