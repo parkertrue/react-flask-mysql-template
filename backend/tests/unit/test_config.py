@@ -93,20 +93,28 @@ class TestConfigClasses:
         assert config.RATELIMIT_ENABLED is False
 
     def test_integration_config_without_e2e_mode(self, monkeypatch):
-        """Without E2E_MODE, cookie security and CSRF are off for API tests"""
+        """Without E2E_MODE, CSRF is off for API tests"""
         monkeypatch.delenv('E2E_MODE', raising=False)
         config = IntegrationConfig()
 
-        assert config.JWT_COOKIE_SECURE is False
         assert config.JWT_COOKIE_CSRF_PROTECT is False
 
     def test_integration_config_with_e2e_mode(self, monkeypatch):
-        """With E2E_MODE, the browser-facing protections come back on"""
+        """With E2E_MODE, the browser-facing CSRF check comes back on"""
         monkeypatch.setenv('E2E_MODE', 'true')
         config = IntegrationConfig()
 
-        assert config.JWT_COOKIE_SECURE is True
         assert config.JWT_COOKIE_CSRF_PROTECT is True
+
+    @pytest.mark.parametrize('config_class', [
+        DevelopmentConfig, UnitTestConfig, IntegrationConfig, ProductionConfig])
+    def test_refresh_cookie_is_secure_prefixed_everywhere(self, monkeypatch, config_class):
+        """Browsers drop a __Secure- cookie that lacks Secure, so both go together"""
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+        config = config_class()
+
+        assert config.JWT_REFRESH_COOKIE_NAME == '__Secure-refresh_token'
+        assert config.JWT_COOKIE_SECURE is True
 
     def test_production_config_attributes(self, monkeypatch):
         """ProductionConfig should have correct attributes"""

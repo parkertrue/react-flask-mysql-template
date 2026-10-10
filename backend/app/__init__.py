@@ -220,6 +220,12 @@ def create_app():
             status=500
         )
 
+    @app.after_request
+    def no_store(response):
+        """API responses carry tokens and private data: no cache may keep them"""
+        response.headers.setdefault('Cache-Control', 'no-store')
+        return response
+
     # Imported here, not at the top: the route modules import db and limiter
     # from this package, so a module-level import would be circular.
     from app.routes import register_routes

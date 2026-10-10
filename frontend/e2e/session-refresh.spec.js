@@ -30,7 +30,7 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
   // Keep the session's credentials to replay after logout
   const csrf = await page.evaluate(() => localStorage.getItem('refresh_csrf'))
   const refreshCookie = (await page.context().cookies())
-    .find(c => c.name === 'refresh_token_cookie')
+    .find(c => c.name === '__Secure-refresh_token')
 
   const loggedOut = page.waitForResponse('**/api/auth/logout')
   await logout(page)

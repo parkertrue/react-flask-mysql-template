@@ -39,6 +39,14 @@ test.describe('nginx', () => {
     expect(asset.headers()['cache-control']).toMatch(/max-age=31536000.*immutable|immutable.*max-age=31536000/)
   })
 
+  test('API responses are never stored', async ({ request }) => {
+    // Set by Flask; nginx must pass it through untouched
+    for (const path of ['/api/health', '/api/notes']) {
+      const response = await request.get(path)
+      expect(response.headers()['cache-control'], path).toBe('no-store')
+    }
+  })
+
   test('plain HTTP redirects to HTTPS', async ({ request }) => {
     const response = await request.get(`${HTTP}/notes?x=1`, { maxRedirects: 0 })
 

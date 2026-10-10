@@ -37,7 +37,7 @@ class TestRedisTokenStorage:
 
         cookies = response.headers.getlist('Set-Cookie')
         refresh_cookie = next(
-            (c for c in cookies if 'refresh_token_cookie' in c), None)
+            (c for c in cookies if '__Secure-refresh_token' in c), None)
         assert refresh_cookie is not None
 
         assert len(_jtis(integration_redis, integration_user.id)) == 1
@@ -169,7 +169,7 @@ class TestRotationIsAtomic:
     ):
         """Whichever loses, at the blocklist or in the rotation, it gets a 401"""
         assert _login(integration_client).status_code == 200
-        cookie = integration_client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        cookie = integration_client.get_cookie('__Secure-refresh_token', path='/api/auth').value
         start = threading.Barrier(2)
         statuses = []
 
@@ -177,7 +177,7 @@ class TestRotationIsAtomic:
             client = integration_app.test_client(use_cookies=False)
             start.wait()
             response = client.post(
-                '/api/auth/refresh', headers={'Cookie': f'refresh_token_cookie={cookie}'})
+                '/api/auth/refresh', headers={'Cookie': f'__Secure-refresh_token={cookie}'})
             statuses.append(response.status_code)
 
         threads = [threading.Thread(target=refresh) for _ in range(2)]
