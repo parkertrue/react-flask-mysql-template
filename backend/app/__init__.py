@@ -80,7 +80,6 @@ def create_app():
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
-        """Check if refresh token has been revoked"""
         # Only refresh tokens are tracked in Redis
         if jwt_payload.get('type') != 'refresh':
             return False
@@ -95,7 +94,7 @@ def create_app():
             return True
 
         # Fail closed: without Redis we cannot tell a live refresh token from a
-        # revoked one, so refuse it rather than honour tokens the user already
+        # revoked one, so refuse it rather than honor tokens the user already
         # logged out of. Refuse it as a 503, not a revocation: the client
         # keeps its session and tries again once Redis is back.
         redis_service = get_redis_service()
@@ -105,7 +104,6 @@ def create_app():
         # Not in the allowlist: logged out, rotated, or expired
         return not is_valid
 
-    # JWT error handlers
     @jwt.unauthorized_loader
     def missing_token(reason):
         return error_response(
@@ -138,7 +136,6 @@ def create_app():
             status=401
         )
 
-    # Pydantic error handler
     @app.errorhandler(ValidationError)
     def handle_pydantic_error(e):
         return error_response(

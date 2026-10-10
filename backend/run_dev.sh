@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Check if .env.dev exists
 ENV_FILE="../.env.dev"
 if [ ! -f "$ENV_FILE" ]; then
     echo "Error: $ENV_FILE not found!"
@@ -35,10 +34,8 @@ fi
 
 python wait_for_services.py
 
-# Run migrations
 echo "Running database migrations..."
 flask db upgrade
 
-# Start Flask app
 echo "Starting Flask app..."
 exec python wsgi.py

@@ -133,6 +133,8 @@ class RedisService:
             username=username,
             password=password,
             decode_responses=True,
+            # Ping a connection idle for over 30s before reusing it, so one
+            # that Redis or a NAT dropped is replaced instead of failing a request
             health_check_interval=30,
             max_connections=max_connections,
             **REDIS_CLIENT_OPTIONS,

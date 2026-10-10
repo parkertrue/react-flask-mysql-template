@@ -3,10 +3,7 @@ import { TEST_PASSWORD, uniqueEmail } from './helpers'
 
 test.describe('System Health Check', () => {
   test('API health endpoint is accessible', async ({ page }) => {
-    // Try to access the health endpoint
-    // Relative, so it follows the configured baseURL. Hardcoding
-    // https://localhost pinned this to :443 and broke when the E2E stack moved
-    // to :8443.
+    // Relative, so it follows baseURL
     const response = await page.goto('/api/health')
     
     expect(response.status()).toBe(200)
@@ -18,7 +15,6 @@ test.describe('System Health Check', () => {
   test('frontend loads correctly', async ({ page }) => {
     await page.goto('/')
     
-    // Check if we can see the home page
     await expect(page.getByText(/Welcome to Flask/i)).toBeVisible({ timeout: 10000 })
   })
 

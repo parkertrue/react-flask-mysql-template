@@ -1,7 +1,7 @@
 # Runtime dependencies the app imports directly. requirements.txt is the lock
 # compiled from this file: every package, transitive ones included, pinned to
 # an exact version, so each image build installs exactly what was tested.
-# After editing this file, regenerate the lock (see README, "Dependencies").
+# After editing this file, regenerate the lock (backend/lock_deps.sh; README, "Python Dependencies").
 
 # Required by PyMySQL for MySQL 8's default caching_sha2_password auth
 cryptography

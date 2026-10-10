@@ -1,6 +1,6 @@
 """users table
 
-The auth tables every app built from this template keeps.
+The auth table every app built from this template keeps.
 
 Revision ID: 0001_users
 Revises:

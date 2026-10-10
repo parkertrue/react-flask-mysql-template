@@ -2,10 +2,12 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: false, // Run tests sequentially to avoid conflicts
+  // One worker: every test hits the same stack, and nginx rate-limits it
+  // all as one client IP
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker to prevent database conflicts
+  workers: 1,
   // In CI, failures are annotated on the run and listed in its log; the HTML
   // report (with traces) is uploaded as an artifact
   reporter: process.env.CI
@@ -26,9 +28,7 @@ export default defineConfig({
     },
   ],
 
-  // Runs against the isolated test stack, never .env.prod: E2E used to boot
-  // the production compose file with E2E_MODE=true, which meant test runs and
-  // real deployments shared a config path.
+  // The isolated test stack, never the production compose file or .env.prod
   webServer: {
     // --build: `up` alone reuses a stale backend image after code changes
     command: 'docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e up --build',

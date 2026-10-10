@@ -55,7 +55,6 @@ class TestGetNotes:
         data = json.loads(response.data)['notes']
         assert len(data) == 3
 
-        # Verify note structure
         for note in data:
             assert 'id' in note
             assert 'user_id' in note
@@ -170,7 +169,7 @@ class TestNotesPagination:
 
     @pytest.mark.parametrize('query', [
         '?limit=0', '?limit=101', '?limit=abc', '?before=0', '?before=x',
-        # Past the largest INT id, where SQLite's driver used to overflow
+        # Past the largest INT id (ID_MAX), which the driver would overflow
         f'?before={2**31}', f'?before={"9" * 19}'])
     def test_invalid_query_is_validation_error(self, client, auth_headers, query):
         response = client.get(f'/api/notes{query}', headers=auth_headers)
@@ -229,13 +228,11 @@ class TestCreateNote:
 
         assert response.status_code == 201
 
-        # Verify database has one more note
         new_count = db.session.scalar(
             select(func.count()).select_from(Note)
         )
         assert new_count == initial_count + 1
 
-        # Verify the note exists with correct data
         note = db.session.execute(
             select(Note).where(Note.content == 'Persisted note')
         ).scalar_one_or_none()
@@ -348,7 +345,6 @@ class TestCreateNote:
             )
             assert response.status_code == 201
 
-        # Verify all notes were created
         response = client.get('/api/notes', headers=auth_headers)
         data = json.loads(response.data)['notes']
         assert len(data) == 3

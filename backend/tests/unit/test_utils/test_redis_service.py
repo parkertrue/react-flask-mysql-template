@@ -46,7 +46,6 @@ class TestRedisServiceInitialization:
                 max_connections=100
             )
 
-            # Verify Redis was called with correct parameters
             mock_redis_class.assert_called_once()
             call_kwargs = mock_redis_class.call_args[1]
             assert call_kwargs['host'] == 'redishost'

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.models import User
+from app.models.user import EMAIL_MAX_LENGTH
 
 
 class TestUserModel:
@@ -185,7 +186,6 @@ class TestUserRelationships:
         db.session.commit()
         note_id = note.id
 
-        # Delete user
         db.session.delete(sample_user)
         db.session.commit()
 
@@ -219,21 +219,14 @@ class TestUserQueries:
         assert user.email == sample_user.email
 
     def test_email_index_exists(self, db):
-        """Email column should have index for performance."""
-        # This tests the index=True in the model
-        # The index improves query performance
+        """Login looks users up by email, and emails are unique"""
         from sqlalchemy import inspect
 
-        inspector = inspect(db.engine)
-        indexes = inspector.get_indexes('users')
+        indexes = inspect(db.engine).get_indexes('users')
 
-        # Should have at least one index on email
-        email_indexed = any(
-            'email' in idx.get('column_names', [])
-            for idx in indexes
-        )
-        # Some DBs auto-index unique columns
-        assert email_indexed or len(indexes) > 0
+        email_indexes = [idx for idx in indexes if idx['column_names'] == ['email']]
+        assert len(email_indexes) == 1
+        assert email_indexes[0]['unique']
 
 
 class TestUserEdgeCases:
@@ -241,17 +234,16 @@ class TestUserEdgeCases:
 
     def test_user_with_very_long_email(self, db):
         """Email at max length should work."""
-        # Max length is 128 chars
         local_part = 'a' * 119  # Max local part
         long_email = f'{local_part}@test.com'
+        assert len(long_email) == EMAIL_MAX_LENGTH
 
-        if len(long_email) <= 128:
-            user = User(email=long_email)
-            user.set_password('Password123')
-            db.session.add(user)
-            db.session.commit()
+        user = User(email=long_email)
+        user.set_password('Password123')
+        db.session.add(user)
+        db.session.commit()
 
-            assert user.email == long_email
+        assert user.email == long_email
 
     def test_user_with_special_email_chars(self, db):
         """Email with valid special characters should work."""

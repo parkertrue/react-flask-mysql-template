@@ -40,7 +40,6 @@ def get_notes():
 @notes_bp.route('', methods=['POST'])
 @jwt_required()
 def create_note():
-    """Create a new note"""
     payload = NoteCreateRequest.model_validate(request.get_json())
 
     new_note = Note(

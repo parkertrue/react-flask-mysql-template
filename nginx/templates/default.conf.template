@@ -36,7 +36,6 @@ server {
     http2 on;
     server_name ${NGINX_SERVER_NAME};
 
-    # TLS certificate and key
     ssl_certificate      /etc/nginx/certs/fullchain.pem;
     ssl_certificate_key  /etc/nginx/certs/privkey.pem;
 
@@ -76,7 +75,6 @@ server {
         access_log off;
     }
 
-    # Frontend - serve static files
     location / {
         try_files $uri $uri/ /index.html;
 
@@ -85,13 +83,11 @@ server {
         add_header Cache-Control "no-cache" always;
         include /etc/nginx/security_headers.conf;
 
-        # Content Security Policy
         # script-src has no 'unsafe-inline': the Vite build emits external
         # hashed bundles. style-src keeps 'unsafe-inline' for React inline
         # style attributes.
         add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
 
-        # Permissions Policy
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" always;
     }
 
@@ -110,7 +106,7 @@ server {
         include /etc/nginx/proxy_params.conf;
     }
 
-    # Health check - no rate limiting (exact match, must be above /api prefix block)
+    # Health check: no rate limiting. An exact match wins over /api wherever it sits.
     location = /api/health {
         access_log off;
 

@@ -90,6 +90,7 @@ class Config:
         # "default" user and gives the app its own ACL user, "app"
         self.REDIS_USERNAME = os.getenv('REDIS_USERNAME')
         self.REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+        # Per worker: well above its 4 threads, so no request waits on the pool
         self.REDIS_MAX_CONNECTIONS = 50
 
         self.REDIS_URI = None
@@ -200,13 +201,9 @@ class ProductionConfig(Config):
 def get_config():
     """Get configuration based on environment
 
-    APP_ENV is the only switch. E2E_MODE deliberately cannot promote or
-    demote a config class: previously E2E_MODE=true silently replaced
-    ProductionConfig with a weaker one, so a single env var could disable
-    rate limiting on a production deployment.
-
-    Not FLASK_ENV: Flask stopped reading that in 2.3, and the name suggested
-    it still had a say. Unset means production, the strictest class.
+    APP_ENV is the only switch: no other variable (E2E_MODE included) may
+    swap a config class, or one env var could weaken production. Unset means
+    production, the strictest class.
     """
     app_env = os.getenv('APP_ENV', 'production')
 

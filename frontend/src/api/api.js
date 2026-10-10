@@ -20,7 +20,7 @@ let failedQueue = []
 // Lock makes tabs take turns; one that waited finds the access token the
 // other stored (localStorage is shared too) and uses it instead of
 // refreshing again. Browsers without the API (or a non-HTTPS origin other
-// than localhost) refresh without the lock, as before.
+// than localhost) refresh without the lock.
 async function refreshTokens(staleToken) {
   const refresh = async () => {
     const current = storage.getAccessToken()
