@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import FormField from '@/components/forms/FormField'
+import { useFormFields } from '@/components/forms/useFormFields'
 import { validateNoteContent, NOTE_MAX_LENGTH } from './validation'
 
 // Adds a note by default; NoteItem passes an id, labels, the note's content
@@ -14,34 +14,19 @@ export default function NoteForm({
   initialContent = '',
   onCancel,
 }) {
-  const [content, setContent] = useState(initialContent)
-  const [error, setError] = useState('')
-  const inputRef = useRef(null)
-  const errorId = `${id}-error`
+  const { values, errors, handleChange, validate, reset } = useFormFields({ content: initialContent })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (submitting) return
-
-    const message = validateNoteContent(content)[0]
-    if (message) {
-      // Rendered before focusing, so a screen reader reads the message
-      flushSync(() => setError(message))
-      inputRef.current.focus()
-      return
-    }
+    if (!validate(e.currentTarget, { content: validateNoteContent(values.content)[0] })) return
 
     try {
-      await onSubmit(content.trim())
-      setContent('')
+      await onSubmit(values.content.trim())
+      reset()
     } catch {
       // The parent shows the error; keep the text so the user can retry
     }
-  }
-
-  const handleChange = (e) => {
-    setContent(e.target.value)
-    setError('')
   }
 
   // Escape anywhere in the edit form cancels it, as it would a dialog
@@ -51,23 +36,22 @@ export default function NoteForm({
 
   return (
     <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate className="note-form">
-      <label htmlFor={id} className="form-label">{label}</label>
-      <div className="note-form-group">
-        <input
-          ref={inputRef}
-          id={id}
-          type="text"
-          value={content}
-          onChange={handleChange}
-          maxLength={NOTE_MAX_LENGTH}
-          placeholder="Write a note..."
-          readOnly={submitting}
-          // Only the edit form, which opens on request, takes focus at once
-          autoFocus={!!onCancel}
-          className="form-input"
-          aria-invalid={!!error}
-          aria-describedby={error ? errorId : undefined}
-        />
+      <FormField
+        id={id}
+        name="content"
+        label={label}
+        type="text"
+        value={values.content}
+        onChange={handleChange}
+        maxLength={NOTE_MAX_LENGTH}
+        placeholder="Write a note..."
+        readOnly={submitting}
+        // Only the edit form, which opens on request, takes focus at once
+        autoFocus={!!onCancel}
+        error={errors.content}
+        // Read with the input, so a screen reader hears why typing stops
+        hint={`${NOTE_MAX_LENGTH - values.content.length} characters remaining`}
+      >
         <button type="submit" aria-disabled={submitting} className="btn btn-primary">
           {submitting ? busyLabel : submitLabel}
         </button>
@@ -81,14 +65,7 @@ export default function NoteForm({
             Cancel
           </button>
         )}
-      </div>
-
-      <div className="note-form-footer">
-        {error && <p className="field-error" id={errorId}>{error}</p>}
-        <p className="char-counter">
-          {NOTE_MAX_LENGTH - content.length} characters remaining
-        </p>
-      </div>
+      </FormField>
     </form>
   )
 }

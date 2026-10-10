@@ -21,13 +21,13 @@ describe('NoteForm', () => {
     expect(input()).toBe(screen.getByPlaceholderText('Write a note...'))
   })
 
-  it('counts down the characters left', async () => {
+  it('counts down the characters left, read with the input', async () => {
     const { user } = renderForm()
-    expect(screen.getByText(`${NOTE_MAX_LENGTH} characters remaining`)).toBeInTheDocument()
+    expect(input()).toHaveAccessibleDescription(`${NOTE_MAX_LENGTH} characters remaining`)
 
     await user.type(input(), 'Hello')
 
-    expect(screen.getByText(`${NOTE_MAX_LENGTH - 5} characters remaining`)).toBeInTheDocument()
+    expect(input()).toHaveAccessibleDescription(`${NOTE_MAX_LENGTH - 5} characters remaining`)
   })
 
   describe('stops at the limit', () => {
@@ -38,7 +38,7 @@ describe('NoteForm', () => {
       await user.paste('x'.repeat(NOTE_MAX_LENGTH + 5))
 
       expect(input()).toHaveValue('x'.repeat(NOTE_MAX_LENGTH))
-      expect(screen.getByText('0 characters remaining')).toBeInTheDocument()
+      expect(input()).toHaveAccessibleDescription('0 characters remaining')
     })
 
     it('ignores typing once the note is full', async () => {
@@ -84,7 +84,8 @@ describe('NoteForm', () => {
 
       expect(onSubmit).not.toHaveBeenCalled()
       expect(input()).toHaveAttribute('aria-invalid', 'true')
-      expect(input()).toHaveAccessibleDescription(message)
+      expect(input()).toHaveAccessibleDescription(
+        `${message} ${NOTE_MAX_LENGTH - text.length} characters remaining`)
       expect(input()).toHaveFocus()
     })
 
@@ -107,7 +108,7 @@ describe('NoteForm', () => {
       await user.type(input(), 'Better')
 
       expect(input()).toHaveAttribute('aria-invalid', 'false')
-      expect(input()).not.toHaveAccessibleDescription()
+      expect(input()).toHaveAccessibleDescription(`${NOTE_MAX_LENGTH - 6} characters remaining`)
     })
   })
 

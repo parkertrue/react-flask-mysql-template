@@ -27,4 +27,16 @@ describe('FormField', () => {
     expect(input()).toHaveAttribute('aria-invalid', 'true')
     expect(input()).toHaveAccessibleDescription('Too short At least 8 characters.')
   })
+
+  it('takes a name apart from its id, and shows its children', () => {
+    render(
+      <FormField id="edit-7" name="content" label="Password">
+        <button type="submit">Save</button>
+      </FormField>
+    )
+
+    expect(input()).toHaveAttribute('id', 'edit-7')
+    expect(input()).toHaveAttribute('name', 'content')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+  })
 })

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, screen, within } from '@testing-library/react'
 import NotesPage from '../NotesPage'
 import { fetchNotes, createNote, updateNote, deleteNote } from '../notesService'
+import { NOTE_MAX_LENGTH } from '../validation'
 import { note, notesPage } from './fixtures'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
@@ -29,6 +30,8 @@ describe('NotesPage', () => {
   })
   const noNotesYet = () => screen.findByText(/no notes yet/i)
   const rowOf = element => screen.getAllByRole('listitem').find(row => row.contains(element))
+  // The page's one status line, which says what the last action did
+  const announced = () => screen.getByRole('status')
 
   async function addNote(user, text) {
     await user.type(screen.getByLabelText('New note'), text)
@@ -40,7 +43,7 @@ describe('NotesPage', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: 'My Notes' })).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Loading notes...')
+    expect(screen.getByText('Loading notes...')).toHaveAttribute('role', 'status')
     expect(document.title).toBe('My Notes | React + Flask Template')
 
     expect(await screen.findByText('Second')).toBeInTheDocument()
@@ -68,11 +71,14 @@ describe('NotesPage', () => {
   })
 
   describe('adding a note', () => {
-    it('puts it at the top of the list and empties the field', async () => {
+    it('puts it at the top of the list, empties the field and announces it', async () => {
       fetchNotes.mockResolvedValue(notesPage([{ id: 1, content: 'Existing' }]))
       createNote.mockResolvedValue(note({ id: 2, content: 'Fresh' }))
       const user = renderPage()
       await screen.findByText('Existing')
+      // Present, and silent, before anything happens: a live region must be
+      // in the page before its text changes to be read
+      expect(announced()).toBeEmptyDOMElement()
 
       await addNote(user, 'Fresh')
 
@@ -80,6 +86,7 @@ describe('NotesPage', () => {
       expect(createNote).toHaveBeenCalledWith('Fresh')
       expect(listed()[0]).toContain('Fresh')
       expect(screen.getByLabelText('New note')).toHaveValue('')
+      expect(announced()).toHaveTextContent('Note #2 added')
     })
 
     it('announces the error and keeps the text when saving fails', async () => {
@@ -137,7 +144,7 @@ describe('NotesPage', () => {
       expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
     })
 
-    it('adds the next page below the current one, then goes away', async () => {
+    it('adds the last page below, then goes away, handing focus to the first new note', async () => {
       fetchNotes
         .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Newer' }], 2))
         .mockResolvedValueOnce(notesPage([{ id: 1, content: 'Older' }]))
@@ -149,6 +156,48 @@ describe('NotesPage', () => {
       expect(fetchNotes).toHaveBeenLastCalledWith(2)
       expect(listed().map(text => text.replace(/\(#\d+\)$/, ''))).toEqual(['Newer', 'Older'])
       expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit note #1' })).toHaveFocus()
+      expect(announced()).toHaveTextContent('All notes loaded')
+    })
+
+    it('keeps focus on itself while more pages remain', async () => {
+      fetchNotes
+        .mockResolvedValueOnce(notesPage([{ id: 3, content: 'Newest' }], 3))
+        .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Middle' }], 2))
+      const user = renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Load more' }))
+
+      expect(await screen.findByText('Middle')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Load more' })).toHaveFocus()
+      expect(announced()).toHaveTextContent('More notes loaded')
+    })
+
+    it('hands focus to the last note when the last page turns out empty', async () => {
+      fetchNotes
+        .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Only' }], 2))
+        .mockResolvedValueOnce(notesPage([]))
+      const user = renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Load more' }))
+
+      expect(await screen.findByText('All notes loaded')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit note #2' })).toHaveFocus()
+    })
+
+    it('leaves focus where it is if the user moved on while the page loaded', async () => {
+      let finish
+      fetchNotes
+        .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Newer' }], 2))
+        .mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+      const user = renderPage()
+
+      await user.click(await screen.findByRole('button', { name: 'Load more' }))
+      await user.click(screen.getByLabelText('New note'))
+      await act(async () => finish(notesPage([{ id: 1, content: 'Older' }])))
+
+      expect(screen.getByText('Older')).toBeInTheDocument()
+      expect(screen.getByLabelText('New note')).toHaveFocus()
     })
 
     it('refuses another click while the next page loads', async () => {
@@ -195,6 +244,7 @@ describe('NotesPage', () => {
       expect(screen.queryByRole('textbox', { name: 'Edit note #1' })).not.toBeInTheDocument()
       expect(editButton(1)).toHaveFocus()
       expect(listed()).toEqual(['Second(#2)', 'First, edited(#1)'])
+      expect(announced()).toHaveTextContent('Note #1 saved')
     })
 
     it.each([
@@ -219,7 +269,8 @@ describe('NotesPage', () => {
       await user.clear(field)
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      expect(field).toHaveAccessibleDescription('Note content is required')
+      expect(field).toHaveAccessibleDescription(
+        `Note content is required ${NOTE_MAX_LENGTH} characters remaining`)
       expect(field).toHaveFocus()
       expect(updateNote).not.toHaveBeenCalled()
     })
@@ -322,6 +373,7 @@ describe('NotesPage', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(deleteNote).toHaveBeenCalledWith(id)
       expect(screen.getByRole('button', { name: focused })).toHaveFocus()
+      expect(announced()).toHaveTextContent(`Note #${id} deleted`)
     })
 
     it('moves focus to the heading once no note is left', async () => {

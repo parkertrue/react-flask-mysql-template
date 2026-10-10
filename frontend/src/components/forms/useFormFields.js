@@ -24,5 +24,11 @@ export function useFormFields(initialValues) {
     return false
   }
 
-  return { values, errors, handleChange, validate }
+  // Back to the starting values (or new ones), with no messages
+  const reset = (nextValues = initialValues) => {
+    setValues(nextValues)
+    setErrors({})
+  }
+
+  return { values, errors, handleChange, validate, reset }
 }

@@ -4,11 +4,18 @@
   font-size: 1rem;
 }
 
-/* aria-disabled keeps a busy button focusable, so focus is not lost */
-.btn:disabled,
+/* aria-disabled keeps a busy button focusable, so focus is not lost. Its
+   label says what it is doing ("Saving..."), so it keeps full contrast. */
 .btn[aria-disabled='true'] {
-  opacity: 0.6;
-  cursor: not-allowed;
+  cursor: progress;
+}
+
+/* Forced colors (Windows High Contrast) drop the background, which is the
+   only edge a button has: give it a border there */
+@media (forced-colors: active) {
+  .btn {
+    border: 1px solid ButtonText;
+  }
 }
 
 .btn-primary {
