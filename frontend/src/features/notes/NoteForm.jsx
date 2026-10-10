@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { charCount, limitChars } from '@/utils/validation'
 import { validateNoteContent, NOTE_MAX_LENGTH } from './validation'
 
 // Adds a note by default; NoteItem passes an id, labels, the note's content
@@ -41,9 +40,7 @@ export default function NoteForm({
   }
 
   const handleChange = (e) => {
-    // Stops at the limit like maxLength, but counting characters as the
-    // backend does, so a note of emoji gets the whole limit
-    setContent(limitChars(content, e.target.value, NOTE_MAX_LENGTH))
+    setContent(e.target.value)
     setError('')
   }
 
@@ -62,6 +59,7 @@ export default function NoteForm({
           type="text"
           value={content}
           onChange={handleChange}
+          maxLength={NOTE_MAX_LENGTH}
           placeholder="Write a note..."
           readOnly={submitting}
           // Only the edit form, which opens on request, takes focus at once
@@ -88,7 +86,7 @@ export default function NoteForm({
       <div className="note-form-footer">
         {error && <p className="field-error" id={errorId}>{error}</p>}
         <p className="char-counter">
-          {NOTE_MAX_LENGTH - charCount(content)} characters remaining
+          {NOTE_MAX_LENGTH - content.length} characters remaining
         </p>
       </div>
     </form>
