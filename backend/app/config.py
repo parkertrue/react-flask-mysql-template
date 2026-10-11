@@ -125,6 +125,12 @@ class Config:
         # an HttpOnly cookie (always, in Flask-JWT-Extended) that is only sent
         # to the /api/auth routes.
         self.JWT_TOKEN_LOCATION = ['headers', 'cookies']
+        # __Secure- makes browsers refuse the cookie unless it is Secure and
+        # set over HTTPS, so a sibling subdomain or plain-HTTP page can't
+        # plant one under this name. (__Host- would also forbid the path.)
+        # Browsers count http://localhost as secure, so dev works too.
+        self.JWT_REFRESH_COOKIE_NAME = '__Secure-refresh_token'
+        self.JWT_COOKIE_SECURE = True
         self.JWT_REFRESH_COOKIE_PATH = '/api/auth'
         self.JWT_COOKIE_SAMESITE = 'Lax'
         # Double-submit CSRF for the refresh cookie. The client gets the value
@@ -168,7 +174,6 @@ class IntegrationConfig(Config):
         self.APP_ENV = 'integration'
         self.RATELIMIT_ENABLED = False
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
-        self.JWT_COOKIE_SECURE = e2e_mode
         # CSRF protection is browser-only; disable it for API integration
         # tests, which have no browser to carry the cookie.
         self.JWT_COOKIE_CSRF_PROTECT = e2e_mode
@@ -181,7 +186,6 @@ class ProductionConfig(Config):
         super().__init__()
         self.APP_ENV = 'production'
         self.FLASK_DEBUG = False
-        self.JWT_COOKIE_SECURE = True
         self.TRUSTED_PROXY_COUNT = 1  # nginx
 
         # Anyone who knows the template's placeholder can forge JWTs, so a

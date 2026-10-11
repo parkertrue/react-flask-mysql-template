@@ -1,4 +1,5 @@
 import hashlib
+from datetime import datetime, timezone
 
 from flask import Blueprint, abort, g, request, make_response, jsonify, current_app
 from sqlalchemy import select
@@ -17,6 +18,8 @@ from flask_jwt_extended import (
 from jwt.exceptions import PyJWTError
 from flask_jwt_extended.exceptions import JWTExtendedException
 from werkzeug.security import generate_password_hash
+
+from flask_limiter.util import get_remote_address
 
 from app import db, limiter
 from app.models import User
@@ -55,6 +58,17 @@ def _login_email_key():
     return 'email:' + hashlib.sha256(email.lower().encode()).hexdigest()
 
 
+def _login_email_and_ip_key():
+    """The account and the client's address: a lockout hits only that address"""
+    return f'{_login_email_key()}:ip:{get_remote_address()}'
+
+
+def _login_failed(response):
+    """Only wrong passwords count toward the account limits, so the owner's
+    own successful logins never use them up."""
+    return response.status_code == 401
+
+
 def _refresh_user_id():
     """The user a valid refresh cookie belongs to, or None.
 
@@ -74,19 +88,30 @@ def _refresh_user_id():
     return g.refresh_user_id
 
 
-def _issue_tokens(user_id: int, replaces: str | None = None):
+def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
     """Build a 200 response carrying a fresh access token and refresh cookie.
+
+    `auth_time` is when the user logged in, carried through every rotation:
+    the refresh token expires JWT_REFRESH_TOKEN_EXPIRES after it, however
+    often it is refreshed, so a session (or a stolen cookie) has an absolute
+    lifetime. Once it passes, the cookie is expired and refresh answers 401.
 
     The new refresh token's JTI is recorded in Redis, in place of the JTI in
     `replaces` when rotating; the blocklist loader treats any refresh token
     whose JTI is absent there as revoked.
     """
+    session_ends = (datetime.fromtimestamp(auth_time, timezone.utc)
+                    + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'])
+    remaining = session_ends - datetime.now(timezone.utc)
     access_token = create_access_token(identity=str(user_id))
-    refresh_token = create_refresh_token(identity=str(user_id))
+    refresh_token = create_refresh_token(
+        identity=str(user_id),
+        additional_claims={'auth_time': auth_time},
+        expires_delta=remaining)
 
     redis_service = get_redis_service()
     jti = decode_token(refresh_token)['jti']
-    ttl = int(current_app.config['JWT_REFRESH_TOKEN_EXPIRES'].total_seconds())
+    ttl = max(int(remaining.total_seconds()), 1)
     if redis_service is None:
         recorded = None
     elif replaces:
@@ -159,10 +184,13 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
-# Loose per IP, so a shared address keeps working; tight per account, which
-# is what actually slows down guessing one user's password.
+# Loose per IP, so a shared address keeps working.
+# Tight per account and address, so a stranger's wrong guesses lock out only
+# the stranger; loose per account alone, which bounds guessing spread over
+# many addresses.
 @limiter.limit('20 per minute')
-@limiter.limit('5 per minute', key_func=_login_email_key)
+@limiter.limit('5 per minute', key_func=_login_email_and_ip_key, deduct_when=_login_failed)
+@limiter.limit('100 per hour', key_func=_login_email_key, deduct_when=_login_failed)
 def login():
     payload = LoginRequest.model_validate(request.get_json())
 
@@ -181,7 +209,7 @@ def login():
             status=401
         )
 
-    return _issue_tokens(user.id)
+    return _issue_tokens(user.id, auth_time=int(datetime.now(timezone.utc).timestamp()))
 
 
 @auth_bp.route('/refresh', methods=['POST'])
@@ -195,8 +223,8 @@ def login():
 @jwt_required(refresh=True, locations=['cookies'])
 def refresh():
     """Rotate: issue a new token pair and revoke the refresh token just used"""
-    user_id = current_user.id
-    return _issue_tokens(user_id, replaces=get_jwt().get('jti'))
+    claims = get_jwt()
+    return _issue_tokens(current_user.id, auth_time=claims['auth_time'], replaces=claims['jti'])
 
 
 @auth_bp.route('/logout', methods=['POST'])
