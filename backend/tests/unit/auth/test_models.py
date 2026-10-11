@@ -3,8 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.models import User
-from app.models.user import EMAIL_MAX_LENGTH
+from app.auth.models import EMAIL_MAX_LENGTH, User
 
 
 class TestUserModel:
@@ -158,38 +157,6 @@ class TestPasswordHashing:
         user.set_password(password)
 
         assert user.check_password(password) is True
-
-
-class TestUserRelationships:
-    """Test User model relationships."""
-
-    def test_user_notes_relationship(self, db, sample_user):
-        """User should have relationship with notes."""
-        from app.models import Note
-
-        note1 = Note(user_id=sample_user.id, content='Note 1')
-        note2 = Note(user_id=sample_user.id, content='Note 2')
-        db.session.add_all([note1, note2])
-        db.session.commit()
-        db.session.refresh(sample_user)
-
-        assert len(sample_user.notes) == 2
-        assert note1 in sample_user.notes
-        assert note2 in sample_user.notes
-
-    def test_user_deletion_cascade(self, db, sample_user):
-        """Deleting a user deletes their notes (cascade="all, delete-orphan")."""
-        from app.models import Note
-
-        note = Note(user_id=sample_user.id, content='Test note')
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-        db.session.delete(sample_user)
-        db.session.commit()
-
-        assert db.session.get(Note, note_id) is None
 
 
 class TestUserQueries:

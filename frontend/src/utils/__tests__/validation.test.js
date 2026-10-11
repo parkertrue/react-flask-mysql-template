@@ -147,9 +147,9 @@ describe('limits match the backend', () => {
     Number(backend(file).match(new RegExp(`^${name} = (\\d+)$`, 'm'))[1])
 
   it.each([
-    ['PASSWORD_MIN_LENGTH', PASSWORD_MIN_LENGTH, 'schemas/auth.py'],
-    ['PASSWORD_MAX_LENGTH', PASSWORD_MAX_LENGTH, 'schemas/auth.py'],
-    ['EMAIL_MAX_LENGTH', EMAIL_MAX_LENGTH, 'models/user.py'],
+    ['PASSWORD_MIN_LENGTH', PASSWORD_MIN_LENGTH, 'auth/schemas.py'],
+    ['PASSWORD_MAX_LENGTH', PASSWORD_MAX_LENGTH, 'auth/schemas.py'],
+    ['EMAIL_MAX_LENGTH', EMAIL_MAX_LENGTH, 'auth/models.py'],
   ])('%s', (name, value, file) => {
     expect(value).toBe(constant(file, name))
   })

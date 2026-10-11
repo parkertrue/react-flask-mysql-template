@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 # Checked after normalizing, so the stored form always fits the users.email
 # column.
-from app.models.user import EMAIL_MAX_LENGTH
+from app.auth.models import EMAIL_MAX_LENGTH
 from app.utils.text import UNSUPPORTED_CHARACTERS_MESSAGE, is_plain_text
 
 # Only the hash is stored, so these are policy rather than a column size.

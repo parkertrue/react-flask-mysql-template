@@ -3,8 +3,9 @@ from flask_jwt_extended import current_user, jwt_required
 from sqlalchemy import select
 
 from app import db
-from app.models import ID_MAX, Note
-from app.schemas import NoteCreateRequest, NoteResponse, NotesListQuery, NoteUpdateRequest
+from app.notes.models import Note
+from app.notes.schemas import NoteCreateRequest, NoteResponse, NotesListQuery, NoteUpdateRequest
+from app.utils.ids import ID_MAX
 
 
 notes_bp = Blueprint('notes', __name__, url_prefix='/api/notes')

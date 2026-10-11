@@ -402,10 +402,9 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the folder `frontend/src/features/notes/` and its route in `frontend/src/routes.jsx`, and their tests: unit, integration (`test_mysql_limits.py`, `test_mysql_cascade.py`), the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and E2E (`notes-crud.spec.js`).
+1. Replace the notes feature: the package `backend/app/notes/` and its line in `backend/app/features.py`, the migration `backend/migrations/versions/0002_notes.py`, the folder `frontend/src/features/notes/` and its route in `frontend/src/routes.jsx`, and their tests: `backend/tests/unit/notes/`, `backend/tests/integration/notes/`, the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and E2E (`notes-crud.spec.js`).
 2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, `<ApiStatus />` and its import in `frontend/src/pages/HomePage.jsx`, and its `vi.mock` in `frontend/src/pages/__tests__/HomePage.test.jsx`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Update the `Note` references in the fixtures in `backend/tests/conftest.py`.
-4. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`src/appName.js`) and the `<title>` in `index.html` (a test checks they match).
-5. Generate a migration for your new tables (`flask db migrate -m "..."`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev)). It chains onto `0001_users`, which holds the auth table every app keeps.
-6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
-7. Rewrite this README and `CLAUDE.md` for your app.
+3. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`src/appName.js`) and the `<title>` in `index.html` (a test checks they match).
+4. Generate a migration for your new tables (`flask db migrate -m "..."`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev)). It chains onto `0001_users`, which holds the auth table every app keeps.
+5. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
+6. Rewrite this README and `CLAUDE.md` for your app.

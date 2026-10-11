@@ -22,9 +22,8 @@ from werkzeug.security import generate_password_hash
 from flask_limiter.util import get_remote_address
 
 from app import db, limiter
-from app.models import User
-from app.schemas import RegisterRequest, LoginRequest
-from app.schemas.auth import normalize_email
+from app.auth.models import User
+from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
 from app.utils.errors import error_response
 from app.utils.passwords import verify_password
 from app.utils.redis_service import get_redis_service

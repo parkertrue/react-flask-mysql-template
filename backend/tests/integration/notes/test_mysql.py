@@ -1,21 +1,12 @@
-"""Column limits that SQLite ignores, so unit tests cannot catch them."""
+"""Notes on real MySQL: column limits and ON DELETE CASCADE, which SQLite
+ignores or only emulates, so unit tests cannot catch them."""
 import pytest
 from flask_jwt_extended import create_access_token
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import DataError
 
-from app.models import Note
-from app.models.note import NOTE_MAX_LENGTH
-
-
-def test_overlong_email_is_a_validation_error(integration_client):
-    """MySQL rejects an over-long email with a 500 unless the schema stops it"""
-    email = 'a' * 130 + '@example.com'
-
-    response = integration_client.post(
-        '/api/auth/register',
-        json={'email': email, 'password': 'TestPassword123'})
-
-    assert response.status_code == 422
+from app.auth.models import User
+from app.notes.models import NOTE_MAX_LENGTH, Note
 
 
 def test_database_rejects_an_overlong_note(integration_db, integration_user):
@@ -54,3 +45,24 @@ def test_note_id_past_the_int_range_is_not_found(
 
     assert response.status_code == 404
     assert response.get_json()['error']['code'] == 'NOT_FOUND'
+
+
+def test_deleting_a_user_deletes_only_their_notes(integration_db, integration_user):
+    other = User(email='other@test.com')
+    other.set_password('TestPassword123')
+    integration_db.session.add(other)
+    integration_db.session.flush()
+    integration_db.session.add_all([
+        Note(user_id=integration_user.id, content='mine'),
+        Note(user_id=other.id, content='theirs'),
+    ])
+    integration_db.session.commit()
+
+    # A bulk DELETE: the ORM never loads the notes, so only the database
+    # can remove them
+    integration_db.session.execute(delete(User).where(User.id == integration_user.id))
+    integration_db.session.commit()
+
+    contents = integration_db.session.execute(select(Note.content)).scalars().all()
+    assert contents == ['theirs']
+    assert integration_db.session.execute(select(func.count(User.id))).scalar() == 1

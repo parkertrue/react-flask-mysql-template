@@ -83,7 +83,7 @@ Files: `backend/Dockerfile`, `backend/entrypoint.sh`, `nginx/Dockerfile`,
   image versions?
 
 ### flask: application
-Files: `backend/app/__init__.py`, `config.py`, `routes/`, `utils/`, `wsgi.py`,
+Files: `backend/app/__init__.py`, `config.py`, `features.py`, each feature's `routes.py`, `utils/`, `wsgi.py`,
 `backend/requirements.in`.
 - Do app factory, extension setup, error handlers and the JWT loaders match
   CLAUDE.md (fail closed, user loader, error shape)?
@@ -92,7 +92,7 @@ Files: `backend/app/__init__.py`, `config.py`, `routes/`, `utils/`, `wsgi.py`,
 - Is anything example-feature specific leaking into shared code?
 
 ### mysql
-Files: `backend/app/models/`, `backend/migrations/`, the `db` services.
+Files: each feature's `models.py` (`backend/app/*/models.py`), `backend/migrations/`, the `db` services.
 - Indexes for every query pattern (grep the routes for filters and orderings),
   constraints and `ON DELETE` behavior, column sizes matching the named
   constants, UTC session time zone, `pool_pre_ping` or recycle settings.

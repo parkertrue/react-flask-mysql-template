@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app import db
 if TYPE_CHECKING:
-    from app.models import User
+    from app.auth.models import User
 
 # The schemas validate against this, so an over-long note is a 422, not a
 # database error. frontend/src/features/notes/validation.js mirrors it.
