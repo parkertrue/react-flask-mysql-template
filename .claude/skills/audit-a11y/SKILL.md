@@ -74,7 +74,9 @@ Check on every page, logged out and logged in:
   (2.5.8). Measure with `getBoundingClientRect`.
 - **States:** run axe (`@axe-core/playwright`, as the spec does) on states
   the spec doesn't reach: form with errors shown, busy state, the error page,
-  an expired-session redirect, notes list empty and full.
+  an expired-session redirect, notes list empty and full, a note in edit
+  mode, and the delete `ConfirmDialog` open (initial focus, and focus
+  returned after Cancel and after confirming).
 - **Accessibility tree:** take `page.locator('body').ariaSnapshot()` for
   each page and check names, roles and states read sensibly.
 

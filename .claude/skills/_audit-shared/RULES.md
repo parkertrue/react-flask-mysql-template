@@ -15,7 +15,7 @@ bulletproof. In priority order:
    concrete gap it closes; "best practice says so" is not enough.
 4. **Easy to scaffold.** A new app replaces the example feature and renames a
    few things. Anything that makes that harder (example code leaking into
-   shared code, names tied to "notes" or "app", steps missing from CLAUDE.md's
+   shared code, names tied to "notes" or "app", steps missing from README's
    "Starting a New App") is a finding.
 
 ## Sources of truth

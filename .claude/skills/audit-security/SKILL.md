@@ -33,7 +33,8 @@ this app and record what each one turns up:
   refresh, `clear-cookies`, what happens to sessions when a user is deleted.
 - **Access control:** every route that touches user data requires a token
   and scopes queries to `current_user` (try reading or paginating another
-  user's notes via the cursor). Nothing reads identity from
+  user's notes via the cursor, and `PUT`/`DELETE /api/notes/<id>` on another
+  user's note: both must answer 404 exactly like a missing id). Nothing reads identity from
   `get_jwt_identity()`.
 - **Input and output:** every request body and query passes through a Pydantic
   schema; size limits at nginx and Flask; email and password normalization;
@@ -119,7 +120,8 @@ describes. Nothing else.
     report only what holds up, with the request that shows it.
 - **Hand probes** the scanners can't do, on the test stack: replay a rotated
   refresh token, send a refresh without the CSRF header, read another user's
-  notes via the cursor, send a 17 KB body, send malformed JSON, and log in
+  notes via the cursor, edit and delete another user's note by id, send a
+  17 KB body, send malformed JSON, and log in
   with a password that differs only by Unicode normalization.
 
 Tear the test stack down. Then, **for the rate-limit probes only**, bring up

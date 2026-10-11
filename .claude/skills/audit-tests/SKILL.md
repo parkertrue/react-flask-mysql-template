@@ -83,8 +83,9 @@ Build an inventory of the behaviors the app promises: every route and its
 documented status codes, every error code in `backend/app` (the frontend
 `errorBody` list must match), every config guard, every CLAUDE.md claim about
 failure handling (Redis down, DB dropped, refresh race, rate limit hit), and
-every user journey (register, login, logout, logout-all, refresh, notes create
-and paginate, the protected route redirect, the 404 and error pages).
+every user journey (register, login, logout, logout-all, refresh, notes create,
+paginate, edit, and delete (confirm and cancel), another user's note as a 404,
+the protected route redirect, the 404 and error pages).
 
 For each behavior, name the test that pins it, at the right level:
 - **unit** for logic and route behavior,

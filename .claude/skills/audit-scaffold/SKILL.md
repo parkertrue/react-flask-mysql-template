@@ -1,6 +1,6 @@
 ---
 name: audit-scaffold
-description: Prove the template scaffolds cleanly - in a throwaway git worktree, follow CLAUDE.md's "Starting a New App" steps literally, replace the notes example with a tiny feature, and check lint, tests, build and migrations still pass. Reports every step that was wrong, missing or harder than it should be.
+description: Prove the template scaffolds cleanly - in a throwaway git worktree, follow README's "Starting a New App" steps literally, replace the notes example with a tiny feature, and check lint, tests, build and migrations still pass. Reports every step that was wrong, missing or harder than it should be.
 disable-model-invocation: true
 context: fork
 ---
@@ -9,7 +9,8 @@ context: fork
 
 First read `.claude/skills/_audit-shared/RULES.md` and follow it throughout
 (especially the worktree notes under **Environment**). Then read `CLAUDE.md`,
-and `DECISIONS.md` from the same folder as RULES.md.
+`README.md`'s "Starting a New App" section, and `DECISIONS.md` from the
+same folder as RULES.md.
 
 The template's promise is that a new app starts by deleting the example and
 renaming a few things. This check acts it out. Everything happens in a
@@ -23,7 +24,7 @@ pass in the worktree before changing anything (baseline).
 
 ## 2. Follow the steps literally
 
-Carry out CLAUDE.md's **Starting a New App** steps in order, exactly as
+Carry out README's **Starting a New App** steps in order, exactly as
 written, as a developer who knows only what the docs say. Create files with the
 Write tool, not shell heredocs (Git Bash mangles backslashes and backticks).
 
@@ -48,7 +49,7 @@ built by following the notes slice's pattern as CLAUDE.md describes it
 (model, schema, routes, service, hook, page, unit tests, and its E2E spec,
 ported and linted). Keep it minimal. The point is to discover what the pattern
 makes hard, not to write a good feature. In step 5, generate its migration as
-CLAUDE.md says, using the test stack's `db` per RULES.md. Start that stack from
+the step says, using the test stack's `db` per RULES.md. Start that stack from
 the worktree and note its project name after step 6's rename: teardown must
 use the name it was started under. Afterward, reset the database
 (`down -v` and up again) before the integration suite, since `flask db
