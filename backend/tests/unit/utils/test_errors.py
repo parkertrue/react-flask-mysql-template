@@ -92,78 +92,64 @@ class TestGlobalErrorHandlers:
         assert response.status_code == 405
         assert response.content_type == 'application/json'
 
-    def test_pydantic_validation_error_handler(self, client, auth_headers):
+    # The register route stands in for any route with a JSON body: it is
+    # public and validates its body with a schema
+    def test_pydantic_validation_error_handler(self, client):
         """Pydantic validation errors return 422 VALIDATION_ERROR."""
-        payload = {
-            'content': ''  # Empty content violates min_length
-        }
-
         response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
+            '/api/auth/register',
+            json={'email': 'not-an-email', 'password': 'TestPassword123'})
 
         assert response.status_code == 422
-        data = json.loads(response.data)
-        assert data['error']['code'] == 'VALIDATION_ERROR'
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
 
-    def test_missing_json_body(self, client, auth_headers):
+    def test_missing_json_body(self, client):
         """A JSON request with no body is malformed"""
+        response = client.post('/api/auth/register', content_type='application/json')
+
+        assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'BAD_REQUEST'
+
+    def test_malformed_json(self, client):
+        """Malformed JSON should return 400."""
         response = client.post(
-            '/api/notes',
-            headers=auth_headers
+            '/api/auth/register',
+            data='{"invalid": json}',
+            content_type='application/json'
         )
 
         assert response.status_code == 400
         assert response.get_json()['error']['code'] == 'BAD_REQUEST'
 
-    def test_malformed_json(self, client, auth_headers):
-        """Malformed JSON should return 400."""
-        response = client.post(
-            '/api/notes',
-            data='{"invalid": json}',
-            headers=auth_headers
-        )
 
-        assert response.status_code == 400
-
-
+# GET /api/account stands in for any route that needs a token: every app keeps it
 class TestJWTErrorHandlers:
     """Test JWT-specific error handlers."""
 
     def test_missing_token_handler(self, client):
         """Missing JWT token should return 401 with AUTH_MISSING_TOKEN."""
-        response = client.get('/api/notes')
+        response = client.get('/api/account')
 
         assert response.status_code == 401
-        data = json.loads(response.data)
+        data = response.get_json()
         assert data['error']['code'] == 'AUTH_MISSING_TOKEN'
         assert 'authentication required' in data['error']['message'].lower()
 
     def test_invalid_token_handler(self, client):
         """Invalid JWT token should return 401 with AUTH_INVALID_TOKEN."""
-        headers = {
-            'Authorization': 'Bearer invalid-token-string',
-            'Content-Type': 'application/json'
-        }
-
-        response = client.get('/api/notes', headers=headers)
+        response = client.get(
+            '/api/account', headers={'Authorization': 'Bearer invalid-token-string'})
 
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
 
     def test_expired_token_handler(self, client, expired_token):
         """Expired JWT token should return 401 with AUTH_TOKEN_EXPIRED."""
-        headers = {
-            'Authorization': f'Bearer {expired_token}',
-            'Content-Type': 'application/json'
-        }
-
-        response = client.get('/api/notes', headers=headers)
+        response = client.get(
+            '/api/account', headers={'Authorization': f'Bearer {expired_token}'})
 
         assert response.status_code == 401
-        data = json.loads(response.data)
+        data = response.get_json()
         assert data['error']['code'] == 'AUTH_TOKEN_EXPIRED'
         assert 'expired' in data['error']['message'].lower()
 
@@ -175,64 +161,30 @@ class TestJWTErrorHandlers:
         ('Bearer', 'AUTH_INVALID_TOKEN'),
     ])
     def test_malformed_authorization_header(self, client, authorization, code):
-        response = client.get('/api/notes', headers={'Authorization': authorization})
+        response = client.get('/api/account', headers={'Authorization': authorization})
 
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == code
 
 
 class TestErrorConsistency:
-    """Test that errors are consistent across the application."""
+    """Every error, whichever handler made it, has the same JSON shape."""
 
-    def test_all_errors_return_json(self, client, auth_headers):
-        """All API errors should return JSON."""
-        test_cases = [
-            ('/api/nonexistent', 'GET', {}),
-            ('/api/notes', 'GET', {}),  # No auth
-            ('/api/notes', 'POST', {'email': 'invalid'}),  # Invalid schema
-        ]
+    @pytest.mark.parametrize('method, url, kwargs, status, code', [
+        ('GET', '/api/nonexistent', {}, 404, 'NOT_FOUND'),
+        ('GET', '/api/account', {}, 401, 'AUTH_MISSING_TOKEN'),
+        ('POST', '/api/auth/register', {'json': {'email': 'invalid'}}, 422, 'VALIDATION_ERROR'),
+        ('POST', '/api/auth/login',
+         {'json': {'email': 'nobody@example.com', 'password': 'WrongPassword123'}},
+         401, 'INVALID_CREDENTIALS'),
+    ])
+    def test_errors_share_one_shape(self, client, method, url, kwargs, status, code):
+        response = client.open(url, method=method, **kwargs)
 
-        for endpoint, method, data in test_cases:
-            if method == 'GET':
-                response = client.get(endpoint)
-            else:
-                response = client.post(
-                    endpoint,
-                    data=json.dumps(data) if data else None,
-                    content_type='application/json'
-                )
-
-            assert response.status_code >= 400
-            assert response.content_type == 'application/json'
-
-    def test_error_codes_are_uppercase(self, client):
-        """Error codes should be uppercase with underscores."""
-        response = client.get('/api/notes')  # Missing token
-        data = json.loads(response.data)
-        assert data['error']['code'].isupper()
-        assert '_' in data['error']['code'] or data['error']['code'].isalnum()
-
-        response = client.get('/nonexistent')  # 404
-        data = json.loads(response.data)
-        assert data['error']['code'].isupper()
-
-    def test_error_messages_are_user_friendly(self, client, sample_user):
-        """Error messages should be readable."""
-        # Missing token
-        response = client.get('/api/notes')
-        data = json.loads(response.data)
-        assert len(data['error']['message']) > 0
-        assert data['error']['message'][0].isupper()  # Starts with capital
-
-        # Invalid credentials
-        payload = {
-            'email': 'test@example.com',
-            'password': 'WrongPassword123'
-        }
-        response = client.post(
-            '/api/auth/login',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-        data = json.loads(response.data)
-        assert 'invalid' in data['error']['message'].lower()
+        assert response.status_code == status
+        assert response.content_type == 'application/json'
+        error = response.get_json()['error']
+        assert error['code'] == code
+        # Codes are UPPER_SNAKE_CASE; messages are sentences a user can read
+        assert error['code'].replace('_', '').isalpha() and error['code'].isupper()
+        assert error['message'][0].isupper()

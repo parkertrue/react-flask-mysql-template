@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { act, screen } from '@testing-library/react'
 import LoginPage from '../LoginPage'
-import GuestRoute from '@/auth/GuestRoute'
+import GuestRoute, { AFTER_LOGIN_PATH } from '@/auth/GuestRoute'
 import { storage } from '@/auth/storage'
 import { loginUser } from '@/auth/authService'
 import { errorBody, tokens } from '@/test/fixtures'
@@ -13,7 +13,7 @@ vi.mock('@/auth/authService')
 function renderPage(entry = '/login') {
   return renderRoutes([
     { element: <GuestRoute />, children: [{ path: '/login', element: <LoginPage /> }] },
-    { path: '/notes', element: <p>Notes page</p> },
+    { path: AFTER_LOGIN_PATH, element: <p>After-login page</p> },
   ], entry)
 }
 
@@ -82,7 +82,7 @@ describe('LoginPage', () => {
       await user.click(submitButton())
 
       expect(loginUser).toHaveBeenCalledWith('user@example.com', 'weak')
-      await screen.findByText('Notes page')
+      await screen.findByText('After-login page')
     })
 
     it('clears a field\'s message once it is edited', async () => {
@@ -97,14 +97,14 @@ describe('LoginPage', () => {
   })
 
   describe('submitting', () => {
-    it('stores the issued session and moves on to the notes', async () => {
+    it('stores the issued session and moves on to the after-login page', async () => {
       loginUser.mockResolvedValue(tokens('access', 'csrf'))
       const { user } = renderPage()
       await fill(user)
 
       await user.click(submitButton())
 
-      expect(await screen.findByText('Notes page')).toBeInTheDocument()
+      expect(await screen.findByText('After-login page')).toBeInTheDocument()
       expect(loginUser).toHaveBeenCalledWith('user@example.com', 'Password123')
       expect(storage.getAccessToken()).toBe('access')
       expect(storage.getRefreshCsrf()).toBe('csrf')

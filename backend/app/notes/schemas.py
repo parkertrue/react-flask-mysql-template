@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict, field_serializer, field_validator
-from datetime import datetime, timezone
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from app.notes.models import NOTE_MAX_LENGTH
 from app.utils.ids import ID_MAX
+from app.utils.schemas import UtcDatetime
 from app.utils.text import UNSUPPORTED_CHARACTERS_MESSAGE, is_plain_text
 
 
@@ -41,13 +41,6 @@ class NoteResponse(BaseModel):
     id: int
     user_id: int
     content: str
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = ConfigDict(from_attributes=True)
-
-    # MySQL's DATETIME holds no zone, so the database hands back naive
-    # values; every timestamp is UTC (config pins the connection to it).
-    # Say so in the output, or browsers read it as their local time.
-    @field_serializer('created_at')
-    def serialize_dt(self, dt: datetime, _info):
-        return dt.replace(tzinfo=timezone.utc).isoformat()

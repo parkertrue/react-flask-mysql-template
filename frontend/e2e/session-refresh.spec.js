@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
-  TEST_PASSWORD, expireAccessToken, login, logout, logoutAllDevices, noNotesYet,
-  registerAndLogin, uniqueEmail,
+  TEST_PASSWORD, expireAccessToken, login, logout, logoutAllDevices, memberSince,
+  openAccount, registerAndLogin, uniqueEmail,
 } from './helpers'
 
 test('an expired session refreshes repeatedly, and logout revokes it', async ({ page }) => {
@@ -13,7 +13,9 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
 
   await page.goto('/login')
   await login(page, email)
-  await expect(page.getByRole('heading', { name: /my notes/i })).toBeVisible()
+  // The account page loads its data with the access token, so reloading it
+  // with an expired one is what triggers a refresh
+  await openAccount(page)
 
   // Each refresh rotates the refresh token and its CSRF value. The second
   // round only succeeds if the client stored the rotated CSRF value.
@@ -23,8 +25,8 @@ test('an expired session refreshes repeatedly, and logout revokes it', async ({ 
     await page.reload()
 
     expect((await refreshed).status(), `refresh #${round}`).toBe(200)
-    await expect(page).toHaveURL(/\/notes/)
-    await expect(noNotesYet(page)).toBeVisible()
+    await expect(page).toHaveURL(/\/account/)
+    await expect(memberSince(page)).toBeVisible()
   }
 
   // Keep the session's credentials to replay after logout
@@ -53,6 +55,7 @@ test('logout from all devices signs the other device out', async ({ page, browse
   try {
     await other.goto('/login')
     await login(other, email)
+    await openAccount(other)
 
     await logoutAllDevices(page)
 
@@ -73,9 +76,10 @@ test('two tabs refreshing at once both stay signed in', async ({ page, context }
   // Tabs share the refresh cookie and each refresh revokes the token it
   // used, so without the Web Lock in api.js the slower tab is signed out
   await registerAndLogin(page, 'e2e-two-tabs')
+  await openAccount(page)
   const second = await context.newPage()
-  await second.goto('/notes')
-  await expect(noNotesYet(second)).toBeVisible()
+  await second.goto('/account')
+  await expect(memberSince(second)).toBeVisible()
 
   // Force the order that signs a tab out: the first refresh reaches the
   // server, but its tab hears back only after the second tab has sent its
@@ -103,12 +107,12 @@ test('two tabs refreshing at once both stay signed in', async ({ page, context }
   await Promise.all([page.reload(), second.reload()])
 
   for (const tab of [page, second]) {
-    await expect(noNotesYet(tab)).toBeVisible()
-    await expect(tab).toHaveURL(/\/notes/)
+    await expect(memberSince(tab)).toBeVisible()
+    await expect(tab).toHaveURL(/\/account/)
   }
   expect(refreshes).toBe(1)
 
   // And the session that survived is the real one
   await page.reload()
-  await expect(noNotesYet(page)).toBeVisible()
+  await expect(memberSince(page)).toBeVisible()
 })

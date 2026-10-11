@@ -449,8 +449,8 @@ class TestRefreshEndpoint:
 
         assert response.status_code == 200
         token = response.get_json()['access_token']
-        notes = client.get('/api/notes', headers={'Authorization': f'Bearer {token}'})
-        assert notes.status_code == 200
+        account = client.get('/api/account', headers={'Authorization': f'Bearer {token}'})
+        assert account.status_code == 200
 
     def test_refresh_rotates_csrf_token(self, client, sample_user, fake_redis):
         """Each refresh token carries its own CSRF value; clients must store the new one"""
@@ -720,8 +720,8 @@ class TestAuthenticationFlow:
             'Content-Type': 'application/json'
         }
 
-        notes_response = client.get('/api/notes', headers=headers)
-        assert notes_response.status_code == 200
+        account_response = client.get('/api/account', headers=headers)
+        assert account_response.status_code == 200
 
     def test_password_typed_either_way_logs_in(self, client, db):
         """é as one character at sign-up, as e plus an accent at login"""

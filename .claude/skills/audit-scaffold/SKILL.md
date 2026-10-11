@@ -12,8 +12,8 @@ First read `.claude/skills/_audit-shared/RULES.md` and follow it throughout
 `README.md`'s "Starting a New App" section, and `DECISIONS.md` from the
 same folder as RULES.md.
 
-The template's promise is that a new app starts by deleting the example and
-renaming a few things. This check acts it out. Everything happens in a
+The template's promise is that a new app starts by renaming notes into its
+first feature (or deleting it) and renaming a few things. This check acts it out. Everything happens in a
 scratch worktree. Never modify the main working tree.
 
 ## 1. Set up
@@ -36,21 +36,23 @@ broken. For each step, record:
   not say (each one is a finding),
 - files touched that the step names vs. files it doesn't.
 
-When the example is removed (after steps 1–2), also look for tests that
+When the example is replaced (after steps 2–3), also look for tests that
 **still pass but no longer test anything**: tests that now hit a 404 instead
 of the status they claim to check, or probe a table that no longer exists.
 Shared tests that used the example as "any protected route" are the usual
 cause. Then grep for leftovers (`notes?`, `Note`, `health`, excluding
 `/api/health`, which is kept on purpose, and English uses such as "Note:").
 
-**The stand-in feature:** in step 1, replace notes with a `bookmarks`
-resource (`url` and `title`, owned by a user, cursor-paginated list, create),
-built by following the notes slice's pattern as CLAUDE.md describes it
-(model, schema, routes, service, hook, page, unit tests, and its E2E spec,
-ported and linted). Keep it minimal. The point is to discover what the pattern
+**The stand-in feature:** in step 2, take the "rename it" route and turn
+notes into a `bookmarks` resource (`url` and `title`, owned by a user,
+cursor-paginated list, create), following the notes slice's pattern as
+CLAUDE.md describes it (model, schema, routes, service, hook, page, unit
+tests, and its E2E spec, ported and linted). Alternate runs may take the
+"delete it" route instead, building `bookmarks` from scratch beside the
+deleted example; say which route the report covers. Keep it minimal. The point is to discover what the pattern
 makes hard, not to write a good feature. In step 4, generate its migration as
 the step says, using the test stack's `db` per RULES.md. Start that stack from
-the worktree and note its project name after step 5's rename: teardown must
+the worktree after step 1's rename and note its project name: teardown must
 use the name it was started under. Afterward, reset the database
 (`down -v` and up again) before the integration suite, since `flask db
 migrate` leaves tables and `alembic_version` behind.

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import { logoutAllDevices, clearAuthCookies } from '@/auth/authService'
+import { getAccount, logoutAllDevices, clearAuthCookies } from '@/auth/authService'
 import { getErrorMessage } from '@/api/errors'
 import PageTitle from '@/components/layout/PageTitle'
 
@@ -10,6 +10,14 @@ export default function AccountPage() {
   const navigate = useNavigate()
   const [error, setError] = useState(null)
   const [pending, setPending] = useState(false)
+  const [account, setAccount] = useState(null)
+  const [loadError, setLoadError] = useState(null)
+
+  useEffect(() => {
+    getAccount()
+      .then(setAccount)
+      .catch(err => setLoadError(getErrorMessage(err)))
+  }, [])
 
   const handleLogoutAll = async () => {
     if (pending) return
@@ -40,6 +48,19 @@ export default function AccountPage() {
       <PageTitle>Account</PageTitle>
       <h1>Account</h1>
       <p className="account-email">Signed in as <strong>{email}</strong></p>
+      {/* One persistent live region, so the loaded details are announced */}
+      <p role="status">
+        {account && (
+          <>
+            Member since{' '}
+            <time dateTime={account.created_at}>
+              {new Date(account.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}
+            </time>
+          </>
+        )}
+        {!account && !loadError && 'Loading account details...'}
+      </p>
+      {loadError && <div className="error-message" role="alert">{loadError}</div>}
 
       <section aria-labelledby="sessions-heading">
         <h2 id="sessions-heading">Sessions</h2>

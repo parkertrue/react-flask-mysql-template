@@ -32,11 +32,11 @@ function mockBackend() {
       state.csrf = `csrf-${state.issued}`
       return HttpResponse.json(tokens(state.validToken, state.csrf))
     }),
-    http.get('/api/notes', ({ request }) => {
+    http.get('/api/protected', ({ request }) => {
       if (request.headers.get('Authorization') !== `Bearer ${state.validToken}`) {
         return expired()
       }
-      return HttpResponse.json({ notes: [] })
+      return HttpResponse.json({ ok: true })
     })
   )
 
@@ -66,17 +66,17 @@ describe('request headers', () => {
 
   it('attaches the stored access token', async () => {
     storage.setAccessToken('abc')
-    const captured = captureHeaders('get', '/notes')
+    const captured = captureHeaders('get', '/protected')
 
-    await api.get('/notes')
+    await api.get('/protected')
 
     expect(captured.authorization).toBe('Bearer abc')
   })
 
   it('omits Authorization when logged out', async () => {
-    const captured = captureHeaders('get', '/notes')
+    const captured = captureHeaders('get', '/protected')
 
-    await api.get('/notes')
+    await api.get('/protected')
 
     expect(captured.authorization).toBeNull()
   })
@@ -95,9 +95,9 @@ describe('request headers', () => {
 
   it('does not send the CSRF header elsewhere', async () => {
     storage.setRefreshCsrf('csrf-value')
-    const captured = captureHeaders('post', '/notes')
+    const captured = captureHeaders('post', '/protected')
 
-    await api.post('/notes', { content: 'x' })
+    await api.post('/protected', { value: 'x' })
 
     expect(captured.csrf).toBeNull()
   })
@@ -107,7 +107,7 @@ describe('expired access token', () => {
   it('refreshes, stores the new tokens, and retries the request', async () => {
     const backend = mockBackend()
 
-    const response = await api.get('/notes')
+    const response = await api.get('/protected')
 
     expect(response.status).toBe(200)
     expect(storage.getAccessToken()).toBe('access-1')
@@ -117,10 +117,10 @@ describe('expired access token', () => {
 
   it('sends the rotated CSRF token on the next refresh', async () => {
     const backend = mockBackend()
-    await api.get('/notes')
+    await api.get('/protected')
 
     storage.setAccessToken('stale-again')
-    const response = await api.get('/notes')
+    const response = await api.get('/protected')
 
     expect(response.status).toBe(200)
     expect(backend.refreshCalls).toEqual(['csrf-0', 'csrf-1'])
@@ -129,7 +129,7 @@ describe('expired access token', () => {
   it('shares one refresh between concurrent requests', async () => {
     const backend = mockBackend()
 
-    const responses = await Promise.all([api.get('/notes'), api.get('/notes')])
+    const responses = await Promise.all([api.get('/protected'), api.get('/protected')])
 
     expect(responses.map(r => r.status)).toEqual([200, 200])
     expect(backend.refreshCalls).toHaveLength(1)
@@ -143,7 +143,7 @@ describe('expired access token', () => {
     let bothExpired
     const gate = new Promise(resolve => { bothExpired = resolve })
     server.use(
-      http.get('/api/notes', () => {
+      http.get('/api/protected', () => {
         expiredCount += 1
         if (expiredCount === 2) bothExpired()
         return expired()
@@ -155,7 +155,7 @@ describe('expired access token', () => {
       })
     )
 
-    const results = await Promise.allSettled([api.get('/notes'), api.get('/notes')])
+    const results = await Promise.allSettled([api.get('/protected'), api.get('/protected')])
 
     expect(results.map(r => r.status)).toEqual(['rejected', 'rejected'])
     expect(results.map(r => r.reason.response.data.error.code))
@@ -171,7 +171,7 @@ describe('expired access token', () => {
     // answer instead of hanging the run.
     let refreshes = 0
     server.use(
-      http.get('/api/notes', () => expired()),
+      http.get('/api/protected', () => expired()),
       http.post('/api/auth/refresh', () => {
         refreshes += 1
         return refreshes === 1
@@ -181,7 +181,7 @@ describe('expired access token', () => {
     )
     storage.setAccessToken('stale-token')
 
-    const error = await api.get('/notes').catch(e => e)
+    const error = await api.get('/protected').catch(e => e)
 
     expect(error.response.data.error.code).toBe('AUTH_TOKEN_EXPIRED')
     expect(refreshes).toBe(1)
@@ -193,7 +193,7 @@ describe('expired access token', () => {
     mockBackend()
     storage.setRefreshCsrf('wrong')
 
-    await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
+    await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
     expect(window.location.href).toBe('http://localhost/')
@@ -209,7 +209,7 @@ describe('expired access token', () => {
         HttpResponse.json(errorBody(code), { status }))
     )
 
-    const error = await api.get('/notes').catch(e => e)
+    const error = await api.get('/protected').catch(e => e)
 
     expect(error.response.data.error.code).toBe(code)
     expect(storage.getAccessToken()).toBe('stale-token')
@@ -221,7 +221,7 @@ describe('expired access token', () => {
     mockBackend()
     server.use(http.post('/api/auth/refresh', () => HttpResponse.error()))
 
-    await expect(api.get('/notes')).rejects.toMatchObject({ code: 'ERR_NETWORK' })
+    await expect(api.get('/protected')).rejects.toMatchObject({ code: 'ERR_NETWORK' })
 
     expect(storage.getAccessToken()).toBe('stale-token')
     expect(window.location.href).toBe('http://localhost/')
@@ -234,9 +234,9 @@ describe('expired access token', () => {
         HttpResponse.json(errorBody('RATE_LIMITED'), { status: 429 }),
       { once: true })
     )
-    await api.get('/notes').catch(() => {})
+    await api.get('/protected').catch(() => {})
 
-    const response = await api.get('/notes')
+    const response = await api.get('/protected')
 
     expect(response.status).toBe(200)
     expect(backend.refreshCalls).toEqual(['csrf-0'])
@@ -257,7 +257,7 @@ describe('refreshing across tabs', () => {
     const request = vi.fn((name, callback) => callback())
     stubLocks(request)
 
-    const response = await api.get('/notes')
+    const response = await api.get('/protected')
 
     expect(response.status).toBe(200)
     expect(request).toHaveBeenCalledWith('auth-refresh', expect.any(Function))
@@ -272,7 +272,7 @@ describe('refreshing across tabs', () => {
       return callback()
     })
 
-    const response = await api.get('/notes')
+    const response = await api.get('/protected')
 
     expect(response.status).toBe(200)
     expect(backend.refreshCalls).toEqual([])
@@ -287,9 +287,9 @@ describe('invalid or missing token', () => {
 
   it('ends the session, without reloading, on an invalid token', async () => {
     storage.setAccessToken('forged')
-    rejectWith('get', '/notes', 'AUTH_INVALID_TOKEN')
+    rejectWith('get', '/protected', 'AUTH_INVALID_TOKEN')
 
-    await expect(api.get('/notes')).rejects.toMatchObject({ response: { status: 401 } })
+    await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
     expect(window.location.href).toBe('http://localhost/')

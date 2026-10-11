@@ -16,7 +16,7 @@ SHARED_FEATURES = {'auth'}
 
 
 def _part(module):
-    """'app.notes.routes' -> 'notes'; None for anything outside the app"""
+    """'app.orders.routes' -> 'orders'; None for anything outside the app"""
     parts = module.split('.')
     if parts[0] != 'app':
         return None
@@ -30,7 +30,7 @@ def _imports(path, root):
             yield from (alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.level == 0:
             yield node.module
-            # `from app import notes` imports a package; `from app import db`
+            # `from app import orders` imports a package; `from app import db`
             # only an attribute of the app package itself
             if node.module == 'app':
                 yield from (f'app.{alias.name}' for alias in node.names
@@ -53,7 +53,7 @@ def _violations(path, root=APP):
 
 
 def _plant(root, owner, source):
-    for package in ('auth', 'health', 'notes', 'utils'):
+    for package in ('auth', 'orders', 'billing', 'utils'):
         (root / package).mkdir(exist_ok=True)
     path = root / owner
     path.write_text(source, encoding='utf-8')
@@ -67,10 +67,10 @@ def test_imports_point_one_way():
 
 
 @pytest.mark.parametrize('owner, source, expected', [
-    ('utils/x.py', 'from app.notes.models import Note', 'shared core'),
+    ('utils/x.py', 'from app.orders.models import Order', 'shared core'),
     ('config.py', 'import app.auth.models', 'shared core'),
-    ('notes/x.py', 'from app.health.routes import health_bp', 'the notes feature'),
-    ('notes/x.py', 'from app import health', 'the notes feature'),
+    ('orders/x.py', 'from app.billing.routes import billing_bp', 'the orders feature'),
+    ('orders/x.py', 'from app import billing', 'the orders feature'),
     ('auth/x.py', 'from app.features import BLUEPRINTS', 'imports features.py'),
 ])
 def test_each_rule_catches_a_violation(tmp_path, owner, source, expected):
@@ -81,10 +81,10 @@ def test_each_rule_catches_a_violation(tmp_path, owner, source, expected):
 
 
 @pytest.mark.parametrize('owner, source', [
-    ('notes/x.py', 'from app.auth.models import User'),
-    ('notes/x.py', 'from app.utils.ids import ID_MAX'),
-    ('notes/x.py', 'from app import db'),
-    ('features.py', 'from app.notes.routes import notes_bp'),
+    ('orders/x.py', 'from app.auth.models import User'),
+    ('orders/x.py', 'from app.utils.ids import ID_MAX'),
+    ('orders/x.py', 'from app import db'),
+    ('features.py', 'from app.orders.routes import orders_bp'),
     ('__init__.py', 'from app.features import register_features'),
 ])
 def test_allowed_imports_pass(tmp_path, owner, source):

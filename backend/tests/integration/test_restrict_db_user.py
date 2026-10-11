@@ -83,7 +83,7 @@ def test_app_user_keeps_data_access(probe_user):
 
 @pytest.mark.parametrize('statement', [
     'CREATE TABLE probe_table (id INT)',
-    'DROP TABLE notes',
+    'DROP TABLE users',
     'ALTER TABLE users ADD COLUMN probe INT',
     'CREATE INDEX probe_idx ON users (email)',
 ])

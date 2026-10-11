@@ -10,6 +10,11 @@ export async function loginUser(email, password) {
   return response.data
 }
 
+export async function getAccount() {
+  const response = await api.get('/account')
+  return response.data
+}
+
 export async function logoutUser() {
   await api.post('/auth/logout')
 }
