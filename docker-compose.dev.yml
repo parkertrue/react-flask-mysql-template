@@ -47,6 +47,14 @@ services:
       - "~LIMITS:*"
       - "+@all"
       - "-@dangerous"
+      - "-@search"
+      - "-@json"
+      - "-@timeseries"
+      - "-@bloom"
+      - "-@cuckoo"
+      - "-@cms"
+      - "-@topk"
+      - "-@tdigest"
       - --maxmemory
       - 96mb
       - --maxmemory-policy

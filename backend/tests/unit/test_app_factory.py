@@ -4,6 +4,7 @@ import pytest
 import redis
 from flask import abort, request
 from flask_jwt_extended import create_refresh_token, decode_token
+from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
 
 import app as app_module
 from app import create_app
@@ -166,3 +167,48 @@ class TestJsonErrors:
         assert response.get_json()['error']['code'] == 'INTERNAL_ERROR'
         tracebacks = [r for r in caplog.records if r.exc_info]
         assert len(tracebacks) == 1
+
+
+class TestDatabaseOutage:
+    """MySQL down or hung is an outage: 503, like Redis, so clients retry"""
+
+    @pytest.fixture
+    def raising(self, monkeypatch):
+        def build(error):
+            app = build_app(monkeypatch)
+            app.config['PROPAGATE_EXCEPTIONS'] = False
+
+            @app.route('/_query')
+            def query():
+                raise error
+
+            return app.test_client().get('/_query')
+        return build
+
+    @pytest.mark.parametrize('error_class', [OperationalError, InterfaceError])
+    def test_connection_errors_are_503_and_logged_once(self, raising, caplog, error_class):
+        response = raising(error_class('SELECT 1', {}, Exception('2003 refused')))
+
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        tracebacks = [r for r in caplog.records if r.exc_info]
+        assert len(tracebacks) == 1
+        assert tracebacks[0].getMessage() == 'Database unavailable'
+
+    def test_other_database_errors_stay_500(self, raising):
+        response = raising(IntegrityError('INSERT', {}, Exception('1062 duplicate')))
+
+        assert response.status_code == 500
+        assert response.get_json()['error']['code'] == 'INTERNAL_ERROR'
+
+    def test_user_lookup_during_an_outage_is_503(self, client, auth_token, monkeypatch):
+        """Every @jwt_required route loads the user first, so this is where it fails"""
+        def database_down(*args, **kwargs):
+            raise OperationalError('SELECT', {}, Exception('2003 refused'))
+        monkeypatch.setattr(app_module.db.session, 'get', database_down)
+
+        response = client.get(
+            '/api/notes', headers={'Authorization': f'Bearer {auth_token}'})
+
+        assert response.status_code == 503
+        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'

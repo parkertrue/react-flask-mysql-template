@@ -94,6 +94,29 @@ wrapping back into it. Both are how `showModal()` behaves in every browser;
 overriding them means hand-written focus trapping and click handling, which
 CLAUDE.md's prefer-the-built-in rule argues against.
 
+**`/api/health` is liveness only.** It answers 200 while MySQL or Redis is
+down; the routes that need them answer 503 instead. Compose uses it only to
+order startup, so a readiness check of the database and Redis would change
+nothing. *Revisit when:* an orchestrator or load balancer acts on health.
+
+**No `engines` field, the `react-router-dom` shim, unhashed Python locks.**
+CI and Docker pin Node 24, the shim costs nothing at runtime, and Dependabot
+plus exact pins cover the locks. *Revisit when:* a contributor hits a Node
+mismatch, React Router drops the shim, or a supply-chain incident touches
+PyPI.
+
+**A write the client was told failed may still have committed.** When a
+commit stalls inside MySQL (a full disk, a hung server), the query timeout or
+nginx's 60s gives up and the client gets a 503 or 504, but MySQL can finish
+the commit later. Retrying then repeats the write: a duplicate note, or a 409
+for an account that was in fact created. This is the general ambiguous-failure
+problem, and plain CRUD creates take it. Where a duplicate does harm
+(payments, orders, sent messages), use an idempotency key: the client sends
+an `Idempotency-Key` per submit and reuses it on retry; the table stores it
+with a unique index on (owner, key), written in the same transaction as the
+row; a repeat returns the existing row. A key kept only in Redis would not
+catch this case. *Revisit when:* a feature's writes must never repeat.
+
 ## Deferred until the app grows
 
 **TanStack Query.** It would replace the hand-written loading, error and

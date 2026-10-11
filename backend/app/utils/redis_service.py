@@ -11,15 +11,21 @@ from flask import Flask, current_app
 # take seconds on its own.
 RECONNECT_INTERVAL_SECONDS = 5
 
-# Shared by the app's client and the rate limiter's (config.py). redis-py's
-# default retries a failed command 10 times with backoff, so every request
-# would hang for ~30s while Redis is down. One immediate retry is enough to
-# replace a connection Redis closed; after that, fail fast.
+# The app's client. redis-py's default retries a failed command 10 times with
+# backoff, so every request would hang for ~30s while Redis is down. One
+# immediate retry is enough to replace a connection Redis closed; after that,
+# fail fast.
 REDIS_CLIENT_OPTIONS = {
     'socket_connect_timeout': 2,
     'socket_timeout': 2,
     'retry': Retry(NoBackoff(), 1),
 }
+
+# The rate limiter's client (config.py): no retry at all. While Redis is
+# down, Flask-Limiter re-checks it on any request, rate-limited or not, so a
+# retry would only double that request's wait. A failed call costs nothing:
+# the limiter counts in memory until Redis answers again.
+RATELIMIT_REDIS_OPTIONS = {**REDIS_CLIENT_OPTIONS, 'retry': Retry(NoBackoff(), 0)}
 
 
 class TokenStoreUnavailable(Exception):

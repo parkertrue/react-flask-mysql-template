@@ -19,7 +19,12 @@ REQUIRED = ('DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD',
             'REDIS_HOST', 'REDIS_USERNAME', 'REDIS_PASSWORD')
 
 
-def mysql_ready():
+def describe(error):
+    return str(error) or type(error).__name__
+
+
+def mysql_error():
+    """None once MySQL accepts the app's login, else why it does not"""
     try:
         pymysql.connect(
             host=os.environ['DB_HOST'],
@@ -29,12 +34,13 @@ def mysql_ready():
             database=os.environ['DB_NAME'],
             connect_timeout=2,
         ).close()
-        return True
-    except Exception:
-        return False
+        return None
+    except Exception as error:
+        return describe(error)
 
 
-def redis_ready():
+def redis_error():
+    """None once Redis accepts the app's login, else why it does not"""
     try:
         client = redis.Redis(
             host=os.environ['REDIS_HOST'],
@@ -46,9 +52,9 @@ def redis_ready():
         )
         client.ping()
         client.close()
-        return True
-    except Exception:
-        return False
+        return None
+    except Exception as error:
+        return describe(error)
 
 
 def main():
@@ -57,17 +63,24 @@ def main():
         sys.exit(f"Missing required environment variables: {', '.join(missing)}")
 
     deadline = time.monotonic() + TIMEOUT_SECONDS
+    shown = None
     while True:
-        waiting = [name for name, ready in (('MySQL', mysql_ready), ('Redis', redis_ready))
-                   if not ready()]
-        if not waiting:
+        errors = [(name, error) for name, error in
+                  (('MySQL', mysql_error()), ('Redis', redis_error())) if error]
+        if not errors:
             print('Database and Redis are up')
             return
+        # Each error names its cause, which tells a service still booting
+        # from one that never will (a wrong password, a missing database).
+        waiting = ', '.join(f'{name} ({error})' for name, error in errors)
         if time.monotonic() > deadline:
-            print(f"Gave up after {TIMEOUT_SECONDS}s waiting for: {', '.join(waiting)}",
+            print(f'Gave up after {TIMEOUT_SECONDS}s waiting for: {waiting}',
                   file=sys.stderr)
             sys.exit(1)
-        print(f"Waiting for: {', '.join(waiting)}")
+        # Only when it changes, so a long wait doesn't repeat it every second
+        if waiting != shown:
+            print(f'Waiting for: {waiting}')
+            shown = waiting
         time.sleep(1)
 
 

@@ -2,7 +2,7 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
-from app.utils.redis_service import REDIS_CLIENT_OPTIONS
+from app.utils.redis_service import RATELIMIT_REDIS_OPTIONS
 
 MIN_SECRET_KEY_LENGTH = 32
 PLACEHOLDER_SECRET_KEYS = {'your_secret_key_here'}
@@ -108,7 +108,7 @@ class Config:
         # Rate Limiter configuration
         self.RATELIMIT_ENABLED = True
         self.RATELIMIT_STORAGE_URI = self.REDIS_URI
-        self.RATELIMIT_STORAGE_OPTIONS = REDIS_CLIENT_OPTIONS
+        self.RATELIMIT_STORAGE_OPTIONS = RATELIMIT_REDIS_OPTIONS
         # If Redis is unreachable, count in each worker's memory until it is
         # back, rather than failing every rate-limited request with a 500.
         self.RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = True

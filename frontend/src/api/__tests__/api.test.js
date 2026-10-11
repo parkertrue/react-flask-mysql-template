@@ -46,9 +46,8 @@ function mockBackend() {
 }
 
 describe('api client configuration', () => {
-  it('uses the /api base URL with credentials', () => {
+  it('uses the /api base URL', () => {
     expect(api.defaults.baseURL).toBe('/api')
-    expect(api.defaults.withCredentials).toBe(true)
   })
 })
 

@@ -14,6 +14,21 @@ async function expectNoViolations(page) {
 }
 
 test.describe('Accessibility', () => {
+  // The page CSP (nginx) allows only the app's own files. These tests visit
+  // every page, so anything the app does that the CSP blocks fails here.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.cspViolations = []
+      document.addEventListener('securitypolicyviolation', event => {
+        window.cspViolations.push(`${event.violatedDirective} ${event.blockedURI}`)
+      })
+    })
+  })
+
+  test.afterEach(async ({ page }) => {
+    expect(await page.evaluate(() => window.cspViolations)).toEqual([])
+  })
+
   test.describe('a visitor', () => {
     for (const [path, title, heading] of [
       ['/', APP_NAME, `Welcome to ${APP_NAME}`],

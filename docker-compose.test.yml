@@ -28,6 +28,13 @@ services:
     cpus: 0.5
     tmpfs:
       - /var/lib/mysql
+    # The tmpfs datadir counts toward mem_limit, and so does
+    # performance_schema (~235 MB): with the defaults this throwaway database
+    # sat at its limit and swapped. It needs neither diagnostics nor a 100 MB
+    # redo log.
+    command:
+      - --performance-schema=OFF
+      - --innodb-redo-log-capacity=8M
 
   redis:
     image: redis:8.10-alpine
@@ -47,6 +54,14 @@ services:
       - "~LIMITS:*"
       - "+@all"
       - "-@dangerous"
+      - "-@search"
+      - "-@json"
+      - "-@timeseries"
+      - "-@bloom"
+      - "-@cuckoo"
+      - "-@cms"
+      - "-@topk"
+      - "-@tdigest"
       - --maxmemory
       - 96mb
       - --maxmemory-policy

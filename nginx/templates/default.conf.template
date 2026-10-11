@@ -68,8 +68,7 @@ server {
     # not an extension regex: a regex location would outrank /api below and
     # serve, say, /api/avatar.png from disk instead of proxying it.
     location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        add_header Cache-Control "public, max-age=31536000, immutable";
         include /etc/nginx/security_headers.conf;
         add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'" always;
         access_log off;
@@ -83,10 +82,11 @@ server {
         add_header Cache-Control "no-cache" always;
         include /etc/nginx/security_headers.conf;
 
-        # script-src has no 'unsafe-inline': the Vite build emits external
-        # hashed bundles. style-src keeps 'unsafe-inline' for React inline
-        # style attributes.
-        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
+        # Only the app's own files: the Vite build emits external hashed
+        # bundles and stylesheets, and nothing sets a style attribute or loads
+        # a remote or data: image or font. e2e/accessibility.spec.js fails on
+        # any violation, so a feature that needs more says so at once.
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" always;
 
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" always;
     }
@@ -147,6 +147,7 @@ server {
         internal;
         default_type application/json;
         include /etc/nginx/security_headers.conf;
+        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
         return 200 '{"error":{"code":"INTERNAL_ERROR","message":"Something went wrong"}}';
     }
 
@@ -158,6 +159,7 @@ server {
         internal;
         default_type application/json;
         include /etc/nginx/security_headers.conf;
+        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
         return 200 '{"error":{"code":"RATE_LIMITED","message":"Too many requests, please try again later"}}';
     }
 
@@ -167,6 +169,7 @@ server {
         internal;
         default_type application/json;
         include /etc/nginx/security_headers.conf;
+        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
         return 200 '{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body too large"}}';
     }
 }

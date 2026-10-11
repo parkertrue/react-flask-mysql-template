@@ -1,9 +1,10 @@
 import axios from 'axios'
 import { storage } from '@/auth/storage'
 
+// Same-origin in every environment, so the refresh cookie goes along
+// without withCredentials
 export const api = axios.create({
-  baseURL: '/api',
-  withCredentials: true
+  baseURL: '/api'
 })
 
 // Endpoints authenticated by the refresh cookie, which the backend protects
