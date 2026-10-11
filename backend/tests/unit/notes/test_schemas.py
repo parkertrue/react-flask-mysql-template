@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.notes import NoteCreateRequest, NoteUpdateRequest, NotesListQuery
+from app.notes.schemas import NoteCreateRequest, NoteUpdateRequest, NotesListQuery
 
 
 class TestCreateNoteRequestSchema:

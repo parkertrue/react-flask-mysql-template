@@ -48,14 +48,14 @@ resource (`url` and `title`, owned by a user, cursor-paginated list, create),
 built by following the notes slice's pattern as CLAUDE.md describes it
 (model, schema, routes, service, hook, page, unit tests, and its E2E spec,
 ported and linted). Keep it minimal. The point is to discover what the pattern
-makes hard, not to write a good feature. In step 5, generate its migration as
+makes hard, not to write a good feature. In step 4, generate its migration as
 the step says, using the test stack's `db` per RULES.md. Start that stack from
-the worktree and note its project name after step 6's rename: teardown must
+the worktree and note its project name after step 5's rename: teardown must
 use the name it was started under. Afterward, reset the database
 (`down -v` and up again) before the integration suite, since `flask db
 migrate` leaves tables and `alembic_version` behind.
 
-Skip step 7 (rewriting docs); just note which sections of README and
+Skip step 6 (rewriting docs); just note which sections of README and
 CLAUDE.md would need rewriting, as a measure of how much is notes-specific.
 
 ## 3. Verify

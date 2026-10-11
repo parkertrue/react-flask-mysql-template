@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field, ConfigDict, field_serializer, field_validator
 from datetime import datetime, timezone
 
-from app.models import ID_MAX
-from app.models.note import NOTE_MAX_LENGTH
+from app.notes.models import NOTE_MAX_LENGTH
+from app.utils.ids import ID_MAX
 from app.utils.text import UNSUPPORTED_CHARACTERS_MESSAGE, is_plain_text
 
 

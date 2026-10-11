@@ -6,7 +6,7 @@ from flask_jwt_extended import (
     create_access_token, create_refresh_token, decode_token, get_csrf_token)
 
 from app import db, limiter
-from app.models import User
+from app.auth.models import User
 from tests.conftest import FakeRedisService
 from tests.unit.test_app_factory import build_app
 
@@ -98,7 +98,7 @@ def test_successful_logins_do_not_count_toward_the_account_limits(owner_app):
 def test_failures_spread_over_many_addresses_hit_the_hourly_account_limit(limited_app, monkeypatch):
     """Guessing one account's password from a botnet stays bounded"""
     # The dummy hash would make 101 logins take seconds; the limit doesn't care
-    monkeypatch.setattr('app.routes.auth.verify_password', lambda stored, given: False)
+    monkeypatch.setattr('app.auth.routes.verify_password', lambda stored, given: False)
     client = limited_app.test_client()
 
     statuses = [login(client, f'10.0.{i // 250}.{i % 250}').status_code for i in range(101)]

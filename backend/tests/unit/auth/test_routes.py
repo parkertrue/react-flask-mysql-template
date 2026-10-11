@@ -8,8 +8,8 @@ import pytest
 from flask_jwt_extended import create_refresh_token, decode_token
 from sqlalchemy import select, func
 
-from app.models import User
-from app.routes import auth as auth_routes
+from app.auth import routes as auth_routes
+from app.auth.models import User
 from app.utils.passwords import verify_password
 
 
@@ -342,7 +342,7 @@ class TestLoginEndpoint:
             'password': 'SomePassword123'
         }
 
-        with patch('app.routes.auth.verify_password',
+        with patch('app.auth.routes.verify_password',
                    wraps=verify_password) as check:
             response = client.post('/api/auth/login', json=payload)
 

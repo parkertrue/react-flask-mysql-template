@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, func
 
-from app.models import Note
+from app.notes.models import Note
 
 
 class TestGetNotes:

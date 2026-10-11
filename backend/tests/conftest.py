@@ -8,7 +8,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from app import create_app, db as _db
-from app.models import User, Note
+from app.auth.models import User
 
 # Every config requires SECRET_KEY, including the ones tests build directly.
 # Integration runs get theirs from .env.test, which this does not override.
@@ -262,47 +262,6 @@ def expired_token(app, sample_user):
             expires_delta=timedelta(seconds=-1)
         )
         return token
-
-
-@pytest.fixture
-def sample_note(db, sample_user):
-    """Create a single note for the sample user."""
-    note = Note(
-        user_id=sample_user.id,
-        content='This is a test note'
-    )
-    db.session.add(note)
-    db.session.commit()
-    db.session.refresh(note)
-    return note
-
-
-@pytest.fixture
-def sample_notes(db, sample_user):
-    """Create multiple notes for the sample user."""
-    notes = [
-        Note(user_id=sample_user.id, content='First note'),
-        Note(user_id=sample_user.id, content='Second note'),
-        Note(user_id=sample_user.id, content='Third note'),
-    ]
-    db.session.add_all(notes)
-    db.session.commit()
-    for note in notes:
-        db.session.refresh(note)
-    return notes
-
-
-@pytest.fixture
-def other_user_note(db, second_user):
-    """Create a note belonging to a different user."""
-    note = Note(
-        user_id=second_user.id,
-        content='Note from another user'
-    )
-    db.session.add(note)
-    db.session.commit()
-    db.session.refresh(note)
-    return note
 
 
 @pytest.fixture

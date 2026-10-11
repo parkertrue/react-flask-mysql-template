@@ -46,7 +46,7 @@ router, fixtures), `frontend/playwright.config.js`, `frontend/e2e/helpers.js`.
   (`pytest --durations=15`, Vitest's report). Will the patterns hold at ten
   features: fixtures per feature, table-driven cases, no copy-paste per case?
 - Thresholds: do global coverage thresholds hide a weak critical file? List
-  the coverage of each security-critical module (`backend/app/routes/auth.py`,
+  the coverage of each security-critical module (`backend/app/auth/routes.py`,
   `utils/redis_service.py`, `frontend/src/api/api.js`, `src/auth/`). If any is
   well below the global figure, the guard is a per-path threshold.
 - Flakiness: E2E `waitForTimeout`, fixed sleeps, polling without a deadline,

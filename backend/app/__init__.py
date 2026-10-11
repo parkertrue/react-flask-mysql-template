@@ -57,7 +57,7 @@ def create_app():
     init_password_hashing(app)
 
     # Imported here for the same reason as the routes below
-    from app.models import User
+    from app.auth.models import User
 
     @jwt.user_lookup_loader
     def load_user(jwt_header, jwt_payload):
@@ -241,9 +241,9 @@ def create_app():
         response.headers.setdefault('Cache-Control', 'no-store')
         return response
 
-    # Imported here, not at the top: the route modules import db and limiter
-    # from this package, so a module-level import would be circular.
-    from app.routes import register_routes
-    register_routes(app)
+    # Imported here, not at the top: the feature modules import db and
+    # limiter from this package, so a module-level import would be circular.
+    from app.features import register_features
+    register_features(app)
 
     return app

@@ -39,6 +39,6 @@ describe('validateNoteContent', () => {
 // The backend's limit is the real one; this only spares the user a round trip
 it('NOTE_MAX_LENGTH matches the backend', () => {
   const source = readFileSync(
-    path.resolve(import.meta.dirname, '../../../../../backend/app/models/note.py'), 'utf8')
+    path.resolve(import.meta.dirname, '../../../../../backend/app/notes/models.py'), 'utf8')
   expect(NOTE_MAX_LENGTH).toBe(Number(source.match(/^NOTE_MAX_LENGTH = (\d+)$/m)[1]))
 })

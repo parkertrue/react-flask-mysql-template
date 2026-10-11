@@ -109,7 +109,7 @@ describes. Nothing else.
   (detached), and point ZAP (also in that namespace) at `http://localhost:8081`.
   - Front end: `zap-baseline.py -t http://localhost:8081 -I`.
   - API: `zap-api-scan.py` with a small OpenAPI file you write in the
-    scratch directory from `backend/app/routes/` (every route, method and
+    scratch directory from each feature's `backend/app/*/routes.py` (every route, method and
     body), a Bearer token for a registered test user injected with
     `-config replacer.full_list(0).description=auth -config replacer.full_list(0).enabled=true -config replacer.full_list(0).matchtype=REQ_HEADER -config replacer.full_list(0).matchstr=Authorization -config replacer.full_list(0).replacement="Bearer <token>"`,
     and `-config scanner.delayInMs=60` to stay under nginx's per-IP limit.

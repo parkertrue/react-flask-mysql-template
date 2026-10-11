@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.models import User
+from app.auth.models import User
 from app.utils.passwords import PasswordHashingBusy, hash_password, verify_password
 
 
