@@ -36,7 +36,8 @@ test.describe('nginx', () => {
     const asset = await request.get(await firstAssetPath(request))
 
     expect(page.headers()['cache-control']).toBe('no-cache')
-    expect(asset.headers()['cache-control']).toMatch(/max-age=31536000.*immutable|immutable.*max-age=31536000/)
+    // Exact: nginx's expires would add a second Cache-Control header
+    expect(asset.headers()['cache-control']).toBe('public, max-age=31536000, immutable')
   })
 
   test('API responses are never stored', async ({ request }) => {
@@ -76,5 +77,7 @@ test.describe('nginx', () => {
 
     expect(response.status()).toBe(413)
     expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
+    // nginx answers this itself, from a location of its own
+    expect(response.headers()['content-security-policy']).toBe("default-src 'none'; frame-ancestors 'none'")
   })
 })

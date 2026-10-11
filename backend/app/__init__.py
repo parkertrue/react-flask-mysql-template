@@ -5,6 +5,7 @@ from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
+from sqlalchemy.exc import InterfaceError, OperationalError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
@@ -157,6 +158,20 @@ def create_app():
         return error_response(
             code='SERVICE_UNAVAILABLE',
             message='Sign-in is busy, please try again shortly',
+            status=503
+        )
+
+    # MySQL stopped, hung (the 15s query timeout), or the connection dropped
+    # mid-query: an outage, not a bug, so answer 503 as Redis outages do and
+    # the client keeps its session. IntegrityError and the like stay 500s.
+    # Flask logs only unhandled exceptions, so log this one here.
+    @app.errorhandler(OperationalError)
+    @app.errorhandler(InterfaceError)
+    def database_unavailable(e):
+        app.logger.exception('Database unavailable')
+        return error_response(
+            code='SERVICE_UNAVAILABLE',
+            message='The service is unavailable, please try again shortly',
             status=503
         )
 

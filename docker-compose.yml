@@ -90,7 +90,9 @@ services:
     # of silently logging users out and resetting limits. maxmemory stays below
     # the container limit to leave room for the AOF rewrite fork.
     # ACL: the built-in "default" user is off; the app's user may touch only
-    # its own keys and no @dangerous command (FLUSHALL, CONFIG, KEYS, ...).
+    # its own keys and no @dangerous command (FLUSHALL, CONFIG, KEYS, ...),
+    # nor any command of the modules the image loads (search, JSON, time
+    # series, probabilistic), which @dangerous does not cover.
     # A list, not one string: compose would read the ">" before the password
     # as a shell redirect and silently drop every argument after it.
     command:
@@ -106,6 +108,14 @@ services:
       - "~LIMITS:*"
       - "+@all"
       - "-@dangerous"
+      - "-@search"
+      - "-@json"
+      - "-@timeseries"
+      - "-@bloom"
+      - "-@cuckoo"
+      - "-@cms"
+      - "-@topk"
+      - "-@tdigest"
       - --appendonly
       - "yes"
       - --maxmemory

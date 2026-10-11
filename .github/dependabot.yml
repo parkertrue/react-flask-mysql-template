@@ -34,6 +34,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    ignore:
+      # Node's odd majors are short-lived, and the toolchain skips them. Bump
+      # to the next LTS by hand, together with setup-node in both workflows.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directory: /

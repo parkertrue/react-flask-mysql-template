@@ -314,7 +314,7 @@ class TestFailFastWhenRedisIsDown:
 
         assert self.count_connection_attempts(make) == 2
 
-    def test_rate_limiter_client_retries_once(self, monkeypatch):
+    def test_rate_limiter_client_does_not_retry(self, monkeypatch):
         """Flask-Limiter hands RATELIMIT_STORAGE_OPTIONS to redis.from_url"""
         from app.config import DevelopmentConfig
         monkeypatch.setenv('SECRET_KEY', 'x' * 32)
@@ -329,4 +329,4 @@ class TestFailFastWhenRedisIsDown:
             return redis.from_url(
                 config.RATELIMIT_STORAGE_URI, **config.RATELIMIT_STORAGE_OPTIONS)
 
-        assert self.count_connection_attempts(make) == 2
+        assert self.count_connection_attempts(make) == 1
