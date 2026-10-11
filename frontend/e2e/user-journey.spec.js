@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
-  TEST_PASSWORD, addNote, login, logout, register, submitRegistration, uniqueEmail,
+  fillRegistration, login, logout, memberSince, openAccount, register, submitRegistration,
+  uniqueEmail,
 } from './helpers'
 import { APP_NAME } from '../src/appName.js'
 
@@ -11,49 +12,37 @@ test.describe('Critical User Journey', () => {
     testEmail = uniqueEmail('e2e-test')
   })
 
-  test('complete user journey: register → login → create note → logout', async ({ page }) => {
-    // 1. Navigate to home page
+  test('complete user journey: register → login → account → logout', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeVisible()
 
-    // 2. Register new user - click "Get Started" button (primary CTA)
+    // The home page's call to action leads to registration
     await page.getByRole('link', { name: /get started/i }).click()
     await expect(page).toHaveURL(/\/register/)
-    
-    await page.getByLabel(/email/i).fill(testEmail)
-    await page.getByLabel(/^password$/i).fill(TEST_PASSWORD)
-    await page.getByLabel(/confirm password/i).fill(TEST_PASSWORD)
-    
-    await page.getByRole('button', { name: /register|creating account/i }).click()
-    
+    await fillRegistration(page, testEmail)
+
     // Success goes straight to login, which confirms it. If registration
     // fails, this fails and the failure screenshot shows the error.
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 })
     await expect(page.getByRole('status')).toHaveText(/registration successful/i)
 
-    // 3. Login with newly created account
     await login(page, testEmail)
-    await expect(page.getByRole('heading', { name: /my notes/i })).toBeVisible()
+    await openAccount(page)
+    await expect(page.getByRole('main').getByText(testEmail, { exact: true })).toBeVisible()
 
-    // 4. Create a note
-    const noteContent = `Test note created at ${new Date().toISOString()}`
-    await addNote(page, noteContent)
-
-    // 5. Verify session persistence (page refresh)
+    // The session survives a page load
     await page.reload()
-    await expect(page).toHaveURL(/\/notes/)
-    await expect(page.getByText(noteContent)).toBeVisible()
+    await expect(page).toHaveURL(/\/account/)
+    await expect(memberSince(page)).toBeVisible()
 
-    // 6. Logout, which returns to the home page
+    // Logging out returns home, and the account page then asks to log in
     await logout(page)
-
-    // Verify user is logged out by checking they can't access notes
-    await page.goto('/notes')
+    await page.goto('/account')
     await expect(page).toHaveURL(/\/login/)
   })
 
   test('cannot access protected routes without authentication', async ({ page }) => {
-    await page.goto('/notes')
+    await page.goto('/account')
     
     await expect(page).toHaveURL(/\/login/)
     await expect(page.getByRole('heading', { name: /login/i })).toBeVisible()

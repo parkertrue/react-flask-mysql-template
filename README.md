@@ -402,9 +402,30 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
 
 # Starting a New App From This Template
 
-1. Replace the notes feature: the package `backend/app/notes/` and its line in `backend/app/features.py`, the migration `backend/migrations/versions/0002_notes.py`, the folder `frontend/src/features/notes/` and its route in `frontend/src/routes.jsx`, and their tests: `backend/tests/unit/notes/`, `backend/tests/integration/notes/`, the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and E2E (`notes-crud.spec.js`).
-2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, `<ApiStatus />` and its import in `frontend/src/pages/HomePage.jsx`, and its `vi.mock` in `frontend/src/pages/__tests__/HomePage.test.jsx`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`src/appName.js`) and the `<title>` in `index.html` (a test checks they match).
-4. Generate a migration for your new tables (`flask db migrate -m "..."`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev)). It chains onto `0001_users`, which holds the auth table every app keeps.
-5. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
+**What is example code.** Notes, a small CRUD feature that shows how a feature is wired end to end, and the API-status demo on the home page. Everything else is what every app keeps: auth, the account page and `/api/account`, `/api/health` (the Docker healthchecks and Playwright wait on it), the layout, forms and dialogs.
+
+**Where a feature plugs in:**
+- `backend/app/features.py`: its blueprint
+- `frontend/src/routes.jsx`: its page's route
+- `frontend/src/components/layout/Navbar.jsx` and `frontend/src/pages/HomePage.jsx`: the links to it, and their tests
+- `AFTER_LOGIN_PATH` in `frontend/src/auth/GuestRoute.jsx`: where logging in leads
+
+**Steps:**
+
+1. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`). Two apps built from this template then never share containers or volumes, and your dev and test stacks start with empty databases.
+2. Replace notes with your first feature, in one of two ways:
+   - **Rename it** into your feature, the quickest start when that feature is also a list of things a user owns: `backend/app/notes/`, `frontend/src/features/notes/` and their tests (`backend/tests/unit/notes/`, `backend/tests/integration/notes/`, `frontend/e2e/notes-crud.spec.js`).
+   - **Delete it**, and build your feature in the same shape: delete those folders and files.
+
+   Either way, delete `backend/migrations/versions/0002_notes.py` (step 4 generates yours) and update the wiring points above.
+3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, and everything that mentions `ApiStatus` in `frontend/src/pages/HomePage.jsx` and `frontend/src/pages/__tests__/HomePage.test.jsx`.
+4. Generate a migration for your tables. From `backend/`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev):
+
+   ```bash
+   flask db upgrade
+   flask db migrate -m "<your feature>"
+   ```
+
+   Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly. If the dev backend ran while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
+5. Name the app: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match).
 6. Rewrite this README and `CLAUDE.md` for your app.

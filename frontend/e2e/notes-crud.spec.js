@@ -1,10 +1,27 @@
 import { test, expect } from '@playwright/test'
-import { addNote, logout, noNotesYet, noteInput, registerAndLogin } from './helpers'
+import {
+  expectNoCspViolations, expectNoViolations, logout, registerAndLogin,
+} from './helpers'
+import { APP_NAME } from '../src/appName.js'
+
+/** The note field, found by its label as a screen reader finds it */
+const noteInput = page => page.getByLabel('New note')
+
+/** Add a note through the form and wait for it to be listed */
+async function addNote(page, text) {
+  await noteInput(page).fill(text)
+  await page.getByRole('button', { name: 'Add Note' }).click()
+  await expect(page.getByText(text)).toBeVisible()
+}
+
+/** The notes page's message when the list loaded and is empty */
+const noNotesYet = page => page.getByText(/no notes yet/i)
 
 test.describe('Notes CRUD Operations', () => {
   // A fresh account and page per test, so each one runs (and retries) alone
   test.beforeEach(async ({ page }) => {
     await registerAndLogin(page, 'e2e-crud')
+    await page.goto('/notes')
   })
 
   test('can create multiple notes', async ({ page }) => {
@@ -87,6 +104,7 @@ test.describe('Notes CRUD Operations', () => {
 
     await logout(page)
     await registerAndLogin(page, 'second-user')
+    await page.goto('/notes')
 
     // The second user's list has loaded, and the first user's note is not in it
     await expect(noNotesYet(page)).toBeVisible()
@@ -116,5 +134,37 @@ test.describe('Notes CRUD Operations', () => {
     await expect(page.getByRole('listitem')).toHaveCount(21)
     await expect(page.getByText('Note number 1', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Load more' })).not.toBeVisible()
+  })
+})
+
+test.describe('Notes accessibility', () => {
+  expectNoCspViolations(test)
+
+  test.beforeEach(async ({ page }) => {
+    await registerAndLogin(page, 'e2e-notes-a11y')
+    await page.goto('/notes')
+  })
+
+  test('the notes page has no violations', async ({ page }) => {
+    await addNote(page, 'A note to check')
+
+    await expect(page).toHaveTitle(`My Notes | ${APP_NAME}`)
+    await expectNoViolations(page)
+  })
+
+  test('a note open for editing has no violations', async ({ page }) => {
+    await addNote(page, 'A note to edit')
+    await page.getByRole('button', { name: /^Edit note #/ }).click()
+
+    await expect(page.getByRole('textbox', { name: /^Edit note #/ })).toBeFocused()
+    await expectNoViolations(page)
+  })
+
+  test('the delete confirmation has no violations', async ({ page }) => {
+    await addNote(page, 'A note to delete')
+    await page.getByRole('button', { name: /^Delete note #/ }).click()
+
+    await expect(page.getByRole('dialog', { name: 'Delete this note?' })).toBeVisible()
+    await expectNoViolations(page)
   })
 })

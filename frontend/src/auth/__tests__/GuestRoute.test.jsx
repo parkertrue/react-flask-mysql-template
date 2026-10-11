@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { act, screen } from '@testing-library/react'
-import GuestRoute from '../GuestRoute'
+import GuestRoute, { AFTER_LOGIN_PATH } from '../GuestRoute'
 import ProtectedRoute from '../ProtectedRoute'
 import { renderRoutes, signIn } from '@/test/router'
 
@@ -12,8 +12,8 @@ const routes = [
   {
     element: <ProtectedRoute />,
     children: [
-      { path: '/notes', element: <p>Notes page</p> },
-      { path: '/account', element: <p>Account page</p> },
+      { path: AFTER_LOGIN_PATH, element: <p>After-login page</p> },
+      { path: '/somewhere-else', element: <p>Another page</p> },
     ],
   },
 ]
@@ -25,11 +25,11 @@ describe('GuestRoute', () => {
     expect(screen.getByText('Login page')).toBeInTheDocument()
   })
 
-  it('sends a signed-in user to their notes', () => {
+  it('sends a signed-in user to the after-login page', () => {
     signIn()
     renderRoutes(routes, '/login')
 
-    expect(screen.getByText('Notes page')).toBeInTheDocument()
+    expect(screen.getByText('After-login page')).toBeInTheDocument()
   })
 
   it('moves the user on as soon as they log in', () => {
@@ -37,15 +37,15 @@ describe('GuestRoute', () => {
 
     act(() => signIn())
 
-    expect(screen.getByText('Notes page')).toBeInTheDocument()
+    expect(screen.getByText('After-login page')).toBeInTheDocument()
   })
 
   it('returns the user to the page that sent them to log in', () => {
-    renderRoutes(routes, '/account')
+    renderRoutes(routes, '/somewhere-else')
     expect(screen.getByText('Login page')).toBeInTheDocument()
 
     act(() => signIn())
 
-    expect(screen.getByText('Account page')).toBeInTheDocument()
+    expect(screen.getByText('Another page')).toBeInTheDocument()
   })
 })

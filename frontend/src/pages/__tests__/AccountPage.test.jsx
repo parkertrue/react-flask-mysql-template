@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import AccountPage from '../AccountPage'
 import { storage } from '@/auth/storage'
-import { logoutAllDevices, clearAuthCookies } from '@/auth/authService'
-import { errorBody } from '@/test/fixtures'
+import { getAccount, logoutAllDevices, clearAuthCookies } from '@/auth/authService'
+import { account, errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
 import { APP_NAME } from '@/appName'
 
@@ -26,16 +26,33 @@ const httpError = (status, code, message) =>
 
 describe('AccountPage', () => {
   beforeEach(() => {
+    getAccount.mockResolvedValue(account('user@example.com', '2026-01-15T10:30:00+00:00'))
     logoutAllDevices.mockResolvedValue()
     clearAuthCookies.mockResolvedValue()
   })
 
-  it('shows who is signed in', () => {
+  it('shows who is signed in, then loads when they joined', async () => {
     renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeInTheDocument()
     expect(screen.getByText('user@example.com')).toBeInTheDocument()
     expect(document.title).toBe(`Account | ${APP_NAME}`)
+    expect(screen.getByRole('status')).toHaveTextContent('Loading account details...')
+
+    // Announced on the same live region that said it was loading
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Member since /))
+    expect(screen.getByText(/2026/, { selector: 'time' }))
+      .toHaveAttribute('dateTime', '2026-01-15T10:30:00+00:00')
+    expect(getAccount).toHaveBeenCalledTimes(1)
+  })
+
+  it('says so when the account cannot be loaded, and still offers logout everywhere', async () => {
+    getAccount.mockRejectedValue(httpError(503, 'SERVICE_UNAVAILABLE', 'Service temporarily unavailable'))
+    renderPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Service temporarily unavailable')
+    expect(screen.getByRole('status')).toHaveTextContent('')
+    expect(logoutAll()).toBeInTheDocument()
   })
 
   it('signs every device out, ends this session and goes home', async () => {

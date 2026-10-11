@@ -29,6 +29,11 @@ export function errorBody(code, message = 'Request failed') {
   return { error: { code, message } }
 }
 
+/** The body of GET /api/account */
+export function account(email = 'user@example.com', created_at = '2026-01-15T10:30:00+00:00') {
+  return { email, created_at }
+}
+
 /** The body of a successful login or refresh */
 export function tokens(access_token = 'access-token', refresh_csrf = 'refresh-csrf') {
   return { access_token, refresh_csrf }

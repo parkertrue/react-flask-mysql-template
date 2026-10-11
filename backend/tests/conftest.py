@@ -212,7 +212,7 @@ def integration_user(integration_db):
 
 
 # ============================================================================
-# UNIT FIXTURES - users, tokens, and notes (on the unit db)
+# UNIT FIXTURES - users and tokens (on the unit db)
 # ============================================================================
 
 @pytest.fixture

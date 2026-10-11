@@ -112,14 +112,14 @@ class TestRedisReconnect:
 
 
 class TestCacheControl:
-    """Tokens and private notes must not be kept by any cache"""
+    """Tokens and private data must not be kept by any cache"""
 
     def test_api_responses_are_not_stored(self, client, sample_user, auth_headers):
         responses = [
             client.post('/api/auth/login',
                         json={'email': 'test@example.com', 'password': 'TestPassword123'}),
-            client.get('/api/notes', headers=auth_headers),
-            client.get('/api/notes/does-not-exist'),
+            client.get('/api/account', headers=auth_headers),
+            client.get('/api/does-not-exist'),
         ]
 
         assert [r.headers.get('Cache-Control') for r in responses] == ['no-store'] * 3
@@ -231,7 +231,7 @@ class TestDatabaseOutage:
         monkeypatch.setattr(app_module.db.session, 'get', database_down)
 
         response = client.get(
-            '/api/notes', headers={'Authorization': f'Bearer {auth_token}'})
+            '/api/account', headers={'Authorization': f'Bearer {auth_token}'})
 
         assert response.status_code == 503
         assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'

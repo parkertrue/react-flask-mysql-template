@@ -1,33 +1,13 @@
 import { test, expect } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
-import { addNote, registerAndLogin } from './helpers'
+import {
+  expectNoCspViolations, expectNoViolations, memberSince, registerAndLogin,
+} from './helpers'
 import { APP_NAME } from '../src/appName.js'
 
-// axe checks what jsdom cannot, such as color contrast, against the WCAG 2.2
-// A and AA rules. Each page is checked as rendered, with any error states shown.
-async function expectNoViolations(page) {
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze()
-  // The rule ids and the offending markup, so a failure says what to fix
-  expect(violations.map(v => ({ rule: v.id, nodes: v.nodes.map(n => n.html) }))).toEqual([])
-}
-
 test.describe('Accessibility', () => {
-  // The page CSP (nginx) allows only the app's own files. These tests visit
-  // every page, so anything the app does that the CSP blocks fails here.
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      window.cspViolations = []
-      document.addEventListener('securitypolicyviolation', event => {
-        window.cspViolations.push(`${event.violatedDirective} ${event.blockedURI}`)
-      })
-    })
-  })
-
-  test.afterEach(async ({ page }) => {
-    expect(await page.evaluate(() => window.cspViolations)).toEqual([])
-  })
+  // These tests visit every page, so anything the app does that the CSP
+  // blocks fails here. A feature's own pages are checked in its spec.
+  expectNoCspViolations(test)
 
   test.describe('a visitor', () => {
     for (const [path, title, heading] of [
@@ -68,35 +48,13 @@ test.describe('Accessibility', () => {
       await registerAndLogin(page, 'e2e-a11y')
     })
 
-    test('the notes page has no violations', async ({ page }) => {
-      await addNote(page, 'A note to check')
-
-      await expect(page).toHaveTitle(`My Notes | ${APP_NAME}`)
-      await expectNoViolations(page)
-    })
-
-    test('a note open for editing has no violations', async ({ page }) => {
-      await addNote(page, 'A note to edit')
-      await page.getByRole('button', { name: /^Edit note #/ }).click()
-
-      await expect(page.getByRole('textbox', { name: /^Edit note #/ })).toBeFocused()
-      await expectNoViolations(page)
-    })
-
-    test('the delete confirmation has no violations', async ({ page }) => {
-      await addNote(page, 'A note to delete')
-      await page.getByRole('button', { name: /^Delete note #/ }).click()
-
-      await expect(page.getByRole('dialog', { name: 'Delete this note?' })).toBeVisible()
-      await expectNoViolations(page)
-    })
-
     test('the account page is reached from the navbar, and has no violations', async ({ page }) => {
       await page.getByRole('link', { name: /\(account\)$/ }).click()
 
       await expect(page).toHaveTitle(`Account | ${APP_NAME}`)
       // Focus moved to the new page's heading, which a screen reader reads
       await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeFocused()
+      await expect(memberSince(page)).toBeVisible()
       await expectNoViolations(page)
     })
   })

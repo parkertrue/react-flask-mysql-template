@@ -10,9 +10,9 @@ vi.mock('../authService')
 function renderButton() {
   signIn()
   return renderRoutes([
-    { path: '/notes', element: <LogoutButton /> },
+    { path: '/account', element: <LogoutButton /> },
     { path: '/', element: <p>Home page</p> },
-  ], '/notes')
+  ], '/account')
 }
 
 async function logOut(user) {

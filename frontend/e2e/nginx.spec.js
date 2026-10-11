@@ -21,7 +21,7 @@ async function firstAssetPath(request) {
 
 test.describe('nginx', () => {
   test('every kind of response carries the security headers', async ({ request }) => {
-    const paths = ['/', '/api/health', '/api/notes', await firstAssetPath(request)]
+    const paths = ['/', '/api/health', '/api/account', await firstAssetPath(request)]
 
     for (const path of paths) {
       const headers = (await request.get(path)).headers()
@@ -32,7 +32,7 @@ test.describe('nginx', () => {
   })
 
   test('HTML is revalidated, hashed assets are cached for good', async ({ request }) => {
-    const page = await request.get('/notes')
+    const page = await request.get('/account')
     const asset = await request.get(await firstAssetPath(request))
 
     expect(page.headers()['cache-control']).toBe('no-cache')
@@ -42,17 +42,17 @@ test.describe('nginx', () => {
 
   test('API responses are never stored', async ({ request }) => {
     // Set by Flask; nginx must pass it through untouched
-    for (const path of ['/api/health', '/api/notes']) {
+    for (const path of ['/api/health', '/api/account']) {
       const response = await request.get(path)
       expect(response.headers()['cache-control'], path).toBe('no-store')
     }
   })
 
   test('plain HTTP redirects to HTTPS', async ({ request }) => {
-    const response = await request.get(`${HTTP}/notes?x=1`, { maxRedirects: 0 })
+    const response = await request.get(`${HTTP}/account?x=1`, { maxRedirects: 0 })
 
     expect(response.status()).toBe(301)
-    expect(response.headers()['location']).toBe('https://localhost/notes?x=1')
+    expect(response.headers()['location']).toBe('https://localhost/account?x=1')
   })
 
   test('a request for another host gets no answer', async ({ request }) => {

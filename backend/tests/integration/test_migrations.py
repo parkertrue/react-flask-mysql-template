@@ -41,7 +41,8 @@ def test_migrations_build_the_schema_the_models_describe(alembic_config):
 
 def test_downgrade_removes_every_table(alembic_config):
     command.upgrade(alembic_config, 'head')
-    assert {'users', 'notes'} <= _tables()
+    # Every table the models define, whichever features the app has
+    assert set(db.metadata.tables) <= _tables()
 
     command.downgrade(alembic_config, 'base')
 

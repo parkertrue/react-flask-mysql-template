@@ -11,12 +11,12 @@ def test_connections_use_utc(integration_db):
         assert conn.execute(text('SELECT @@session.time_zone')).scalar() == '+00:00'
 
 
-def test_note_timestamp_is_sent_as_utc(integration_client, integration_user):
+def test_timestamp_is_sent_as_utc(integration_client, integration_user):
+    """MySQL fills created_at with its own clock; the response says it is UTC"""
     token = create_access_token(identity=str(integration_user.id))
 
-    response = integration_client.post(
-        '/api/notes', json={'content': 'hello'},
-        headers={'Authorization': f'Bearer {token}'})
+    response = integration_client.get(
+        '/api/account', headers={'Authorization': f'Bearer {token}'})
 
     sent = datetime.fromisoformat(response.get_json()['created_at'])
     assert sent.utcoffset() == timedelta(0)
