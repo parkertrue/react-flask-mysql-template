@@ -32,7 +32,7 @@ cd frontend && npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000/api/health
 
-First-time setup: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt` and `cd frontend && npm install`.
+First-time setup: `cd backend && python -m venv .venv && source .venv/Scripts/activate && pip install -r requirements-dev.txt` (`.venv/Scripts/activate` is the Windows Git Bash path; Linux/macOS use `.venv/bin/activate`) and `cd frontend && npm install`.
 
 Python dependencies: edit `backend/requirements.in` (runtime) or `requirements-dev.in` (tools), then run `backend/lock_deps.sh` (Docker) to regenerate the pinned `.txt` locks. Never edit the `.txt` files by hand.
 
@@ -52,7 +52,7 @@ ruff check .                     # Lint (errors, quote style, no print or commen
 ### Frontend
 ```bash
 cd frontend
-npm run lint          # ESLint, no console outside tests, no raw form controls outside FormField (CI fails on any finding)
+npm run lint          # ESLint, no console outside tests, e2e and config files, no raw form controls outside FormField (CI fails on any finding)
 npm run test          # Watch mode
 npm run test:run      # Run once (CI)
 npm run test:coverage
@@ -64,7 +64,7 @@ npm run test:e2e:debug
 ### Running a single backend test
 ```bash
 cd backend
-source .venv/bin/activate
+source .venv/Scripts/activate   # or .venv/bin/activate on Linux/macOS
 pytest tests/unit/test_routes/test_auth_routes.py::TestClassName::test_method_name -v
 ```
 
@@ -129,7 +129,7 @@ Every assertion must be able to fail: never accept a set of statuses (`in [400, 
 - **E2E tests**: Playwright against the full stack via `docker-compose.test.yml` with the `e2e` profile. Ignores self-signed TLS cert errors. E2E runs against the **test** stack, never the production compose file. Each test registers its own account (`registerAndLogin` in `e2e/helpers.js`), so tests never share state and a retry starts clean. `expireAccessToken` re-signs the page's token as expired to exercise refresh. `accessibility.spec.js` runs axe (WCAG 2.2 A/AA, including contrast) on every page. `nginx.spec.js` checks nginx's own promises over the wire (security headers, caching, HTTPS redirect, unknown hosts, JSON 413, `/api` proxied whatever the extension).
 
 ### Nginx (`nginx/`)
-- **`templates/default.conf.template`** — rendered at container start with `NGINX_SERVER_NAME` (prod compose sets it from `SERVER_NAME`; only `NGINX_*` variables are substituted). A catch-all server drops any other Host or a bare IP. HTTP→HTTPS redirect, TLS, SPA routing (HTML is `no-cache`; Vite's content-hashed `/assets/` are cached for a year), `/api` proxy, 16 KB body cap, per-IP `limit_req`/`limit_conn` on `/api` only (static assets are unlimited, since HTTP/2 counts every stream as a connection). Upstream 5xx, 413 and 429s get JSON bodies in the API's error shape, keeping the original status.
+- **`templates/default.conf.template`** — rendered at container start with `NGINX_SERVER_NAME` (prod compose sets it from `SERVER_NAME`; only `NGINX_*` variables are substituted). A catch-all server drops any other Host or a bare IP. HTTP→HTTPS redirect, TLS, SPA routing (HTML is `no-cache`; Vite's content-hashed `/assets/` are cached for a year), `/api` proxy, 16 KB body cap, per-IP `limit_req`/`limit_conn` on `/api` only (static assets are unlimited, since HTTP/2 counts every stream as a connection). Upstream 500/502/504, and nginx's own 413 and 429, get JSON bodies in the API's error shape, keeping the original status (the backend's 503 is already JSON and passes through).
 - **`nginx.conf`** — the `backend` upstream re-resolves through Docker's DNS, so a recreated backend container is picked up without restarting nginx.
 - **`security_headers.conf`** — shared security headers. Every location includes it, because a location that declares its own `add_header` inherits none from the server block.
 - **`templates/00-rate-limits.conf.template`** — rate-limit zones rendered from `NGINX_AUTH_RATE`/`NGINX_API_RATE` at container start. Production defaults are in `nginx/Dockerfile`; `docker-compose.test.yml` relaxes the auth rate for E2E.
@@ -161,10 +161,4 @@ How each environment's names line up. Production gets the bare name; every other
 
 ## Starting a New App From This Template
 
-1. Replace the notes slice: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, `backend/migrations/versions/0002_notes.py`, `frontend/src/features/notes/` and its route in `routes.jsx`, and their tests.
-2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Update `Note` references in `backend/tests/conftest.py` fixtures, the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and the notes integration (`test_mysql_limits.py`, `test_mysql_cascade.py`) and E2E (`notes-crud.spec.js`) tests.
-4. Point the frontend at the new feature: the nav link in `components/layout/Navbar.jsx`, the link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`src/appName.js`) and the `<title>` in `index.html` (a test checks they match).
-5. Generate an Alembic migration for the new tables (`flask db migrate`, with `.env.dev` loaded as README's "Database Schema Changes" shows); it chains onto `0001_users`.
-6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev`/`.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
-7. Rewrite this file and `README.md` for the new app.
+The steps live in `README.md`, "Starting a New App From This Template" (one copy, so the two documents cannot drift). Follow them in order.

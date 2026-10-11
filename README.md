@@ -71,103 +71,13 @@ It holds only the seven values that differ per deployment (including `SERVER_NAM
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
----
-
-# SSL/HTTPS Setup
-
-Nginx serves the app over HTTPS only (port 80 redirects to 443), so it needs a certificate in `nginx/certs/` before it will start: `fullchain.pem` and `privkey.pem`. The production and test stacks mount that folder into the container.
-
-## Self-Signed Certificate (local production testing and E2E)
+**Changing a value later.** The database keeps its own copy of its users and passwords; `.env.prod` only tells the app what they are. Editing a database value in `.env.prod` alone therefore locks the app out (every request gets a 502). Change it in the database first, then in `.env.prod`, then run `docker compose --env-file .env.prod up -d`. With the bundled MySQL, which reads the `DB_*` values only when its volume is first created:
 
 ```bash
-mkdir -p nginx/certs
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout nginx/certs/privkey.pem \
-  -out nginx/certs/fullchain.pem \
-  -subj "/C=US/ST=California/L=San Francisco/O=Dev/CN=localhost"
+docker compose --env-file .env.prod exec db mysql -uroot -p -e "ALTER USER '<DB_USER>'@'%' IDENTIFIED BY '<new password>'"
 ```
 
-Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs). For local production testing, set `SERVER_NAME=localhost` in `.env.prod`.
-
-On a server, keep the key private: `chmod 600 nginx/certs/privkey.pem` (openssl already creates it that way). The nginx container can still read it, whoever owns it on the host.
-
-## Real Domain (Let's Encrypt)
-
-```bash
-# 1. Install Certbot on your server
-sudo apt install certbot  # Ubuntu/Debian
-
-# 2. Obtain a certificate (port 80 must be free, so stop the stack first)
-sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
-```
-
-3. In `docker-compose.yml`, replace the nginx volume `./nginx/certs:/etc/nginx/certs:ro` with the whole Certbot directory. Its `live/` files are relative symlinks into `archive/`, so mounting only `live/` breaks them.
-
-   ```yaml
-   volumes:
-     - /etc/letsencrypt:/etc/letsencrypt:ro
-   ```
-
-4. In `.env.prod`, set `SERVER_NAME=yourdomain.com www.yourdomain.com`. In `nginx/templates/default.conf.template`, point the certificate at Certbot's paths:
-
-   ```nginx
-   ssl_certificate      /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-   ssl_certificate_key  /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-   ```
-
-5. Rebuild and restart: `docker compose --env-file .env.prod up -d --build`
-
-Let's Encrypt certificates expire after 90 days. Renew with `certbot renew` (the standalone method needs port 80 free, so stop nginx first), then restart nginx.
-
----
-
-# Production Mode (Docker)
-
-Run your web application in a consistent, production-like environment.
-
-**Architecture (Prod)**
-
-* MySQL → Docker
-* Redis → Docker
-* Flask (Gunicorn) → Docker
-* React → Built & served by Nginx
-
-Only Nginx is published (ports 80 and 443). Nginx reaches only Flask; MySQL and Redis sit on an internal network with no outbound access, reachable only from Flask. Every container runs with `no-new-privileges`, Flask on a read-only filesystem with no Linux capabilities. Redis's `default` user is disabled; the app connects as an ACL user limited to its own keys, with dangerous commands (FLUSHALL, CONFIG, KEYS, ...) refused.
-
----
-
-## Build and Start
-
-Requires `.env.prod` and a certificate in `nginx/certs/` (see above).
-
-```bash
-docker compose --env-file .env.prod up --build
-```
-
-A one-shot `migrate` container applies migrations as the MySQL root user, restricts the app's database user to reading and writing rows (`backend/restrict_db_user.py`), and exits. The backend then starts Gunicorn with credentials that cannot change the schema, and nginx starts once the backend passes its health check. Local development (`run_dev.sh`) still migrates with the dev user directly.
-
-**When to rebuild:** frontend and backend code are both copied into their images, so rerun with `--build` after any code change.
-
-**Production URL:** [https://localhost](https://localhost)
-
----
-
-## Stop Production App
-
-```bash
-CTRL+C
-docker compose --env-file .env.prod down
-```
-
----
-
-## Full Reset (⚠️ Deletes Database)
-
-Stops everything and **removes this project's volumes (data loss)**:
-
-```bash
-docker compose --env-file .env.prod down --volumes --remove-orphans
-```
+For a new `DB_ROOT_PASSWORD`, change both `'root'@'%'` and `'root'@'localhost'`. A new `REDIS_PASSWORD` needs only `up -d`. A new `SECRET_KEY` signs every user out.
 
 ---
 
@@ -330,7 +240,7 @@ ruff check .                # Lint
 
 Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis), wait for them to be healthy, and remove them afterwards. A bare `pytest` runs the unit tests only.
 
-Unit runs fail below 95% line and branch coverage of `app/` (`backend/.coveragerc`), and any warning fails a test (`backend/pytest.ini`), so a deprecation gets fixed when it first appears rather than when the next major release removes it. Tests run in a new random order each time (`pytest-randomly`); to replay a failing order, pass the seed printed in the header: `pytest --randomly-seed=<seed>`.
+Unit runs fail below 95% total coverage of `app/`, branches included (`backend/.coveragerc`), and any warning fails a test (`backend/pytest.ini`), so a deprecation gets fixed when it first appears rather than when the next major release removes it. Tests run in a new random order each time (`pytest-randomly`); to replay a failing order, pass the seed printed in the header: `pytest --randomly-seed=<seed>`.
 
 ## Frontend Tests
 
@@ -357,6 +267,12 @@ npm run test:e2e                  # Builds and starts the stack, then runs the t
 npm run test:e2e:ui               # Interactive mode
 ```
 
+Locally, Playwright reuses a test stack that is already running (for quick reruns while editing tests), even if the app code has changed since it was built. After changing app code, or after an interrupted run, stop it first, and again when done, from the repository root:
+
+```bash
+docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e down -v
+```
+
 `accessibility.spec.js` runs [axe](https://github.com/dequelabs/axe-core) on every page against the WCAG 2.2 A and AA rules, catching what jsdom cannot, such as color contrast.
 
 ## Continuous Integration
@@ -374,7 +290,105 @@ To stop a failing check from merging, require these status checks on `main` (Set
 
 ---
 
-## Summary
+# SSL/HTTPS Setup
+
+Nginx serves the app over HTTPS only (port 80 redirects to 443), so it needs a certificate in `nginx/certs/` before it will start: `fullchain.pem` and `privkey.pem`. The production and test stacks mount that folder into the container.
+
+## Self-Signed Certificate (local production testing and E2E)
+
+```bash
+mkdir -p nginx/certs
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout nginx/certs/privkey.pem \
+  -out nginx/certs/fullchain.pem \
+  -subj "/C=US/ST=California/L=San Francisco/O=Dev/CN=localhost"
+```
+
+Visit `https://localhost` and bypass the browser security warning (expected for self-signed certs). For local production testing, set `SERVER_NAME=localhost` in `.env.prod`.
+
+On a server, keep the key private: `chmod 600 nginx/certs/privkey.pem` (openssl already creates it that way). The nginx container can still read it, whoever owns it on the host.
+
+## Real Domain (Let's Encrypt)
+
+```bash
+# 1. Install Certbot on your server
+sudo apt install certbot  # Ubuntu/Debian
+
+# 2. Obtain a certificate (port 80 must be free, so stop the stack first)
+sudo certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
+```
+
+3. In `docker-compose.yml`, replace the nginx volume `./nginx/certs:/etc/nginx/certs:ro` with the whole Certbot directory. Its `live/` files are relative symlinks into `archive/`, so mounting only `live/` breaks them.
+
+   ```yaml
+   volumes:
+     - /etc/letsencrypt:/etc/letsencrypt:ro
+   ```
+
+4. In `.env.prod`, set `SERVER_NAME=yourdomain.com www.yourdomain.com`. In `nginx/templates/default.conf.template`, point the certificate at Certbot's paths:
+
+   ```nginx
+   ssl_certificate      /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+   ssl_certificate_key  /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+   ```
+
+5. Rebuild and restart: `docker compose --env-file .env.prod up -d --build`
+
+Let's Encrypt certificates expire after 90 days. Renew with `certbot renew` (the standalone method needs port 80 free, so stop nginx first), then restart nginx.
+
+---
+
+# Production Mode (Docker)
+
+Run your web application in a consistent, production-like environment.
+
+**Architecture (Prod)**
+
+* MySQL → Docker
+* Redis → Docker
+* Flask (Gunicorn) → Docker
+* React → Built & served by Nginx
+
+Only Nginx is published (ports 80 and 443). Nginx reaches only Flask; MySQL and Redis sit on an internal network with no outbound access, reachable only from Flask. Every container runs with `no-new-privileges`, Flask on a read-only filesystem with no Linux capabilities. Redis's `default` user is disabled; the app connects as an ACL user limited to its own keys, with dangerous commands (FLUSHALL, CONFIG, KEYS, ...) refused.
+
+---
+
+## Build and Start
+
+Requires `.env.prod` and a certificate in `nginx/certs/` (see above).
+
+```bash
+docker compose --env-file .env.prod up --build
+```
+
+A one-shot `migrate` container applies migrations as the MySQL root user, restricts the app's database user to reading and writing rows (`backend/restrict_db_user.py`), and exits. The backend then starts Gunicorn with credentials that cannot change the schema, and nginx starts once the backend passes its health check. Local development (`run_dev.sh`) still migrates with the dev user directly.
+
+**When to rebuild:** frontend and backend code are both copied into their images, so rerun with `--build` after any code change.
+
+**Production URL:** `https://<SERVER_NAME>` ([https://localhost](https://localhost) when testing locally with `SERVER_NAME=localhost`).
+
+---
+
+## Stop Production App
+
+```bash
+CTRL+C
+docker compose --env-file .env.prod down
+```
+
+---
+
+## Full Reset (⚠️ Deletes Database)
+
+Stops everything and **removes this project's volumes (data loss)**:
+
+```bash
+docker compose --env-file .env.prod down --volumes --remove-orphans
+```
+
+---
+
+# Summary
 
 | Mode | DB | Redis | Backend | Frontend |
 |------|----|-------|---------|----------|
@@ -389,8 +403,8 @@ To stop a failing check from merging, require these status checks on `main` (Set
 # Starting a New App From This Template
 
 1. Replace the notes feature: `backend/app/models/note.py`, `backend/app/{schemas,routes}/notes.py`, the migration `backend/migrations/versions/0002_notes.py`, the folder `frontend/src/features/notes/` and its route in `frontend/src/routes.jsx`, and their tests: unit, integration (`test_mysql_limits.py`, `test_mysql_cascade.py`), the notes cases and `notesHandlers` in `frontend/src/test/integration/auth-flow.test.jsx`, and E2E (`notes-crud.spec.js`).
-2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, and `<ApiStatus />` and its `vi.mock` in `HomePage`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
-3. Update the `Note` fixtures in `backend/tests/conftest.py`.
+2. Remove the API-status demo on the home page, unless you want it: delete `frontend/src/features/health/`, `<ApiStatus />` and its import in `frontend/src/pages/HomePage.jsx`, and its `vi.mock` in `frontend/src/pages/__tests__/HomePage.test.jsx`. Keep the backend's `/api/health`: the Docker healthchecks and Playwright wait on it.
+3. Update the `Note` references in the fixtures in `backend/tests/conftest.py`.
 4. Point the frontend at your feature: the "My Notes" link in `components/layout/Navbar.jsx`, the "View My Notes" link in `pages/HomePage.jsx`, and `AFTER_LOGIN_PATH` in `auth/GuestRoute.jsx`. Name the app in `APP_NAME` (`src/appName.js`) and the `<title>` in `index.html` (a test checks they match).
 5. Generate a migration for your new tables (`flask db migrate -m "..."`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev)). It chains onto `0001_users`, which holds the auth table every app keeps.
 6. Rename the Compose projects (`name:` at the top of each compose file: `app_dev`, `app_test`, `app`) and the databases in `.env.dev` and `.env.test` (`appdb_dev`, `appdb_test`), so two apps built from this template never share containers or volumes.
