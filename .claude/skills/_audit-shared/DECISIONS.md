@@ -83,6 +83,36 @@ makes builds unrepeatable and fails hadolint (DL3017). *Revisit when:* an
 nginx module that uses one is enabled (XSLT, image filter), or the CVE is in
 a library the app does use (OpenSSL, musl, zlib).
 
+**Unreachable CVEs in the `db` and `redis` images are low too.** The same
+rule covers them. In the MySQL image, the gosu binary (its Go stdlib), the
+bundled MySQL Shell's Python packages, and DTLS-only OpenSSL CVEs are
+unreachable: gosu runs once at start with no network, mysqlsh is never run,
+and MySQL speaks TLS over TCP only. They are fixed by bumping the pinned tag
+once upstream ships one. *Revisit when:* the CVE is in the server's TLS or
+authentication path, or the compose file starts running mysqlsh.
+
+**Password composition rules and no spaces.** Registration requires upper
+and lower case and a digit, and both register and login refuse spaces. That
+gives up ASVS 6.2.5 ("passwords of any composition") and NIST's advice to
+allow spaces, in exchange for the current, simpler rule set (the user's
+choice). *Revisit when:* a common or breached-password check is added, which
+makes composition rules redundant.
+
+**scrypt at Werkzeug's default cost.** Password hashes use `scrypt:32768:8:1`
+(N=2^15), below OWASP's N=2^17. Raising it costs about 4× the CPU and memory
+per hash (~128 MB), which has to be sized against the real server's CPU,
+memory limit and `PASSWORD_HASH_CONCURRENCY`. *Revisit when:* the app runs on
+its production hardware.
+
+**A distributed lockout is still possible, for an hour at a time.** Login is
+limited per account and IP (5 failures a minute), so one attacker locks out
+only their own address, but the per-account cap (100 failures an hour, from
+any address) can still be filled by a botnet, keeping the owner out until
+the hour passes. The cap is what bounds distributed password guessing, so it
+stays. *Revisit when:* users report lockouts, or the app holds accounts worth
+targeting (then add a CAPTCHA or an emailed unlock link instead of the hard
+cap).
+
 **No mutation-testing tool.** New tests are mutation-checked by hand (CLAUDE.md
 Test Architecture). *Revisit when:* the suites grow past what spot checks can
 cover; mutmut and Stryker are the candidates (SOURCES.md, Testing).

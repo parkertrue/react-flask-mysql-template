@@ -1,3 +1,5 @@
+import time
+
 import pytest
 import redis
 from flask_jwt_extended import (
@@ -42,13 +44,25 @@ def limited_app(make_limited_app):
     return make_limited_app()
 
 
-def login(client, ip, email=LOGIN['email']):
+def login(client, ip, email=LOGIN['email'], password=LOGIN['password']):
     return client.post(
-        '/api/auth/login', json={**LOGIN, 'email': email},
+        '/api/auth/login', json={'email': email, 'password': password},
         headers={'X-Forwarded-For': ip})
 
 
-def test_sixth_login_to_one_account_in_a_minute_is_rate_limited(limited_app):
+@pytest.fixture
+def owner_app(limited_app):
+    """The limited app with a token store and one real account, owner@example.com"""
+    limited_app.extensions['redis_service'] = FakeRedisService()
+    with limited_app.app_context():
+        user = User(email='owner@example.com')
+        user.set_password('TestPassword123')
+        db.session.add(user)
+        db.session.commit()
+    return limited_app
+
+
+def test_sixth_failed_login_to_one_account_from_one_address_is_rate_limited(limited_app):
     client = limited_app.test_client()
 
     for _ in range(5):
@@ -60,13 +74,36 @@ def test_sixth_login_to_one_account_in_a_minute_is_rate_limited(limited_app):
     assert response.get_json()['error']['code'] == 'RATE_LIMITED'
 
 
-def test_account_limit_holds_across_addresses(limited_app):
-    """Spreading guesses at one account over many IPs does not help"""
+def test_failed_logins_lock_out_only_the_address_sending_them(owner_app):
+    """A stranger's wrong guesses must not keep the owner out"""
+    client = owner_app.test_client()
+    for _ in range(5):
+        login(client, '203.0.113.7', 'owner@example.com')
+    assert login(client, '203.0.113.7', 'owner@example.com').status_code == 429
+
+    response = login(client, '198.51.100.9', 'owner@example.com', 'TestPassword123')
+
+    assert response.status_code == 200
+
+
+def test_successful_logins_do_not_count_toward_the_account_limits(owner_app):
+    client = owner_app.test_client()
+
+    statuses = [login(client, '203.0.113.7', 'owner@example.com', 'TestPassword123').status_code
+                for _ in range(6)]
+
+    assert statuses == [200] * 6
+
+
+def test_failures_spread_over_many_addresses_hit_the_hourly_account_limit(limited_app, monkeypatch):
+    """Guessing one account's password from a botnet stays bounded"""
+    # The dummy hash would make 101 logins take seconds; the limit doesn't care
+    monkeypatch.setattr('app.routes.auth.verify_password', lambda stored, given: False)
     client = limited_app.test_client()
 
-    statuses = [login(client, f'203.0.113.{i}').status_code for i in range(6)]
+    statuses = [login(client, f'10.0.{i // 250}.{i % 250}').status_code for i in range(101)]
 
-    assert statuses == [401] * 5 + [429]
+    assert statuses == [401] * 100 + [429]
 
 
 def test_account_limit_ignores_email_case(limited_app):
@@ -74,7 +111,7 @@ def test_account_limit_ignores_email_case(limited_app):
     for _ in range(5):
         login(client, '203.0.113.7', 'Nobody@Example.com')
 
-    assert login(client, '198.51.100.9', 'nobody@example.com').status_code == 429
+    assert login(client, '203.0.113.7', 'nobody@example.com').status_code == 429
 
 
 def test_account_limit_covers_every_spelling_of_a_domain(limited_app):
@@ -83,7 +120,7 @@ def test_account_limit_covers_every_spelling_of_a_domain(limited_app):
     for _ in range(5):
         login(client, '203.0.113.7', 'nobody@bücher.de')
 
-    assert login(client, '198.51.100.9', 'nobody@xn--bcher-kva.de').status_code == 429
+    assert login(client, '203.0.113.7', 'nobody@xn--bcher-kva.de').status_code == 429
 
 
 @pytest.mark.parametrize('body', [{'email': 123, 'password': 'x'}, ['not', 'an', 'object']])
@@ -151,11 +188,12 @@ class TestRefreshLimit:
             user.set_password('TestPassword123')
             db.session.add(user)
             db.session.commit()
-            token = create_refresh_token(identity=str(user.id))
+            token = create_refresh_token(
+                identity=str(user.id), additional_claims={'auth_time': int(time.time())})
             app.extensions['redis_service'].store_refresh_token(
                 user.id, decode_token(token)['jti'], ttl_seconds=60)
             return {
-                'Cookie': f'refresh_token_cookie={token}',
+                'Cookie': f'__Secure-refresh_token={token}',
                 'X-CSRF-REFRESH-TOKEN': get_csrf_token(token),
             }
 
@@ -185,7 +223,7 @@ class TestRefreshLimit:
         assert self.refresh(client, second, '203.0.113.7').status_code == 200
 
     @pytest.mark.parametrize('headers', [
-        {'Cookie': 'refresh_token_cookie=not-a-jwt'},
+        {'Cookie': '__Secure-refresh_token=not-a-jwt'},
         {},
     ], ids=['forged', 'missing'])
     def test_requests_without_a_valid_cookie_are_not_limited(self, refresh_app, headers):
@@ -201,7 +239,7 @@ class TestRefreshLimit:
         """Validly signed but the wrong type: as good as no cookie"""
         client = refresh_app.test_client(use_cookies=False)
         with refresh_app.app_context():
-            access = {'Cookie': f'refresh_token_cookie={create_access_token(identity="1")}'}
+            access = {'Cookie': f'__Secure-refresh_token={create_access_token(identity="1")}'}
 
         statuses = {self.refresh(client, access, '203.0.113.7').status_code
                     for _ in range(15)}
@@ -234,7 +272,7 @@ def test_limits_fall_back_to_memory_when_redis_is_down(make_limited_app, monkeyp
 
     statuses = [login(client, '203.0.113.7').status_code for _ in range(6)]
 
-    assert statuses == [401] * 5 + [429]  # the account limit, now in memory
+    assert statuses == [401] * 5 + [429]  # the account-and-address limit, now in memory
 
 
 def test_limiter_state_is_restored(app, client):

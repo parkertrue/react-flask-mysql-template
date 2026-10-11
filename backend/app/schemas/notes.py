@@ -33,6 +33,9 @@ class NotesListQuery(BaseModel):
     before: int | None = Field(default=None, ge=1, le=ID_MAX)
     limit: int = Field(default=20, ge=1, le=100)
 
+    # A misspelled key (?befor=) is a 422, not a silent first page
+    model_config = ConfigDict(extra='forbid')
+
 
 class NoteResponse(BaseModel):
     id: int

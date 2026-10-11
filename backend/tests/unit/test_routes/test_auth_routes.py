@@ -1,9 +1,11 @@
 import json
 import time
+from datetime import timedelta
 from unittest.mock import patch
 
 import jwt
 import pytest
+from flask_jwt_extended import create_refresh_token, decode_token
 from sqlalchemy import select, func
 
 from app.models import User
@@ -294,8 +296,10 @@ class TestLoginEndpoint:
         # Only the refresh cookie, HttpOnly. The CSRF value travels in the
         # body, so no script-readable CSRF cookie is set.
         assert len(cookies) == 1
-        assert cookies[0].startswith('refresh_token_cookie=')
+        assert cookies[0].startswith('__Secure-refresh_token=')
         assert 'HttpOnly' in cookies[0]
+        # Browsers drop a __Secure- cookie that isn't Secure
+        assert 'Secure;' in cookies[0]
 
     def test_login_wrong_password(self, client, sample_user):
         """Wrong password should return 401."""
@@ -405,6 +409,27 @@ class TestLoginEndpoint:
         assert response.status_code == 401
 
 LOGIN_PAYLOAD = {'email': 'test@example.com', 'password': 'TestPassword123'}
+DAY = 24 * 60 * 60
+SESSION_LIFETIME = 30 * DAY  # JWT_REFRESH_TOKEN_EXPIRES
+
+
+def refresh_claims(client):
+    """The claims of the refresh cookie the client now holds"""
+    cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
+    return decode_token(cookie, allow_expired=True)
+
+
+def set_refresh_token(app, client, user, fake_redis, auth_time, expires_in):
+    """Give the client a recorded refresh token for a session that began at
+    auth_time, expiring expires_in seconds from now; return its CSRF header."""
+    with app.app_context():
+        token = create_refresh_token(
+            identity=str(user.id), additional_claims={'auth_time': auth_time},
+            expires_delta=timedelta(seconds=expires_in))
+        claims = decode_token(token, allow_expired=True)
+    fake_redis.store_refresh_token(user.id, claims['jti'], 60)
+    client.set_cookie('__Secure-refresh_token', token, path='/api/auth')
+    return {'X-CSRF-REFRESH-TOKEN': claims['csrf']}
 
 
 def login(client):
@@ -452,9 +477,9 @@ class TestRefreshEndpoint:
         """Two requests can both pass the blocklist check before either rotates;
         the rotation itself must still let only the first one through"""
         csrf = login(client)
-        cookie = client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
         replay = app.test_client(use_cookies=False)
-        headers = {**csrf, 'Cookie': f'refresh_token_cookie={cookie}'}
+        headers = {**csrf, 'Cookie': f'__Secure-refresh_token={cookie}'}
         # As both requests saw it: the token was still live when checked
         monkeypatch.setattr(fake_redis, 'is_token_valid', lambda *args: True)
 
@@ -474,6 +499,41 @@ class TestRefreshEndpoint:
 
         assert old not in fake_redis.tokens
         assert len(fake_redis.tokens) == 1
+
+    def test_login_starts_the_session_clock(self, client, sample_user, fake_redis):
+        before = int(time.time())
+        login(client)
+
+        claims = refresh_claims(client)
+
+        assert before <= claims['auth_time'] <= int(time.time())
+        assert claims['exp'] == claims['auth_time'] + SESSION_LIFETIME
+
+    def test_refresh_never_extends_the_session_past_its_lifetime(
+            self, app, client, sample_user, fake_redis):
+        """A rotated token expires when the session does, not 30 days from now"""
+        auth_time = int(time.time()) - 29 * DAY
+        csrf = set_refresh_token(app, client, sample_user, fake_redis, auth_time,
+                                 expires_in=DAY)
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 200
+        claims = refresh_claims(client)
+        assert claims['auth_time'] == auth_time
+        assert claims['exp'] == auth_time + SESSION_LIFETIME
+
+    def test_refresh_after_the_session_lifetime_is_refused(
+            self, app, client, sample_user, fake_redis):
+        """The last token of a chain, past its end: the user must log in again"""
+        auth_time = int(time.time()) - SESSION_LIFETIME - 60
+        csrf = set_refresh_token(app, client, sample_user, fake_redis, auth_time,
+                                 expires_in=-60)
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_EXPIRED'
 
     def test_refresh_without_csrf_header(self, client, sample_user, fake_redis):
         login(client)
@@ -535,15 +595,15 @@ class TestLogoutEndpoint:
         assert response.get_json()['message'] == 'Logged out'
         assert fake_redis.tokens == set()
         cleared = response.headers.getlist('Set-Cookie')
-        assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
+        assert any(c.startswith('__Secure-refresh_token=;') for c in cleared)
 
     def test_refresh_after_logout_is_rejected(self, client, sample_user, fake_redis):
         csrf = login(client)
-        refresh_cookie = client.get_cookie('refresh_token_cookie', path='/api/auth').value
+        refresh_cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
         client.post('/api/auth/logout', headers=csrf)
 
         # Replay the logged-out token, as a stolen cookie would be
-        client.set_cookie('refresh_token_cookie', refresh_cookie, path='/api/auth')
+        client.set_cookie('__Secure-refresh_token', refresh_cookie, path='/api/auth')
         response = client.post('/api/auth/refresh', headers=csrf)
 
         assert response.status_code == 401
@@ -556,8 +616,8 @@ class TestLogoutEndpoint:
 
         assert response.status_code == 200
         cleared = response.headers.getlist('Set-Cookie')
-        assert any(c.startswith('refresh_token_cookie=;') for c in cleared)
-        assert client.get_cookie('refresh_token_cookie', path='/api/auth') is None
+        assert any(c.startswith('__Secure-refresh_token=;') for c in cleared)
+        assert client.get_cookie('__Secure-refresh_token', path='/api/auth') is None
 
     def test_clear_cookies_needs_no_token(self, client):
         response = client.post('/api/auth/clear-cookies', json={})
@@ -781,7 +841,7 @@ class TestUnusualRefreshTokens:
         return jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
 
     def refresh_with(self, client, token):
-        client.set_cookie('refresh_token_cookie', token, path='/api/auth')
+        client.set_cookie('__Secure-refresh_token', token, path='/api/auth')
         return client.post('/api/auth/refresh', headers={'X-CSRF-REFRESH-TOKEN': 'csrf'})
 
     @pytest.mark.parametrize('claims, code', [
@@ -818,5 +878,5 @@ class TestUnusualRefreshTokens:
         response = client.post('/api/auth/logout', headers=csrf)
 
         assert response.status_code == 200
-        assert any(c.startswith('refresh_token_cookie=;')
+        assert any(c.startswith('__Secure-refresh_token=;')
                    for c in response.headers.getlist('Set-Cookie'))
