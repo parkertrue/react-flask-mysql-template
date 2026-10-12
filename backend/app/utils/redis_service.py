@@ -174,16 +174,16 @@ class RedisService:
             args=[jti, now + ttl_seconds, now, MAX_SESSIONS_PER_USER, ttl_seconds, replaces])
         return recorded == 1
 
-    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int = 2592000) -> bool:
-        """Record a new sign-in's refresh token; False if Redis failed"""
+    def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int) -> bool | None:
+        """Record a new sign-in's refresh token; None if Redis failed"""
         try:
             return self._record(user_id, jti, ttl_seconds, replaces='')
         except redis.RedisError as error:
             self._failed(error, 'Could not record a refresh token for user %s', user_id)
-            return False
+            return None
 
     def rotate_refresh_token(self, user_id: int, old_jti: str, new_jti: str,
-                             ttl_seconds: int = 2592000) -> bool | None:
+                             ttl_seconds: int) -> bool | None:
         """Swap a refresh token for its successor.
 
         False if `old_jti` was no longer there (another request rotated it
@@ -210,14 +210,13 @@ class RedisService:
             self._failed(error, 'Could not check a refresh token for user %s', user_id)
             return None
 
-    def revoke_token(self, user_id: int, jti: str) -> bool:
+    def revoke_token(self, user_id: int, jti: str) -> None:
+        """End one session. Logout is best effort, so a failure is only logged."""
         try:
             self._check_reachable()
-            result = self._client.zrem(_tokens_key(user_id), jti)
-            return cast(int, result) > 0
+            self._client.zrem(_tokens_key(user_id), jti)
         except redis.RedisError as error:
             self._failed(error, 'Could not revoke a refresh token for user %s', user_id)
-            return False
 
     def revoke_all_user_tokens(self, user_id: int) -> int | None:
         """Revoke every session the user has.

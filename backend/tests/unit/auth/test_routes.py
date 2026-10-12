@@ -770,7 +770,7 @@ class TestSignInWithoutRedis:
 
     def test_login_when_redis_rejects_the_write(
             self, client, sample_user, fake_redis, monkeypatch):
-        monkeypatch.setattr(fake_redis, 'store_refresh_token', lambda *a, **k: False)
+        monkeypatch.setattr(fake_redis, 'store_refresh_token', lambda *a, **k: None)
 
         self.assert_unavailable(client.post('/api/auth/login', json=LOGIN_PAYLOAD))
 

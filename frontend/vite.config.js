@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'url'
 import { readdirSync } from 'fs'
@@ -48,12 +48,8 @@ export default defineConfig({
     // A new order every run, so a test leaning on another's leftovers fails
     // at once. Replay a failing order with --sequence.seed=<seed>.
     sequence: { shuffle: true },
-    exclude: [
-      'node_modules/',
-      '**/e2e/',
-      '**/*.config.js',
-      '**/*.css'
-    ],
+    // Playwright runs e2e/, not Vitest
+    exclude: [...configDefaults.exclude, '**/e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

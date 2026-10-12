@@ -1,0 +1,12 @@
+# Editors apply these on save; CI's Whitespace check (ci.yml) enforces the
+# last two. Line endings are left to git (.gitattributes, core.autocrlf).
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+# Two trailing spaces are a Markdown line break
+trim_trailing_whitespace = false

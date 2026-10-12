@@ -160,7 +160,7 @@ describe('useNotes', () => {
 
       expect(thrownError).toBeDefined()
       expect(thrownError.message).toBe('Failed to create')
-      
+
       // Check error state after act completes
       expect(result.current.error).toBe('Failed to create')
       expect(result.current.notes).toEqual([])

@@ -116,8 +116,7 @@ def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
     elif replaces:
         recorded = redis_service.rotate_refresh_token(user_id, replaces, jti, ttl_seconds=ttl)
     else:
-        # A new sign-in replaces nothing, so its only failure is Redis's own
-        recorded = redis_service.store_refresh_token(user_id, jti, ttl_seconds=ttl) or None
+        recorded = redis_service.store_refresh_token(user_id, jti, ttl_seconds=ttl)
 
     if recorded is False:
         # Another request rotated this token between the blocklist check and

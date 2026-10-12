@@ -36,6 +36,18 @@ backstop.
 **Rate limits fall back to per-worker memory while Redis is down.** Limits get
 looser (per worker, reset on restart) instead of every limited route failing.
 
+**A Redis outage still costs a few seconds once per reconnect window.** While
+Redis is down, `RedisService`'s circuit breaker fails calls at once, but every
+`RECONNECT_INTERVAL_SECONDS` (5 s) each worker lets one call probe Redis. The
+probe pays the 1 s lookup of the stopped container's name twice (the client's
+one retry, kept so a connection Redis dropped is replaced unseen), and login
+adds Flask-Limiter's own 1 s probe. Measured (PR #28, backend on
+`APP_ENV=production`): login 503 in about 4 s at worst, refresh 3 s, other
+routes 1 s, everything else in the window under 100 ms. The answer is the
+same 503 either way. A no-retry probe client would save about 1 s for a
+second client and more breaker code. *Revisit when:* a readiness check or
+alert exists for Redis, or users see these delays outside an outage.
+
 **Flask rate limits are off in E2E.** E2E registers dozens of accounts from
 one address, which register's `10 per hour` would block, so the E2E backend
 runs `IntegrationConfig` with limits off. The keying on the client IP
@@ -123,6 +135,14 @@ and Tab from its last button passes through the browser's own toolbar before
 wrapping back into it. Both are how `showModal()` behaves in every browser;
 overriding them means hand-written focus trapping and click handling, which
 CLAUDE.md's prefer-the-built-in rule argues against.
+
+**A pasted note is cut to its limit without a message.** The note input uses
+the native `maxLength`, so pasting more than 256 characters keeps the first
+256; the live counter then reads "0 characters remaining", which is the only
+sign. Showing an
+over-limit error instead means dropping `maxLength` and checking on submit,
+for every limited field. Chosen while planning PR #25. *Revisit when:* users
+report losing pasted text, or a field's limit is one people often reach.
 
 **`/api/health` is liveness only.** It answers 200 while MySQL or Redis is
 down; the routes that need them answer 503 instead. Compose uses it only to

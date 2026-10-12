@@ -152,7 +152,8 @@ services:
         condition: service_healthy
     restart: "no"
     healthcheck:
-      # start_period covers the entrypoint's wait-for-services
+      # start_period covers the entrypoint's wait-for-services, which gives up
+      # after the same 60s (TIMEOUT_SECONDS in backend/wait_for_services.py)
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
       interval: 10s
       timeout: 5s

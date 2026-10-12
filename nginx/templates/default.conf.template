@@ -51,7 +51,7 @@ server {
     # header nginx accepts is never refused behind it. The app's own headers
     # (a JWT, its cookies) are well under 1 KB.
     large_client_header_buffers 4 8k;
-    
+
     # Timeouts
     client_body_timeout 12;
     client_header_timeout 12;
@@ -101,7 +101,7 @@ server {
         # Nothing served here is a page; if one is opened directly (e.g. an
         # SVG or a JSON error), it may not run scripts or be framed.
         add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
-        
+
         proxy_pass http://backend;
         include /etc/nginx/proxy_params.conf;
     }
@@ -129,7 +129,7 @@ server {
         # Nothing served here is a page; if one is opened directly (e.g. an
         # SVG or a JSON error), it may not run scripts or be framed.
         add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
-        
+
         proxy_pass http://backend;
         include /etc/nginx/proxy_params.conf;
     }

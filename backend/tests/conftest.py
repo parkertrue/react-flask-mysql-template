@@ -1,7 +1,6 @@
 import os
 import pytest
 import sqlite3
-import time
 from datetime import timedelta
 from flask_jwt_extended import create_access_token
 from sqlalchemy import event
@@ -131,26 +130,17 @@ def integration_app():
     app = create_app()
 
     with app.app_context():
-        # Wait for test services to be ready
-        max_retries = 30
-        retry_delay = 1
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                with _db.engine.connect():
-                    pass
-
-                break
-
-            except Exception as e:
-                if attempt == max_retries:
-                    raise RuntimeError(
-                        f"Test services not ready after {max_retries} attempts "
-                        f"({max_retries}s). Error: {e}\n"
-                        f"Run ./run_tests.sh integration, or 'docker compose "
-                        f"--env-file .env.test -f docker-compose.test.yml up -d --wait'."
-                    )
-                time.sleep(retry_delay)
+        # No retry: `up -d --wait` (run_tests.sh and CI) already waits for the
+        # services' healthchecks, so a failure here means they are not running
+        try:
+            with _db.engine.connect():
+                pass
+        except Exception as e:
+            raise RuntimeError(
+                f"Test database not reachable: {e}\n"
+                f"Run ./run_tests.sh integration, or 'docker compose "
+                f"--env-file .env.test -f docker-compose.test.yml up -d --wait'."
+            ) from e
 
         # IntegrationConfig enables Redis, so a missing service means it failed
         # to connect in create_app(). Fail here rather than let every
