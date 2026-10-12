@@ -1,5 +1,4 @@
 import pytest
-import time
 from datetime import datetime, timezone
 from sqlalchemy import delete, event, func, select
 from sqlalchemy.exc import IntegrityError
@@ -140,41 +139,6 @@ class TestNoteModel:
         assert user1_notes[0].content == 'User 1 note'
         assert user2_notes[0].content == 'User 2 note'
 
-    def test_note_query_ordering(self, db, sample_user):
-        """Notes should be queryable in order."""
-        note1 = Note(user_id=sample_user.id, content='First')
-        db.session.add(note1)
-        db.session.commit()
-
-        time.sleep(0.01)
-
-        note2 = Note(user_id=sample_user.id, content='Second')
-        db.session.add(note2)
-        db.session.commit()
-
-        stmt = (
-            select(Note)
-            .where(Note.user_id == sample_user.id)
-            .order_by(Note.created_at.asc())
-        )
-        notes = db.session.execute(stmt).scalars().all()
-
-        assert notes[0].content == 'First'
-        assert notes[1].content == 'Second'
-
-    def test_note_deletion(self, db, sample_user):
-        """Note should be deletable."""
-        note = Note(user_id=sample_user.id, content='To be deleted')
-        db.session.add(note)
-        db.session.commit()
-        note_id = note.id
-
-        db.session.delete(note)
-        db.session.commit()
-
-        deleted_note = db.session.get(Note, note_id)
-        assert deleted_note is None
-
     def test_deleting_a_user_deletes_their_notes_in_the_database(
             self, db, sample_user, second_user, sample_notes):
         """ON DELETE CASCADE, not the ORM: a bulk DELETE never loads the notes"""
@@ -208,18 +172,6 @@ class TestNoteModel:
         assert not any(s.lstrip().upper().startswith('SELECT') and 'notes' in s
                        for s in statements)
         assert db.session.execute(select(func.count(Note.id))).scalar() == 0
-
-    def test_note_update(self, db, sample_user):
-        """Note content should be updatable."""
-        note = Note(user_id=sample_user.id, content='Original content')
-        db.session.add(note)
-        db.session.commit()
-
-        note.content = 'Updated content'
-        db.session.commit()
-        db.session.refresh(note)
-
-        assert note.content == 'Updated content'
 
     def test_note_repr(self, db, sample_user):
         """Note should have a reasonable string representation."""

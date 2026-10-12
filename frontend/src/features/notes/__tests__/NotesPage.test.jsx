@@ -3,7 +3,7 @@ import { act, screen, within } from '@testing-library/react'
 import NotesPage from '../NotesPage'
 import { fetchNotes, createNote, updateNote, deleteNote } from '../notesService'
 import { NOTE_MAX_LENGTH } from '../validation'
-import { note, notesPage } from './fixtures'
+import { listed, note, notesPage } from './fixtures'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
 import { APP_NAME } from '@/appName'
@@ -23,9 +23,6 @@ describe('NotesPage', () => {
     return renderRoutes([{ path: '/notes', element: <NotesPage /> }], '/notes').user
   }
 
-  // Each row's text, less its Edit and Delete buttons
-  const listed = () => screen.getAllByRole('listitem')
-    .map(item => item.textContent.replace(/EditDelete$/, ''))
   const failure = message => Object.assign(new Error('500'), {
     response: { status: 500, data: errorBody('INTERNAL_ERROR', message) },
   })

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, onTestFinished, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { api } from '../api'
 import { storage } from '@/auth/storage'
@@ -48,6 +48,17 @@ function mockBackend() {
 describe('api client configuration', () => {
   it('uses the /api base URL', () => {
     expect(api.defaults.baseURL).toBe('/api')
+  })
+
+  it('fails a request with the storage error when the browser blocks storage', async () => {
+    const blocked = new DOMException('Storage is disabled', 'SecurityError')
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw blocked
+    })
+    onTestFinished(() => getItem.mockRestore())
+
+    // No handler: the request must never go out (the server fails on any)
+    await expect(api.get('/account')).rejects.toBe(blocked)
   })
 })
 

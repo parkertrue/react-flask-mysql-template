@@ -169,65 +169,19 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 422
 
-    def test_register_password_too_short(self, client):
-        """Password under 8 characters should be rejected."""
-        payload = {
-            'email': 'test@example.com',
-            'password': 'Short1'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+    @pytest.mark.parametrize('password', [
+        'Short1',
+        'nouppercase123',
+        'NOLOWERCASE123',
+        'NoNumbersHere',
+    ], ids=['too short', 'no uppercase', 'no lowercase', 'no number'])
+    def test_register_refuses_a_weak_password(self, client, db, password):
+        response = client.post('/api/auth/register', json={
+            'email': 'test@example.com', 'password': password})
 
         assert response.status_code == 422
-
-    def test_register_password_no_uppercase(self, client):
-        """Password without uppercase should be rejected."""
-        payload = {
-            'email': 'test@example.com',
-            'password': 'nouppercase123'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-
-        assert response.status_code == 422
-
-    def test_register_password_no_lowercase(self, client):
-        """Password without lowercase should be rejected."""
-        payload = {
-            'email': 'test@example.com',
-            'password': 'NOLOWERCASE123'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-
-        assert response.status_code == 422
-
-    def test_register_password_no_number(self, client):
-        """Password without number should be rejected."""
-        payload = {
-            'email': 'test@example.com',
-            'password': 'NoNumbersHere'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-
-        assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert db.session.scalar(select(func.count()).select_from(User)) == 0
 
     def test_register_extra_fields(self, client):
         """Extra fields should be rejected."""

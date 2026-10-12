@@ -63,18 +63,20 @@ api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
+    // No config: the request never went out, since a request interceptor
+    // threw (storage blocked by the browser, say). Nothing to retry.
     if (!originalRequest) {
       return Promise.reject(error)
     }
 
     const errorCode = error.response?.data?.error?.code
-    const url = originalRequest.url || ''
+    const url = originalRequest.url
 
     // Only refresh when an authenticated request failed on an expired token
     if (
       errorCode === 'AUTH_TOKEN_EXPIRED' &&
       originalRequest.headers?.Authorization &&
-      !url.startsWith('/auth/') &&
+      !url?.startsWith('/auth/') &&
       !originalRequest._retry
     ) {
       if (isRefreshing) {
@@ -119,7 +121,7 @@ api.interceptors.response.use(
 
     if (
       (errorCode === 'AUTH_INVALID_TOKEN' || errorCode === 'AUTH_MISSING_TOKEN') &&
-      !url.startsWith('/auth/logout')
+      !url?.startsWith('/auth/logout')
     ) {
       storage.clearAuth()
     }

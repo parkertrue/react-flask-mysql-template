@@ -64,7 +64,6 @@ test.describe('Critical User Journey', () => {
     const existingEmail = uniqueEmail('existing')
     await register(page, existingEmail)
 
-    // Try to register again with same email
     await submitRegistration(page, existingEmail)
     
     await expect(page.getByRole('alert')).toHaveText(/already registered/i)
