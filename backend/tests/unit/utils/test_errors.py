@@ -60,6 +60,10 @@ class TestErrorResponse:
             data = json.loads(response.data)
             assert data['error']['message'] == message
 
+    def test_error_response_takes_keywords_only(self):
+        with pytest.raises(TypeError):
+            error_response('TEST_ERROR', 'Test error message')
+
 
 class TestGlobalErrorHandlers:
     """Test global error handlers in Flask app."""

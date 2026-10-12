@@ -70,6 +70,24 @@ test.describe('nginx', () => {
       { error: { code: 'NOT_FOUND', message: 'Resource not found' } })
   })
 
+  test('a burst past the rate limit is refused in the API\'s error shape', async ({ request }) => {
+    // 30 r/s with a burst of 20 (nginx/Dockerfile): 60 at once overflows it
+    const responses = await Promise.all(
+      Array.from({ length: 60 }, () => request.get('/api/account')))
+    const limited = responses.filter(response => response.status() === 429)
+
+    // The first requests reach Flask, which refuses them for want of a token
+    expect(new Set(responses.map(response => response.status()))).toEqual(new Set([401, 429]))
+    for (const response of limited) {
+      expect(await response.json()).toEqual({
+        error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' },
+      })
+    }
+
+    // Let the bucket refill, so the tests after this one are not limited
+    await expect.poll(async () => (await request.get('/api/account')).status()).toBe(401)
+  })
+
   test('an oversized body is refused in the API\'s error shape', async ({ request }) => {
     const response = await request.post('/api/auth/login', {
       data: { email: 'a@example.com', password: 'x'.repeat(20 * 1024) },

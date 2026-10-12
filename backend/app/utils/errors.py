@@ -1,7 +1,9 @@
 from flask import jsonify
 
 
-def error_response(code, message, status=400):
+# Keyword-only, so the error-code sync test (frontend fixtures.test.js) can
+# find every code by its `code='...'`
+def error_response(*, code, message, status=400):
     payload = {
         'error': {
             'code': code,

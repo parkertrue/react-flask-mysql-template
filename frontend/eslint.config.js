@@ -2,6 +2,8 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import vitest from '@vitest/eslint-plugin'
+import playwright from 'eslint-plugin-playwright'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
@@ -68,6 +70,25 @@ export default defineConfig([
     },
     rules: {
       'no-console': 'off',
+    },
+  },
+  {
+    // Every assertion must be able to fail: none behind an if or in a catch,
+    // and no test without one (backend: tests/unit/test_assertions.py)
+    files: ['src/**/*.test.{js,jsx}'],
+    plugins: { vitest },
+    rules: {
+      'vitest/expect-expect': 'error',
+      'vitest/no-conditional-expect': 'error',
+    },
+  },
+  {
+    files: ['e2e/**/*.spec.js'],
+    plugins: { playwright },
+    rules: {
+      'playwright/expect-expect': 'error',
+      'playwright/no-conditional-expect': 'error',
+      'playwright/no-conditional-in-test': 'error',
     },
   },
 ])

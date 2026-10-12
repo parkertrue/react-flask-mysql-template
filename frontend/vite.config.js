@@ -1,6 +1,16 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'url'
+import { readdirSync } from 'fs'
+
+const floor = { statements: 95, branches: 95, functions: 95, lines: 95 }
+// The shared folders, and each feature on its own
+const coveredFolders = [
+  'src/api', 'src/auth', 'src/components',
+  ...readdirSync(new URL('./src/features', import.meta.url), { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => `src/features/${entry.name}`),
+]
 
 export default defineConfig({
   plugins: [react()],
@@ -50,11 +60,11 @@ export default defineConfig({
       // Without include, a file no test imports is left out of the report
       // rather than counted as 0%, so an untested new file goes unnoticed.
       include: ['src/**/*.{js,jsx}'],
+      // The same floor per folder too, so a new feature's gaps can't hide
+      // behind well-covered code elsewhere in the total
       thresholds: {
-        statements: 95,
-        branches: 95,
-        functions: 95,
-        lines: 95,
+        ...floor,
+        ...Object.fromEntries(coveredFolders.map(folder => [`${folder}/**`, floor])),
       },
       // Test files are left out automatically
       exclude: ['src/test/**', 'src/main.jsx']

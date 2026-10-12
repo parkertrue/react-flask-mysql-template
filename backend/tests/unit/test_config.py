@@ -1,5 +1,4 @@
 import pytest
-import os
 from datetime import timedelta
 
 from app.config import (
@@ -217,8 +216,7 @@ class TestGetConfigFactory:
 
     def test_get_config_defaults_to_production(self, monkeypatch):
         """get_config should default to production if APP_ENV not set"""
-        if 'APP_ENV' in os.environ:
-            monkeypatch.delenv('APP_ENV')
+        monkeypatch.delenv('APP_ENV', raising=False)
 
         monkeypatch.setenv('DB_USER', 'produser')
         monkeypatch.setenv('DB_PASSWORD', 'prodpass')
@@ -248,8 +246,7 @@ class TestGetConfigValidation:
 
         # Missing all DB vars
         for var in ['DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_NAME']:
-            if var in os.environ:
-                monkeypatch.delenv(var)
+            monkeypatch.delenv(var, raising=False)
 
         with pytest.raises(ValueError) as exc_info:
             get_config()
@@ -267,8 +264,7 @@ class TestGetConfigValidation:
 
         # Missing Redis vars
         for var in ['REDIS_HOST', 'REDIS_PASSWORD']:
-            if var in os.environ:
-                monkeypatch.delenv(var)
+            monkeypatch.delenv(var, raising=False)
 
         with pytest.raises(ValueError) as exc_info:
             get_config()
@@ -307,8 +303,7 @@ class TestGetConfigValidation:
         monkeypatch.setenv('REDIS_PASSWORD', 'redispass')
 
         # Remove SECRET_KEY
-        if 'SECRET_KEY' in os.environ:
-            monkeypatch.delenv('SECRET_KEY')
+        monkeypatch.delenv('SECRET_KEY', raising=False)
 
         with pytest.raises(ValueError) as exc_info:
             get_config()

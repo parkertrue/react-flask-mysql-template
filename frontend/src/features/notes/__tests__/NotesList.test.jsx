@@ -1,10 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import NotesList from '../NotesList'
-
-// Each row's text, less its Edit and Delete buttons
-const listed = () => screen.getAllByRole('listitem')
-  .map(item => item.textContent.replace(/EditDelete$/, ''))
+import { listed } from './fixtures'
 
 describe('NotesList', () => {
   it('shows only a loading message while loading', () => {
