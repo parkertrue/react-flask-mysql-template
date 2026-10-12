@@ -11,7 +11,9 @@ import time
 import pymysql
 import redis
 
-TIMEOUT_SECONDS = int(os.getenv('WAIT_FOR_SERVICES_TIMEOUT', '60'))
+# Matches the backend healthcheck's start_period (docker-compose.yml and
+# docker-compose.test.yml), which covers this wait: change them together.
+TIMEOUT_SECONDS = 60
 
 # Checked up front: a missing value would otherwise look like a service that
 # never comes up, and the loop below would wait out the whole timeout.

@@ -3,8 +3,6 @@
 # Parsed by Linux tooling inside containers; CRLF breaks line continuations
 # and shebangs regardless of the checkout platform.
 Dockerfile text eol=lf
-*.Dockerfile text eol=lf
-entrypoint.sh text eol=lf
 
 # Sourced by bash in run_dev.sh, run_tests.sh and CI; CRLF would leave a
 # trailing \r in every value.

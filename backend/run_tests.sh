@@ -10,7 +10,6 @@ show_help() {
     echo "Usage: ./run_tests.sh <type> [options]"
     echo ""
     echo "Types:"
-    echo "  all           - Run all tests (unit + integration separately)"
     echo "  unit          - Run unit tests only (fast, no Docker)"
     echo "  integration   - Run integration tests only (requires Docker)"
     echo "  combined      - Run all tests with combined coverage report"
@@ -117,21 +116,21 @@ case "$TEST_TYPE" in
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}Running UNIT tests (fast)${NC}"
         echo -e "${GREEN}================================${NC}"
-        
+
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/unit/ $VERBOSE
         else
             pytest tests/unit/ --cov=app --cov-report=term-missing $VERBOSE
         fi
         ;;
-    
+
     integration)
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}Running INTEGRATION tests${NC}"
         echo -e "${GREEN}================================${NC}"
-        
+
         start_test_services
-        
+
         # Run integration tests
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/integration/ $VERBOSE
@@ -140,59 +139,32 @@ case "$TEST_TYPE" in
         fi
 
         ;;
-    
+
     combined)
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}COMBINED TEST SUITE${NC}"
         echo -e "${GREEN}Unit + Integration with Total Coverage${NC}"
         echo -e "${GREEN}================================${NC}"
-        
+
         # Start services for integration tests (env already loaded)
         start_test_services
-        
+
         echo -e "${YELLOW}[1/2] Running unit tests...${NC}"
         pytest tests/unit/ --cov=app --cov-report= $VERBOSE
-        
+
         echo -e "${YELLOW}[2/2] Running integration tests...${NC}"
         pytest tests/integration/ --cov=app --cov-append --cov-report= $VERBOSE
-        
+
         echo -e "${GREEN}================================${NC}"
         echo -e "${GREEN}COMBINED COVERAGE REPORT${NC}"
         echo -e "${GREEN}================================${NC}"
         coverage report -m
-        
+
         coverage html
         echo -e "${GREEN}✅ HTML coverage report: htmlcov/index.html${NC}"
 
         ;;
-    
-    all)
-        echo -e "${GREEN}================================${NC}"
-        echo -e "${GREEN}ALL TESTS (separate reports)${NC}"
-        echo -e "${GREEN}================================${NC}"
-        
-        echo -e "${YELLOW}[1/2] Unit tests...${NC}"
-        if [ "$NO_COVERAGE" = true ]; then
-            pytest tests/unit/ $VERBOSE
-        else
-            pytest tests/unit/ --cov=app --cov-report=term-missing $VERBOSE
-        fi
-        
-        echo ""
-        
-        # Start services for integration tests (env already loaded)
-        start_test_services
-        
-        # Run integration tests
-        echo -e "${YELLOW}[2/2] Integration tests...${NC}"
-        if [ "$NO_COVERAGE" = true ]; then
-            pytest tests/integration/ $VERBOSE
-        else
-            pytest tests/integration/ --cov=app --cov-report=term-missing --cov-fail-under=0 $VERBOSE
-        fi
 
-        ;;
-    
     *)
         echo -e "${RED}❌ Unknown test type: $TEST_TYPE${NC}"
         show_help

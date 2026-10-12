@@ -6,6 +6,16 @@ import vitest from '@vitest/eslint-plugin'
 import playwright from 'eslint-plugin-playwright'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+// Each block below that restricts imports repeats this, since a later block
+// replaces an earlier one's options for the same rule rather than adding to
+// them: ./ within a folder, the @/ alias across folders
+const NO_CLIMBING = {
+  group: ['../../*'],
+  message: 'Import from another folder with the @/ alias, not ../../',
+}
+const restrictImports = (...patterns) =>
+  ({ 'no-restricted-imports': ['error', { patterns: [...patterns, NO_CLIMBING] }] })
+
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'playwright-report', 'test-results']),
   {
@@ -29,17 +39,34 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/**'],
+    rules: restrictImports(),
+  },
+  {
     // Shared code never depends on a feature or a page, so deleting a
     // feature folder cannot break it
     files: ['src/{api,auth,components,utils}/**'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['@/features/*', '@/pages/*', '@/routes', '**/features/*', '**/pages/*'],
-          message: 'Shared code must not import a feature or a page.',
-        }],
-      }],
-    },
+    rules: restrictImports({
+      group: ['@/features/*', '@/pages/*', '@/routes', '**/features/*', '**/pages/*'],
+      message: 'Shared code must not import a feature or a page.',
+    }),
+  },
+  {
+    // Nor does one feature depend on another, so each can be deleted alone.
+    // Its own files it imports with ./
+    files: ['src/features/**'],
+    rules: restrictImports({
+      group: ['@/features/*', '@/pages/*', '@/routes', '**/pages/*'],
+      message: 'A feature must not import another feature, a page or the routes.',
+    }),
+  },
+  {
+    // A feature's tests may render the whole app around it
+    files: ['src/features/**/__tests__/**'],
+    rules: restrictImports({
+      group: ['@/features/*', '@/pages/*', '**/pages/*'],
+      message: 'A feature must not import another feature or a page.',
+    }),
   },
   {
     // Fields go through FormField, which ties the label, hint and message to

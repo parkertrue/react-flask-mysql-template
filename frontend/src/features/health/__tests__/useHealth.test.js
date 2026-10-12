@@ -16,7 +16,7 @@ describe('useHealth', () => {
 
   it('should initialize with checking status', () => {
     checkHealth.mockImplementation(() => new Promise(() => {}))
-    
+
     const { result } = renderHook(() => useHealth())
 
     expect(result.current).toBe('checking')

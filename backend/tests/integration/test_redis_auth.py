@@ -158,8 +158,8 @@ class TestRotationIsAtomic:
         assert _login(integration_client).status_code == 200
         [old] = _jtis(integration_redis, integration_user.id)
 
-        first = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-1')
-        second = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-2')
+        first = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-1', 60)
+        second = integration_redis.rotate_refresh_token(integration_user.id, old, 'next-2', 60)
 
         assert (first, second) == (True, False)
         assert _jtis(integration_redis, integration_user.id) == ['next-1']

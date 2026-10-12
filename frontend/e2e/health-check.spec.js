@@ -6,22 +6,22 @@ test.describe('System Health Check', () => {
   test('API health endpoint is accessible', async ({ page }) => {
     // Relative, so it follows baseURL
     const response = await page.goto('/api/health')
-    
+
     expect(response.status()).toBe(200)
-    
+
     const body = await response.json()
     expect(body.status).toBe('ok')
   })
 
   test('frontend loads correctly', async ({ page }) => {
     await page.goto('/')
-    
+
     await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeVisible({ timeout: 10000 })
   })
 
   test('can navigate to register page', async ({ page }) => {
     await page.goto('/register')
-    
+
     await expect(page).toHaveURL(/\/register/)
     await expect(page.getByRole('heading', { name: /register/i })).toBeVisible()
   })

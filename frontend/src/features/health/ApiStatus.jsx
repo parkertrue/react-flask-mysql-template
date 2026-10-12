@@ -1,5 +1,5 @@
 import { useHealth } from './useHealth'
-import './api-status.css'
+import './health.css'
 
 // Demo of a polled backend call, like the notes feature: delete this folder
 // when starting a real app. The backend's /api/health stays, since the

@@ -13,7 +13,7 @@ export default defineConfig({
   reporter: process.env.CI
     ? [['github'], ['list'], ['html', { open: 'never' }]]
     : [['list'], ['html', { open: 'never' }]],
-  
+
   use: {
     baseURL: 'https://localhost:8443',
     ignoreHTTPSErrors: true, // Allow self-signed cert
