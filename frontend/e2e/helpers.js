@@ -33,7 +33,7 @@ export async function register(page, email, password = TEST_PASSWORD) {
 export async function login(page, email, password = TEST_PASSWORD) {
   await page.getByLabel(/email/i).fill(email)
   await page.getByLabel(/password/i).fill(password)
-  const loginButton = page.getByRole('button', { name: /login|logging in/i })
+  const loginButton = page.getByRole('button', { name: /^log in$|logging in/i })
   await expect(loginButton).toBeEnabled()
   await Promise.all([
     page.waitForURL(url => url.pathname !== '/login', { timeout: 15000 }),
@@ -51,8 +51,8 @@ export async function registerAndLogin(page, prefix) {
 
 /** Log this device out from the navbar; it lands on the home page */
 export async function logout(page) {
-  // Exact: the account page also has "Logout All Devices"
-  await page.getByRole('button', { name: 'Logout', exact: true }).click()
+  // Exact: the account page also has "Log out all devices"
+  await page.getByRole('button', { name: 'Log out', exact: true }).click()
   await page.waitForURL(/\/$/)
 }
 
@@ -68,7 +68,7 @@ export const memberSince = page => page.getByText(/^Member since /)
 /** Sign every device out from the account page, reached by the navbar's email */
 export async function logoutAllDevices(page) {
   await page.getByRole('link', { name: /\(account\)$/ }).click()
-  await page.getByRole('button', { name: 'Logout All Devices' }).click()
+  await page.getByRole('button', { name: 'Log out all devices' }).click()
   await page.waitForURL(/\/$/)
 }
 

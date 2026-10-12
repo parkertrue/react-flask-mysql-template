@@ -9,7 +9,7 @@ export default function ApiStatus() {
 
   return (
     <div className="api-status">
-      <p>API Status: {status}</p>
+      <p role="status">API Status: {status}</p>
     </div>
   )
 }

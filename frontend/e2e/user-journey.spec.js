@@ -45,7 +45,7 @@ test.describe('Critical User Journey', () => {
     await page.goto('/account')
     
     await expect(page).toHaveURL(/\/login/)
-    await expect(page.getByRole('heading', { name: /login/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Log in' })).toBeVisible()
   })
 
   test('login with invalid credentials shows error', async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe('Critical User Journey', () => {
     
     await page.getByLabel(/email/i).fill('nonexistent@example.com')
     await page.getByLabel(/password/i).fill('WrongPassword123')
-    await page.getByRole('button', { name: /login|logging in/i }).click()
+    await page.getByRole('button', { name: /^log in$|logging in/i }).click()
 
     await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i)
     

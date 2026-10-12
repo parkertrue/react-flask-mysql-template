@@ -13,8 +13,9 @@ export const routes = [
   {
     path: '/',
     element: <Layout />,
-    // A crash in the layout itself: the error page replaces everything
-    errorElement: <ErrorPage />,
+    // A crash in the layout itself: the error page replaces everything, so
+    // it brings its own <main> landmark
+    errorElement: <main><ErrorPage /></main>,
     children: [
       {
         // A crash in a page: the error page takes its place under the navbar

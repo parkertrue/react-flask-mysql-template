@@ -41,7 +41,7 @@ describe('RegisterPage', () => {
     expect(field.confirmPassword()).toHaveAttribute('autocomplete', 'new-password')
     // Up front, not one at a time after each failed attempt
     expect(field.password()).toHaveAccessibleDescription(/at least 8 characters.*uppercase.*lowercase.*number/i)
-    expect(screen.getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login')
     expect(document.title).toBe(`Register | ${APP_NAME}`)
   })
 
@@ -83,7 +83,7 @@ describe('RegisterPage', () => {
 
       await user.click(submitButton())
 
-      expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
       expect(screen.getByRole('status')).toHaveTextContent('Registration successful')
       expect(registerUser).toHaveBeenCalledWith('user@example.com', 'Password123')
     })

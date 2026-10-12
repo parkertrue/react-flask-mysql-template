@@ -16,7 +16,7 @@ function renderButton() {
 }
 
 async function logOut(user) {
-  await user.click(screen.getByRole('button', { name: 'Logout' }))
+  await user.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Home page')
 }
 
@@ -46,6 +46,21 @@ describe('LogoutButton', () => {
     expect(storage.getAccessToken()).toBeNull()
     // HttpOnly: only the server can expire it
     expect(clearAuthCookies).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows it is busy and logs out once however often it is clicked', async () => {
+    let finish
+    logoutUser.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const { user } = renderButton()
+
+    await user.click(screen.getByRole('button', { name: 'Log out' }))
+    const button = screen.getByRole('button', { name: 'Logging out...' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    await user.click(button)
+    finish()
+    await screen.findByText('Home page')
+
+    expect(logoutUser).toHaveBeenCalledTimes(1)
   })
 
   it('still ends the session if clearing the cookie fails too', async () => {

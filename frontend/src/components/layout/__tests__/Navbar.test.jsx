@@ -21,8 +21,8 @@ describe('Navbar', () => {
   it('offers a visitor the way in', () => {
     renderNavbar('/')
 
-    expect(links()).toEqual({ Home: '/', Login: '/login', Register: '/register' })
-    expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeInTheDocument()
+    expect(links()).toEqual({ Home: '/', 'Log in': '/login', Register: '/register' })
+    expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
   })
 
   it('offers a signed-in user their notes, account and logout', () => {
@@ -33,12 +33,12 @@ describe('Navbar', () => {
     // The email is the account link; its name says where it goes
     expect(screen.getByRole('link', { name: 'user@example.com (account)' }))
       .toHaveAttribute('href', '/account')
-    expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument()
   })
 
   it.each([
     ['/', false, ['Home']],
-    ['/login', false, ['Login']],
+    ['/login', false, ['Log in']],
     ['/register', false, ['Register']],
     ['/notes', true, ['My Notes']],
     ['/account', true, ['user@example.com']],

@@ -21,7 +21,7 @@ const field = {
   email: () => screen.getByLabelText('Email'),
   password: () => screen.getByLabelText('Password'),
 }
-const submitButton = () => screen.getByRole('button', { name: /login|logging in/i })
+const submitButton = () => screen.getByRole('button', { name: /^log in$|logging in/i })
 
 async function fill(user, { email = 'user@example.com', password = 'Password123' } = {}) {
   if (email) await user.type(field.email(), email)
@@ -36,12 +36,12 @@ describe('LoginPage', () => {
   it('shows the form, with a way to register', () => {
     renderPage()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Login' })).toBeInTheDocument()
-    expect(screen.getByRole('form', { name: 'Login' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Log in' })).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument()
     expect(field.email()).toHaveAttribute('autocomplete', 'email')
     expect(field.password()).toHaveAttribute('autocomplete', 'current-password')
     expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/register')
-    expect(document.title).toBe(`Login | ${APP_NAME}`)
+    expect(document.title).toBe(`Log in | ${APP_NAME}`)
   })
 
   it('confirms a registration that just happened', () => {

@@ -10,7 +10,9 @@ describe('NotesList', () => {
   it('shows only a loading message while loading', () => {
     render(<NotesList notes={[{ id: 1, content: 'Hidden' }]} loading={true} />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Loading notes...')
+    expect(screen.getByText('Loading notes...')).toBeInTheDocument()
+    // The page's status line announces it, so this is not a second live region
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.queryByText('Hidden')).not.toBeInTheDocument()
     expect(screen.queryByText(/no notes yet/i)).not.toBeInTheDocument()
   })

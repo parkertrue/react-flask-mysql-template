@@ -1,8 +1,9 @@
 import NoteItem from './NoteItem'
 
 export default function NotesList({ ref, notes, loading, onEdit, onDelete, emptiedFocusRef }) {
+  // Not a live region: the page's status line announces the load
   if (loading) {
-    return <p className="notes-loading" role="status">Loading notes...</p>
+    return <p className="notes-loading">Loading notes...</p>
   }
 
   if (notes.length === 0) {

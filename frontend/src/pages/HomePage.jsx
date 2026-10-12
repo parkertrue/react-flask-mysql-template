@@ -21,7 +21,7 @@ export default function HomePage() {
           ) : (
             <>
               <Link to="/register" className="btn btn-primary">Get Started</Link>
-              <Link to="/login" className="btn btn-secondary">Login</Link>
+              <Link to="/login" className="btn btn-secondary">Log in</Link>
             </>
           )}
         </div>

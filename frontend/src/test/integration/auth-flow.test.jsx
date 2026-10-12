@@ -21,7 +21,7 @@ async function fillRegistration(user, email) {
 async function fillLogin(user, password = 'Password123') {
   await user.type(screen.getByLabelText('Email'), 'test@example.com')
   await user.type(screen.getByLabelText('Password'), password)
-  await user.click(screen.getByRole('button', { name: 'Login' }))
+  await user.click(screen.getByRole('button', { name: 'Log in' }))
 }
 
 describe('Authentication Flow Integration Tests', () => {
@@ -31,7 +31,7 @@ describe('Authentication Flow Integration Tests', () => {
 
       await fillRegistration(user, 'test@example.com')
 
-      expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
       expect(screen.getByRole('status')).toHaveTextContent('Registration successful')
     })
 
@@ -95,7 +95,7 @@ describe('Authentication Flow Integration Tests', () => {
       // and an unexpected request would fail the test
       renderRoutes(routes, '/account')
 
-      expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
     })
 
     it('shows the login page, without a reload, when the session cannot be refreshed', async () => {
@@ -109,7 +109,7 @@ describe('Authentication Flow Integration Tests', () => {
 
       const { router } = renderRoutes(routes, '/account')
 
-      expect(await screen.findByRole('heading', { name: 'Login' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
       expect(storage.getAccessToken()).toBeNull()
       expect(window.location.href).toBe('http://localhost/')
       // Logging in again returns to the page

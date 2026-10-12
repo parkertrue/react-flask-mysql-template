@@ -88,6 +88,20 @@ describe('useHealth', () => {
     expect(result.current).toBe('degraded')
   })
 
+  it('keeps the last status while a later poll is in flight', async () => {
+    vi.useFakeTimers()
+    checkHealth
+      .mockResolvedValueOnce({ status: 'ok' })
+      .mockReturnValueOnce(new Promise(() => {}))
+
+    const { result } = renderHook(() => useHealth())
+    await advance(0)
+    await advance(30000)
+
+    expect(checkHealth).toHaveBeenCalledTimes(2)
+    expect(result.current).toBe('ok')
+  })
+
   it('should recover when health check succeeds after failure', async () => {
     vi.useFakeTimers()
     checkHealth
