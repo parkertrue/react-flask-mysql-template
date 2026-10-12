@@ -14,13 +14,15 @@ export function useNotes() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
-  // What the last add, save, delete or Load more did, for screen readers.
-  // Cleared when the next one starts, so the same words are read again.
+  // What the last add, save, delete or Load more did, for screen readers,
+  // or that the first load is running. Cleared when the next one starts, so
+  // the same words are read again.
   const [status, setStatus] = useState('')
 
   const loadNotes = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setStatus('Loading notes...')
 
     try {
       const page = await fetchNotes()
@@ -30,6 +32,7 @@ export function useNotes() {
       setError(getErrorMessage(err))
     } finally {
       setLoading(false)
+      setStatus('')
     }
   }, [])
 

@@ -17,7 +17,7 @@ function renderPage() {
   ], '/account')
 }
 
-const logoutAll = () => screen.getByRole('button', { name: /logout all devices|logging out/i })
+const logoutAll = () => screen.getByRole('button', { name: /log out all devices|logging out/i })
 
 const httpError = (status, code, message) =>
   Object.assign(new Error(`Request failed with status code ${status}`), {

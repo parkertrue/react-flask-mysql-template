@@ -20,11 +20,11 @@ export default function RegisterPage() {
     email: '', password: '', confirmPassword: ''
   })
   const [formError, setFormError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (isLoading) return
+    if (submitting) return
 
     const valid = validate(e.currentTarget, {
       email: validateEmail(values.email)[0],
@@ -34,13 +34,13 @@ export default function RegisterPage() {
     if (!valid) return
 
     setFormError(null)
-    setIsLoading(true)
+    setSubmitting(true)
     try {
       await registerUser(values.email, values.password)
       navigate('/login', { state: { registered: true } })
     } catch (err) {
       setFormError(getErrorMessage(err))
-      setIsLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -67,7 +67,7 @@ export default function RegisterPage() {
               value={values.email}
               onChange={handleChange}
               error={errors.email}
-              readOnly={isLoading}
+              readOnly={submitting}
               required
               maxLength={EMAIL_MAX_LENGTH}
             />
@@ -80,7 +80,7 @@ export default function RegisterPage() {
               onChange={handleChange}
               error={errors.password}
               hint={`At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number. No spaces or emoji.`}
-              readOnly={isLoading}
+              readOnly={submitting}
               required
               maxLength={PASSWORD_MAX_LENGTH}
             />
@@ -92,21 +92,21 @@ export default function RegisterPage() {
               value={values.confirmPassword}
               onChange={handleChange}
               error={errors.confirmPassword}
-              readOnly={isLoading}
+              readOnly={submitting}
               required
               maxLength={PASSWORD_MAX_LENGTH}
             />
 
             {formError && <div className="error-message" role="alert">{formError}</div>}
 
-            <button type="submit" aria-disabled={isLoading} className="btn btn-primary btn-block">
-              {isLoading ? 'Creating account...' : 'Register'}
+            <button type="submit" aria-disabled={submitting} className="btn btn-primary btn-block">
+              {submitting ? 'Creating account...' : 'Register'}
             </button>
           </form>
 
           <p className="auth-footer">
             Already have an account?{' '}
-            <Link to="/login" className="auth-link">Login</Link>
+            <Link to="/login" className="auth-link">Log in</Link>
           </p>
         </div>
       </div>

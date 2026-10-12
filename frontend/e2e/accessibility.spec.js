@@ -12,7 +12,7 @@ test.describe('Accessibility', () => {
   test.describe('a visitor', () => {
     for (const [path, title, heading] of [
       ['/', APP_NAME, `Welcome to ${APP_NAME}`],
-      ['/login', `Login | ${APP_NAME}`, 'Login'],
+      ['/login', `Log in | ${APP_NAME}`, 'Log in'],
       ['/register', `Register | ${APP_NAME}`, 'Register'],
       ['/no-such-page', `Page not found | ${APP_NAME}`, 'Page not found'],
     ]) {
@@ -39,7 +39,7 @@ test.describe('Accessibility', () => {
       await page.emulateMedia({ forcedColors: 'active' })
       await page.goto('/login')
 
-      await expect(page.getByRole('button', { name: 'Login' })).toHaveCSS('border-top-style', 'solid')
+      await expect(page.getByRole('button', { name: 'Log in' })).toHaveCSS('border-top-style', 'solid')
     })
   })
 

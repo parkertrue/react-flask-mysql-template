@@ -9,7 +9,7 @@ export default function AccountPage() {
   const { email, logout } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState(null)
-  const [pending, setPending] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [account, setAccount] = useState(null)
   const [loadError, setLoadError] = useState(null)
 
@@ -20,9 +20,9 @@ export default function AccountPage() {
   }, [])
 
   const handleLogoutAll = async () => {
-    if (pending) return
+    if (submitting) return
     setError(null)
-    setPending(true)
+    setSubmitting(true)
     try {
       await logoutAllDevices()
     } catch (err) {
@@ -31,7 +31,7 @@ export default function AccountPage() {
       // for a retry. A 401 means this session has ended anyway.
       if (err.response?.status !== 401) {
         setError(getErrorMessage(err))
-        setPending(false)
+        setSubmitting(false)
         return
       }
       // HttpOnly, so only the server can expire the refresh cookie
@@ -69,10 +69,10 @@ export default function AccountPage() {
         <button
           type="button"
           onClick={handleLogoutAll}
-          aria-disabled={pending}
+          aria-disabled={submitting}
           className="btn btn-danger"
         >
-          {pending ? 'Logging out...' : 'Logout All Devices'}
+          {submitting ? 'Logging out...' : 'Log out all devices'}
         </button>
       </section>
     </div>

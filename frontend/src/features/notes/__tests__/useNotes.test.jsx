@@ -46,11 +46,13 @@ describe('useNotes', () => {
       const { result } = renderHook(() => useNotes(), { wrapper })
 
       expect(result.current.loading).toBe(true)
+      expect(result.current.status).toBe('Loading notes...')
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false)
       })
 
+      expect(result.current.status).toBe('')
       expect(result.current.notes).toEqual(mockNotes)
       expect(result.current.error).toBeNull()
       expect(fetchNotes).toHaveBeenCalledTimes(1)

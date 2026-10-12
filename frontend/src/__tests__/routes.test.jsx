@@ -2,9 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { routes } from '../routes'
 import HomePage from '@/pages/HomePage'
+import Navbar from '@/components/layout/Navbar'
 import { renderRoutes, signIn } from '@/test/router'
 
 // Each page has its own tests; here they only need to say which they are
+vi.mock('@/components/layout/Navbar', () => ({ default: vi.fn(() => <nav>Navbar</nav>) }))
 vi.mock('@/pages/HomePage', () => ({ default: vi.fn(() => <p>Home page</p>) }))
 vi.mock('@/pages/LoginPage', () => ({ default: () => <p>Login page</p> }))
 vi.mock('@/pages/RegisterPage', () => ({ default: () => <p>Register page</p> }))
@@ -58,5 +60,16 @@ describe('routes', () => {
 
     expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
     expect(screen.getByRole('navigation')).toBeInTheDocument()
+  })
+
+  it('show the error page inside a main landmark when the layout itself crashes', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    Navbar.mockImplementation(() => { throw new Error('Broken navbar') })
+
+    renderRoutes(routes, '/')
+
+    expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
 })

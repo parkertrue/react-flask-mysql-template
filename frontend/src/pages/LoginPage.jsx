@@ -18,11 +18,11 @@ export default function LoginPage() {
   const location = useLocation()
   const { values, errors, handleChange, validate } = useFormFields({ email: '', password: '' })
   const [formError, setFormError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (isLoading) return
+    if (submitting) return
 
     const valid = validate(e.currentTarget, {
       email: validateEmail(values.email)[0],
@@ -35,7 +35,7 @@ export default function LoginPage() {
     if (!valid) return
 
     setFormError(null)
-    setIsLoading(true)
+    setSubmitting(true)
     try {
       const data = await loginUser(values.email, values.password)
       // GuestRoute moves the user on once they are signed in
@@ -43,7 +43,7 @@ export default function LoginPage() {
     } catch (err) {
       setFormError(getErrorMessage(err))
     } finally {
-      setIsLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -51,10 +51,10 @@ export default function LoginPage() {
   // rather than disabled: a disabled element drops keyboard focus
   return (
     <div className="auth-page">
-      <PageTitle>Login</PageTitle>
+      <PageTitle>Log in</PageTitle>
       <div className="auth-container">
         <div className="auth-card">
-          <h1 id="login-heading">Login</h1>
+          <h1 id="login-heading">Log in</h1>
 
           {location.state?.registered && (
             <p className="success-message" role="status">
@@ -76,7 +76,7 @@ export default function LoginPage() {
               value={values.email}
               onChange={handleChange}
               error={errors.email}
-              readOnly={isLoading}
+              readOnly={submitting}
               required
               maxLength={EMAIL_MAX_LENGTH}
             />
@@ -88,15 +88,15 @@ export default function LoginPage() {
               value={values.password}
               onChange={handleChange}
               error={errors.password}
-              readOnly={isLoading}
+              readOnly={submitting}
               required
               maxLength={PASSWORD_MAX_LENGTH}
             />
 
             {formError && <div className="error-message" role="alert">{formError}</div>}
 
-            <button type="submit" aria-disabled={isLoading} className="btn btn-primary btn-block">
-              {isLoading ? 'Logging in...' : 'Login'}
+            <button type="submit" aria-disabled={submitting} className="btn btn-primary btn-block">
+              {submitting ? 'Logging in...' : 'Log in'}
             </button>
           </form>
 

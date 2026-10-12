@@ -16,7 +16,7 @@ export default function Navbar() {
             <NavLink to="/notes" className="nav-link">My Notes</NavLink>
           ) : (
             <>
-              <NavLink to="/login" className="nav-link">Login</NavLink>
+              <NavLink to="/login" className="nav-link">Log in</NavLink>
               <NavLink to="/register" className="nav-link">Register</NavLink>
             </>
           )}

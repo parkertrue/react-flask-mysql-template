@@ -44,11 +44,13 @@ describe('NotesPage', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: 'My Notes' })).toBeInTheDocument()
-    expect(screen.getByText('Loading notes...')).toHaveAttribute('role', 'status')
+    // getByRole fails on two live regions: the list's text is not one
+    expect(announced()).toHaveTextContent('Loading notes...')
     expect(document.title).toBe(`My Notes | ${APP_NAME}`)
 
     expect(await screen.findByText('Second')).toBeInTheDocument()
     expect(listed()).toHaveLength(2)
+    expect(announced()).toBeEmptyDOMElement()
   })
 
   it('shows the empty state when there are no notes', async () => {

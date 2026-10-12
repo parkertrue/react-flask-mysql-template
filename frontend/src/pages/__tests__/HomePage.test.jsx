@@ -25,7 +25,7 @@ describe('HomePage', () => {
   it('offers a visitor registration and login', () => {
     renderPage()
 
-    expect(links()).toEqual({ 'Get Started': '/register', Login: '/login' })
+    expect(links()).toEqual({ 'Get Started': '/register', 'Log in': '/login' })
   })
 
   it('offers a signed-in user their notes instead', () => {

@@ -1,17 +1,18 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import ApiStatus from '../ApiStatus'
 import { checkHealth } from '../healthService'
 
 vi.mock('../healthService')
 
-// The polling itself is tested in useHealth.test.js
+// The polling itself is tested in useHealth.test.js. The status is a live
+// region, so a screen reader hears it change.
 describe('ApiStatus', () => {
   it('shows that it is checking at first', () => {
     checkHealth.mockReturnValue(new Promise(() => {}))
     render(<ApiStatus />)
 
-    expect(screen.getByText('API Status: checking')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('API Status: checking')
   })
 
   it.each([
@@ -21,6 +22,6 @@ describe('ApiStatus', () => {
     arrange()
     render(<ApiStatus />)
 
-    expect(await screen.findByText(`API Status: ${status}`)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(`API Status: ${status}`))
   })
 })
