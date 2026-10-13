@@ -2,7 +2,8 @@
 
 Scans every test module for the hedges that let a test pass whatever the
 code does: an assert that only runs behind an `if` or inside a `try`, an
-`assert a or b`, and a test that asserts nothing at all.
+`assert a or b`, a test that asserts nothing at all, and a test whose every
+assert is one any value passes (`is not None`, `isinstance`, a bare name).
 """
 import ast
 from pathlib import Path
@@ -40,6 +41,28 @@ def _checks_something(test):
     return False
 
 
+def _is_weak(assert_node):
+    """An assert that holds for almost anything the code could return"""
+    test = assert_node.test
+    if isinstance(test, ast.Name):
+        return True
+    if isinstance(test, ast.Call):
+        return _called_name(test) == 'isinstance'
+    return (isinstance(test, ast.Compare) and len(test.ops) == 1
+            and isinstance(test.ops[0], ast.IsNot)
+            and isinstance(test.comparators[0], ast.Constant)
+            and test.comparators[0].value is None)
+
+
+def _only_weak_asserts(test):
+    """Asserts, all weak, and no raises block or assert_ helper beside them"""
+    asserts = [node for node in ast.walk(test) if isinstance(node, ast.Assert)]
+    helper_checks = [
+        node for node in ast.walk(test) if isinstance(node, ast.Call)
+        and (_called_name(node) in {'raises', 'warns'} or _called_name(node).startswith('assert_'))]
+    return bool(asserts) and not helper_checks and all(map(_is_weak, asserts))
+
+
 def _hedges(node, guarded=False):
     """(line, problem) for each hedged assert under node"""
     for child in ast.iter_child_nodes(node):
@@ -63,6 +86,8 @@ def _violations(path, root=TESTS):
     for test in filter(_is_test, ast.walk(tree)):
         if test.name not in FAIL_BY_RAISING and not _checks_something(test):
             yield f'{name}:{test.lineno}: {test.name} never asserts'
+        if _only_weak_asserts(test):
+            yield f'{name}:{test.lineno}: {test.name} has only weak asserts'
 
 
 def test_no_test_hedges_its_assertions():
@@ -77,6 +102,8 @@ def test_no_test_hedges_its_assertions():
      'inside a try'),
     ('def test_x(r):\n    assert r.status in (400, 422) or r.data\n', 'assert a or b'),
     ('def test_x(r):\n    r.get()\n', 'test_x never asserts'),
+    ('def test_x(r):\n    assert r is not None\n    assert isinstance(r, str)\n    assert r\n',
+     'test_x has only weak asserts'),
 ])
 def test_each_rule_catches_a_hedge(tmp_path, source, expected):
     """The scan itself works: a planted hedge is reported"""
@@ -91,6 +118,9 @@ def test_each_rule_catches_a_hedge(tmp_path, source, expected):
     'def test_x(r):\n    for item in r.items:\n        assert item.ok\n',
     'def test_x(r):\n    with pytest.raises(ValueError):\n        r.get()\n',
     'def test_x(self, r):\n    self.assert_failed(r.get())\n',
+    # A weak assert beside a real check is fine
+    'def test_x(r):\n    assert r is not None\n    assert r.status == 400\n',
+    'def test_x(r):\n    assert r is not None\n    r.ping.assert_called_once()\n',
     # A helper's own if is not the test's
     'def test_x(r):\n    def helper():\n        if r:\n            return 1\n    assert helper() == 1\n',
 ])

@@ -210,6 +210,18 @@ describe('expired access token', () => {
     expect(window.location.href).toBe('http://localhost/')
   })
 
+  // A session past its 30 days: the refresh carries the stale access token
+  // and fails with the same code. Treating that as another expired request
+  // would queue the refresh behind itself, and the app would hang for good.
+  it('ends the session when the refresh token itself has expired', { timeout: 3000 }, async () => {
+    mockBackend()
+    server.use(http.post('/api/auth/refresh', expired))
+
+    await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 401 } })
+
+    expect(storage.getAccessToken()).toBeNull()
+  })
+
   it.each([
     ['rate limited', 429, 'RATE_LIMITED'],
     ['unavailable', 503, 'SERVICE_UNAVAILABLE'],

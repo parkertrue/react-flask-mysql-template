@@ -173,16 +173,28 @@ describe('NotesPage', () => {
       expect(announced()).toHaveTextContent('More notes loaded')
     })
 
-    it('hands focus to the last note when the last page turns out empty', async () => {
+    // The rest were deleted in another tab, say
+    it.each([
+      ['the last note', async () => {},
+        () => screen.getByRole('button', { name: 'Edit note #2' })],
+      ['the heading once no note is left', async user => {
+        await user.click(screen.getByRole('button', { name: 'Delete note #2' }))
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+        await noNotesYet()
+      }, () => screen.getByRole('heading', { level: 1, name: 'My Notes' })],
+    ])('hands focus to %s when the last page turns out empty', async (_, before, focused) => {
       fetchNotes
         .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Only' }], 2))
         .mockResolvedValueOnce(notesPage([]))
+      deleteNote.mockResolvedValue()
       const user = renderPage()
+      await screen.findByText('Only')
+      await before(user)
 
-      await user.click(await screen.findByRole('button', { name: 'Load more' }))
+      await user.click(screen.getByRole('button', { name: 'Load more' }))
 
       expect(await screen.findByText('All notes loaded')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Edit note #2' })).toHaveFocus()
+      expect(focused()).toHaveFocus()
     })
 
     it('leaves focus where it is if the user moved on while the page loaded', async () => {

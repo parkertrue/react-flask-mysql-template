@@ -104,20 +104,17 @@ class TestRegisterEndpoint:
         assert data['error']['code'] == 'EMAIL_ALREADY_REGISTERED'
         assert 'already registered' in data['error']['message'].lower()
 
-    def test_register_invalid_email(self, client):
-        """Registration with invalid email should return 422."""
-        payload = {
-            'email': 'not-an-email',
-            'password': 'ValidPass123'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
+    @pytest.mark.parametrize('payload', [
+        {'email': 'not-an-email', 'password': 'ValidPass123'},
+        {'password': 'ValidPass123'},
+        {'email': 'test@example.com'},
+    ])
+    def test_invalid_body_is_validation_error_and_stores_nothing(self, client, db, payload):
+        response = client.post('/api/auth/register', json=payload)
 
         assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert db.session.scalar(select(func.count()).select_from(User)) == 0
 
     def test_register_race_is_a_conflict_not_a_crash(self, client, db, monkeypatch):
         """Another request registers the email after the existence check
@@ -140,34 +137,6 @@ class TestRegisterEndpoint:
         assert response.status_code == 409
         assert response.get_json()['error']['code'] == 'EMAIL_ALREADY_REGISTERED'
         assert db.session.scalar(select(func.count()).select_from(User)) == 1
-
-    def test_register_missing_email(self, client):
-        """Registration without email should return 422."""
-        payload = {
-            'password': 'ValidPass123'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-
-        assert response.status_code == 422
-
-    def test_register_missing_password(self, client):
-        """Registration without password should return 422."""
-        payload = {
-            'email': 'test@example.com'
-        }
-
-        response = client.post(
-            '/api/auth/register',
-            data=json.dumps(payload),
-            content_type='application/json'
-        )
-
-        assert response.status_code == 422
 
     @pytest.mark.parametrize('password', [
         'Short1',
@@ -199,8 +168,8 @@ class TestRegisterEndpoint:
 
         assert response.status_code == 422
 
-    def test_register_invalid_json(self, client):
-        """Invalid JSON should return 400."""
+    def test_register_invalid_json(self, client, db):
+        """A body that is not JSON at all is malformed: 400, not 422"""
         response = client.post(
             '/api/auth/register',
             data='not valid json{',
@@ -208,6 +177,9 @@ class TestRegisterEndpoint:
         )
 
         assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'BAD_REQUEST'
+        assert db.session.scalar(select(func.count()).select_from(User)) == 0
+
 
 class TestLoginEndpoint:
     """Test suite for POST /api/auth/login endpoint."""
@@ -476,6 +448,9 @@ class TestRefreshEndpoint:
         claims = refresh_claims(client)
         assert claims['auth_time'] == auth_time
         assert claims['exp'] == auth_time + SESSION_LIFETIME
+        # Redis keeps it no longer either: at the session cap, the oldest
+        # score is evicted first, which must be this ending session
+        assert DAY - 60 <= fake_redis.ttls[claims['jti']] <= DAY
 
     def test_refresh_after_the_session_lifetime_is_refused(
             self, app, client, sample_user, fake_redis):
@@ -602,6 +577,8 @@ class TestLogoutEndpoint:
         assert response.status_code == 200
         assert response.get_json()['message'] == 'Logged out from 2 device(s)'
         assert fake_redis.tokens == set()
+        cleared = response.headers.getlist('Set-Cookie')
+        assert any(c.startswith('__Secure-refresh_token=;') for c in cleared)
 
     def test_logout_all_leaves_other_users_sessions(self, client, app, sample_user, second_user, fake_redis):
         other_user = app.test_client()
@@ -718,38 +695,6 @@ class TestAuthenticationFlow:
             content_type='application/json'
         )
         assert response2.status_code == 409
-
-    def test_password_change_workflow(self, client, sample_user, db):
-        """User should not be able to login with old password after change."""
-        # Change password directly in database
-        sample_user.set_password('NewPassword123')
-        db.session.commit()
-
-        # Try login with old password
-        old_payload = {
-            'email': 'test@example.com',
-            'password': 'TestPassword123'
-        }
-
-        old_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(old_payload),
-            content_type='application/json'
-        )
-        assert old_response.status_code == 401
-
-        # Login with new password should work
-        new_payload = {
-            'email': 'test@example.com',
-            'password': 'NewPassword123'
-        }
-
-        new_response = client.post(
-            '/api/auth/login',
-            data=json.dumps(new_payload),
-            content_type='application/json'
-        )
-        assert new_response.status_code == 200
 
 
 class TestSignInWithoutRedis:

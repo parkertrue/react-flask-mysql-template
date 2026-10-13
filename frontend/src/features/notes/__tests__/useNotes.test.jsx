@@ -149,17 +149,7 @@ describe('useNotes', () => {
         expect(result.current.loading).toBe(false)
       })
 
-      let thrownError
-      await act(async () => {
-        try {
-          await result.current.addNote('New note')
-        } catch (err) {
-          thrownError = err
-        }
-      })
-
-      expect(thrownError).toBeDefined()
-      expect(thrownError.message).toBe('Failed to create')
+      await act(() => expect(result.current.addNote('New note')).rejects.toThrow('Failed to create'))
 
       // Check error state after act completes
       expect(result.current.error).toBe('Failed to create')

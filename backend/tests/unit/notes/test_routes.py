@@ -242,41 +242,17 @@ class TestCreateNote:
         assert note is not None
         assert note.user_id == sample_user.id
 
-    def test_create_note_missing_content(self, client, auth_headers):
-        """POST /api/notes without content should return 400."""
-        payload = {}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 422  # Pydantic validation error
-
-    def test_create_note_empty_content(self, client, auth_headers):
-        """POST /api/notes with empty content should return 400."""
-        payload = {'content': ''}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
+    @pytest.mark.parametrize('payload', [
+        {}, {'content': ''}, {'content': '   '}, {'content': 'x' * 257},
+        {'content': 'Valid content', 'extra_field': 'should be rejected'},
+    ])
+    def test_invalid_body_is_validation_error_and_stores_nothing(
+            self, client, auth_headers, db, payload):
+        response = client.post('/api/notes', json=payload, headers=auth_headers)
 
         assert response.status_code == 422
-
-    def test_create_note_content_too_long(self, client, auth_headers):
-        """POST /api/notes with content > 256 chars should return 400."""
-        payload = {'content': 'x' * 257}
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 422
+        assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'
+        assert db.session.scalar(select(func.count()).select_from(Note)) == 0
 
     def test_create_note_max_length_content(self, client, auth_headers):
         """POST /api/notes with exactly 256 chars should succeed."""
@@ -292,24 +268,8 @@ class TestCreateNote:
         data = json.loads(response.data)
         assert len(data['content']) == 256
 
-    def test_create_note_extra_fields_rejected(self, client, auth_headers):
-        """POST /api/notes with extra fields should return 400."""
-        payload = {
-            'content': 'Valid content',
-            'extra_field': 'should be rejected',
-            'another_field': 123
-        }
-
-        response = client.post(
-            '/api/notes',
-            data=json.dumps(payload),
-            headers=auth_headers
-        )
-
-        assert response.status_code == 422
-
-    def test_create_note_invalid_json(self, client, auth_headers):
-        """POST /api/notes with invalid JSON should return 400."""
+    def test_create_note_invalid_json(self, client, auth_headers, db):
+        """A body that is not JSON at all is malformed: 400, not 422"""
         response = client.post(
             '/api/notes',
             data='not valid json{',
@@ -317,6 +277,8 @@ class TestCreateNote:
         )
 
         assert response.status_code == 400
+        assert response.get_json()['error']['code'] == 'BAD_REQUEST'
+        assert db.session.scalar(select(func.count()).select_from(Note)) == 0
 
     def test_create_note_wrong_content_type(self, client, auth_token):
         """POST /api/notes with wrong content-type should handle gracefully."""

@@ -150,21 +150,18 @@ def test_a_malformed_login_is_a_validation_error_not_a_crash(limited_app, body):
     assert response.status_code == 422
 
 
-def test_one_address_can_log_in_to_many_accounts(limited_app):
-    """An office behind one NAT gets 20 logins a minute, not 5"""
+def test_one_address_can_log_in_to_many_accounts_without_limiting_others(
+        limited_app, monkeypatch):
+    """An office behind one NAT gets 20 logins a minute, not 5, and its
+    bucket is its own"""
+    # The limiter is under test, not the dummy hash every unknown email costs
+    monkeypatch.setattr('app.auth.routes.verify_password', lambda *args: False)
     client = limited_app.test_client()
 
     statuses = [login(client, '203.0.113.7', f'user{i}@example.com').status_code
                 for i in range(21)]
 
     assert statuses == [401] * 20 + [429]
-
-
-def test_each_client_has_its_own_bucket(limited_app):
-    client = limited_app.test_client()
-    for i in range(21):
-        login(client, '203.0.113.7', f'user{i}@example.com')
-
     assert login(client, '198.51.100.9', 'other@example.com').status_code == 401
 
 
