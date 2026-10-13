@@ -14,7 +14,7 @@ const server = setupMswServer(...handlers)
 async function fillRegistration(user, email) {
   await user.type(screen.getByLabelText('Email'), email)
   await user.type(screen.getByLabelText('Password'), 'Password123')
-  await user.type(screen.getByLabelText('Confirm Password'), 'Password123')
+  await user.type(screen.getByLabelText('Confirm password'), 'Password123')
   await user.click(screen.getByRole('button', { name: 'Register' }))
 }
 

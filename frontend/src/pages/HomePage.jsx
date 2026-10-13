@@ -17,10 +17,10 @@ export default function HomePage() {
 
         <div className="home-actions">
           {isAuthenticated ? (
-            <Link to="/notes" className="btn btn-primary">View My Notes</Link>
+            <Link to="/notes" className="btn btn-primary">View my notes</Link>
           ) : (
             <>
-              <Link to="/register" className="btn btn-primary">Get Started</Link>
+              <Link to="/register" className="btn btn-primary">Get started</Link>
               <Link to="/login" className="btn btn-secondary">Log in</Link>
             </>
           )}

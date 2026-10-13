@@ -33,17 +33,17 @@ describe('NotesPage', () => {
 
   async function addNote(user, text) {
     await user.type(screen.getByLabelText('New note'), text)
-    await user.click(screen.getByRole('button', { name: 'Add Note' }))
+    await user.click(screen.getByRole('button', { name: 'Add note' }))
   }
 
   it('shows a loading state, then the user\'s notes', async () => {
     fetchNotes.mockResolvedValue(notesPage([{ id: 2, content: 'Second' }, { id: 1, content: 'First' }]))
     renderPage()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'My Notes' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'My notes' })).toBeInTheDocument()
     // getByRole fails on two live regions: the list's text is not one
     expect(announced()).toHaveTextContent('Loading notes...')
-    expect(document.title).toBe(`My Notes | ${APP_NAME}`)
+    expect(document.title).toBe(`My notes | ${APP_NAME}`)
 
     expect(await screen.findByText('Second')).toBeInTheDocument()
     expect(listed()).toHaveLength(2)
@@ -110,7 +110,7 @@ describe('NotesPage', () => {
       await addNote(user, 'Unsaved')
       await screen.findByRole('alert')
 
-      await user.click(screen.getByRole('button', { name: 'Add Note' }))
+      await user.click(screen.getByRole('button', { name: 'Add note' }))
 
       expect(await screen.findByRole('listitem')).toHaveTextContent('Unsaved')
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -131,7 +131,7 @@ describe('NotesPage', () => {
       expect(screen.getByRole('button', { name: 'Adding...' })).toHaveAttribute('aria-disabled', 'true')
 
       finish(note({ content: 'Slow' }))
-      expect(await screen.findByRole('button', { name: 'Add Note' })).toBeInTheDocument()
+      expect(await screen.findByRole('button', { name: 'Add note' })).toBeInTheDocument()
       expect(screen.getByLabelText('New note')).not.toHaveAttribute('readonly')
     })
   })
@@ -182,7 +182,7 @@ describe('NotesPage', () => {
         await user.click(screen.getByRole('button', { name: 'Delete note #2' }))
         await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
         await noNotesYet()
-      }, () => screen.getByRole('heading', { level: 1, name: 'My Notes' })],
+      }, () => screen.getByRole('heading', { level: 1, name: 'My notes' })],
     ])('hands focus to %s when the last page turns out empty', async (_, before, focused) => {
       fetchNotes
         .mockResolvedValueOnce(notesPage([{ id: 2, content: 'Only' }], 2))
@@ -397,7 +397,7 @@ describe('NotesPage', () => {
       await confirmDelete(user, 1)
 
       expect(await noNotesYet()).toBeInTheDocument()
-      expect(screen.getByRole('heading', { level: 1, name: 'My Notes' })).toHaveFocus()
+      expect(screen.getByRole('heading', { level: 1, name: 'My notes' })).toHaveFocus()
     })
 
     it('announces a failure and keeps the note', async () => {

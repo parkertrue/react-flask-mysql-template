@@ -18,7 +18,7 @@ describe('Notes, through the whole app', () => {
 
     await screen.findByText(/no notes yet/i)
     await user.type(screen.getByLabelText('New note'), 'My new test note')
-    await user.click(screen.getByRole('button', { name: 'Add Note' }))
+    await user.click(screen.getByRole('button', { name: 'Add note' }))
 
     expect(await screen.findByText('My new test note')).toBeInTheDocument()
   })
@@ -71,7 +71,7 @@ describe('Notes, through the whole app', () => {
 
     await screen.findByText(/no notes yet/i)
     await user.type(screen.getByLabelText('New note'), 'One too many')
-    await user.click(screen.getByRole('button', { name: 'Add Note' }))
+    await user.click(screen.getByRole('button', { name: 'Add note' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message)
     expect(screen.getByLabelText('New note')).toHaveValue('One too many')

@@ -8,17 +8,12 @@
     "lint": "eslint . --max-warnings 0",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
     "test": "vitest",
-    "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:coverage:ui": "vitest --coverage --ui",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "axios": "^1.20.0",
@@ -36,7 +31,6 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.3",
     "@vitest/eslint-plugin": "^1.6.27",
-    "@vitest/ui": "^5.0.3",
     "eslint": "^10.12.0",
     "eslint-plugin-playwright": "^2.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",

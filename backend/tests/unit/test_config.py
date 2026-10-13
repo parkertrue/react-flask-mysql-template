@@ -70,7 +70,6 @@ class TestConfigClasses:
         """DevelopmentConfig should have correct attributes"""
         config = DevelopmentConfig()
 
-        assert config.APP_ENV == 'development'
         assert config.USES_SERVICES is True
         assert config.RATELIMIT_ENABLED is True
 
@@ -78,7 +77,6 @@ class TestConfigClasses:
         """UnitTestConfig should have correct attributes"""
         config = UnitTestConfig()
 
-        assert config.APP_ENV == 'unit'
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
         assert config.USES_SERVICES is False
         assert config.RATELIMIT_ENABLED is False
@@ -87,7 +85,6 @@ class TestConfigClasses:
         """IntegrationConfig should disable rate limiting"""
         config = IntegrationConfig()
 
-        assert config.APP_ENV == 'integration'
         assert config.USES_SERVICES is True
         assert config.RATELIMIT_ENABLED is False
 
@@ -120,7 +117,6 @@ class TestConfigClasses:
         monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
         config = ProductionConfig()
 
-        assert config.APP_ENV == 'production'
         assert config.FLASK_DEBUG is False
         assert config.JWT_COOKIE_SECURE is True
         assert config.USES_SERVICES is True
@@ -145,7 +141,7 @@ class TestGetConfigFactory:
         config = get_config()
 
         assert isinstance(config, DevelopmentConfig)
-        assert config.APP_ENV == 'development'
+        assert type(config) is DevelopmentConfig
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://testuser:testpass@testhost:3306/testdb'
         assert config.REDIS_URI == 'redis://app:redispass@redishost:6379/1'
         assert config.RATELIMIT_STORAGE_URI == 'redis://app:redispass@redishost:6379/1'
@@ -158,7 +154,7 @@ class TestGetConfigFactory:
         config = get_config()
 
         assert isinstance(config, UnitTestConfig)
-        assert config.APP_ENV == 'unit'
+        assert type(config) is UnitTestConfig
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
         assert config.USES_SERVICES is False
         assert config.RATELIMIT_ENABLED is False
@@ -179,7 +175,7 @@ class TestGetConfigFactory:
         config = get_config()
 
         assert isinstance(config, ProductionConfig)
-        assert config.APP_ENV == 'production'
+        assert type(config) is ProductionConfig
         assert config.RATELIMIT_ENABLED is True
         assert config.USES_SERVICES is True
         assert config.JWT_COOKIE_SECURE is True
@@ -199,7 +195,7 @@ class TestGetConfigFactory:
         config = get_config()
 
         assert isinstance(config, ProductionConfig)
-        assert config.APP_ENV == 'production'
+        assert type(config) is ProductionConfig
         assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://produser:prodpass@prodhost:3306/proddb'
         assert config.REDIS_URI == 'redis://app:prodredispass@prodredis:6379/0'
         assert config.RATELIMIT_STORAGE_URI == 'redis://app:prodredispass@prodredis:6379/0'
@@ -230,7 +226,7 @@ class TestGetConfigFactory:
         config = get_config()
 
         assert isinstance(config, ProductionConfig)
-        assert config.APP_ENV == 'production'
+        assert type(config) is ProductionConfig
 
 
 class TestGetConfigValidation:

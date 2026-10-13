@@ -26,7 +26,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 def create_app():
-    """Application factory for creating Flask app instances"""
+    """Build the app with the config APP_ENV selects (config.get_config)"""
     app = Flask(__name__)
 
     config = get_config()

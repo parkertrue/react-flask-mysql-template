@@ -49,6 +49,9 @@ document.addEventListener('keydown', (e) => {
 // does not implement; unstubbed, each one logs a warning that buries real ones
 window.scrollTo = () => {}
 
+// A plain object, so a test can see a full-page redirect (location.href = ...),
+// which the app must never use to end a session; jsdom does not navigate.
+// The origin matches vite.config.js's jsdom url.
 Object.defineProperty(window, 'location', {
   writable: true,
   value: {

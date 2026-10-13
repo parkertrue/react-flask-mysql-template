@@ -58,10 +58,6 @@ class Config:
                 'Missing required database environment variables: '
                 'DB_HOST, DB_NAME, DB_USER, DB_PASSWORD')
 
-        # MySQL closes connections idle past wait_timeout (8h by default), and
-        # any restart or network blip drops them all; without a ping, the next
-        # request on each dead pooled connection fails with a 500. Recycling
-        # well before wait_timeout keeps the ping from finding many dead ones.
         connect_args = {
             # Every timestamp is UTC, and the API says so. NOW() and
             # CURRENT_TIMESTAMP follow the connection's time zone, which would
@@ -77,6 +73,11 @@ class Config:
         if query_timeout:
             connect_args.update(read_timeout=query_timeout, write_timeout=query_timeout)
         self.SQLALCHEMY_ENGINE_OPTIONS = {
+            # MySQL closes connections idle past wait_timeout (8h by default),
+            # and any restart or network blip drops them all; without a ping,
+            # the next request on each dead pooled connection fails with a
+            # 500. Recycling well before wait_timeout keeps the ping from
+            # finding many dead ones.
             'pool_pre_ping': True,
             'pool_recycle': 1800,
             'connect_args': connect_args,
@@ -154,10 +155,6 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration"""
 
-    def __init__(self):
-        super().__init__()
-        self.APP_ENV = 'development'
-
 
 class UnitTestConfig(Config):
     """Unit tests: in-memory SQLite, no Redis, no rate limiting"""
@@ -166,7 +163,6 @@ class UnitTestConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'unit'
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
         # MySQL's pool and connection settings mean nothing to SQLite, whose
         # CURRENT_TIMESTAMP is always UTC
@@ -179,7 +175,6 @@ class IntegrationConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'integration'
         self.RATELIMIT_ENABLED = False
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
         # CSRF protection is browser-only; disable it for API integration
@@ -192,7 +187,6 @@ class ProductionConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'production'
         self.FLASK_DEBUG = False
         self.TRUSTED_PROXY_COUNT = 1  # nginx
 

@@ -13,7 +13,7 @@ export default function Navbar() {
         <nav aria-label="Main" className="navbar-links">
           <NavLink to="/" end className="nav-link">Home</NavLink>
           {isAuthenticated ? (
-            <NavLink to="/notes" className="nav-link">My Notes</NavLink>
+            <NavLink to="/notes" className="nav-link">My notes</NavLink>
           ) : (
             <>
               <NavLink to="/login" className="nav-link">Log in</NavLink>

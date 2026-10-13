@@ -56,10 +56,7 @@ class TestGetNotes:
         assert len(data) == 3
 
         for note in data:
-            assert 'id' in note
-            assert 'user_id' in note
-            assert 'content' in note
-            assert 'created_at' in note
+            assert set(note) == {'id', 'content', 'created_at'}
 
     def test_get_notes_returns_only_user_notes(self, client, auth_headers,
                                                sample_notes, other_user_note):
@@ -86,7 +83,6 @@ class TestGetNotes:
 
         note = data[0]
         assert note['id'] == sample_note.id
-        assert note['user_id'] == sample_note.user_id
         assert note['content'] == 'This is a test note'
 
     def test_get_notes_includes_timestamps(self, client, auth_headers, sample_note):
@@ -210,9 +206,7 @@ class TestCreateNote:
         data = json.loads(response.data)
 
         assert data['content'] == 'My new note'
-        assert data['user_id'] == sample_user.id
-        assert 'id' in data
-        assert 'created_at' in data
+        assert set(data) == {'id', 'content', 'created_at'}
 
     def test_create_note_persists_to_database(self, client, auth_headers,
                                               sample_user, db):
@@ -346,8 +340,6 @@ class TestCreateNote:
             headers=auth_headers
         )
         assert response1.status_code == 201
-        data1 = json.loads(response1.data)
-        assert data1['user_id'] == sample_user.id
 
         # User 2 creates a note
         payload2 = {'content': 'User 2 note'}
@@ -357,8 +349,6 @@ class TestCreateNote:
             headers=second_auth_headers
         )
         assert response2.status_code == 201
-        data2 = json.loads(response2.data)
-        assert data2['user_id'] == second_user.id
 
         # Each user should only see their own note
         response1_notes = client.get('/api/notes', headers=auth_headers)
@@ -434,7 +424,6 @@ class TestUpdateNote:
         # Trimmed, like a new note
         assert data['content'] == 'Edited'
         assert data['id'] == sample_note.id
-        assert data['user_id'] == sample_note.user_id
         assert datetime.fromisoformat(data['created_at']).utcoffset() == timedelta(0)
 
     def test_persists_and_keeps_its_place(

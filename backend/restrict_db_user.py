@@ -4,7 +4,7 @@ The MySQL image grants the app's user every privilege on the database. The
 migrate service in docker-compose.yml runs this as root after
 `flask db upgrade`, narrowing that user to what the running app needs, so a
 compromised backend can read and write rows but never drop or alter tables.
-Safe to run on every deploy, including against databases created before it.
+Safe to run on every deploy.
 
 Reads DB_HOST/PORT/NAME and the admin DB_USER/DB_PASSWORD like
 app/config.py; APP_DB_USER names the user to restrict.
@@ -51,12 +51,6 @@ def main():
         cursor.execute(
             f"REVOKE IF EXISTS {SCHEMA_PRIVILEGES} ON `{escaped}`.* FROM %s@'%%'",
             (app_user,))
-        if escaped != database:
-            # Earlier versions of this script granted on the unescaped
-            # pattern, which also matches other databases (`appXdb`)
-            cursor.execute(
-                f"REVOKE IF EXISTS ALL PRIVILEGES ON `{database}`.* FROM %s@'%%'",
-                (app_user,))
     print(f'{app_user} restricted to {DATA_PRIVILEGES} on {database}')
 
 

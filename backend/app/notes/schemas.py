@@ -39,7 +39,6 @@ class NotesListQuery(BaseModel):
 
 class NoteResponse(BaseModel):
     id: int
-    user_id: int
     content: str
     created_at: UtcDatetime
 

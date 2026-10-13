@@ -152,7 +152,6 @@ case "$TEST_TYPE" in
 
         start_test_services
 
-        # Run integration tests
         if [ "$NO_COVERAGE" = true ]; then
             pytest tests/integration/ $VERBOSE
         else

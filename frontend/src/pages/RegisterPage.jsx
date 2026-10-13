@@ -86,7 +86,7 @@ export default function RegisterPage() {
             />
             <FormField
               id="confirmPassword"
-              label="Confirm Password"
+              label="Confirm password"
               type="password"
               autoComplete="new-password"
               value={values.confirmPassword}

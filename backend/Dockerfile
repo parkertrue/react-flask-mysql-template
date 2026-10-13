@@ -1,6 +1,7 @@
 FROM python:3.12-slim
 
-# Prevents Python from writing pyc files & buffers
+# No .pyc files (the code is read-only at runtime), and unbuffered output,
+# so log lines reach docker logs at once
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
