@@ -1,10 +1,11 @@
 from flask import Blueprint, abort, jsonify, request
 from flask_jwt_extended import current_user, jwt_required
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import db
-from app.notes.models import Note
+from app.notes.models import NOTES_MAX_PER_USER, Note
 from app.notes.schemas import NoteCreateRequest, NoteResponse, NotesListQuery, NoteUpdateRequest
+from app.utils.errors import quota_exceeded
 from app.utils.ids import ID_MAX
 
 
@@ -53,6 +54,15 @@ def get_notes():
 @jwt_required()
 def create_note():
     payload = NoteCreateRequest.model_validate(request.get_json())
+
+    # The (user_id, id) index answers the count. Two creates racing at the cap
+    # can both pass, so a user may end a few notes over it (at most one per
+    # request thread): enough to bound storage, without locking the user's row.
+    count = db.session.scalar(
+        select(func.count()).select_from(Note).where(Note.user_id == current_user.id))
+    if count >= NOTES_MAX_PER_USER:
+        return quota_exceeded(
+            f'You can keep at most {NOTES_MAX_PER_USER:,} notes. Delete one to add another.')
 
     new_note = Note(
         content=payload.content,

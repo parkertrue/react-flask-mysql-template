@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.utils.errors import error_response
+from app.utils.errors import error_response, quota_exceeded
 
 
 # jsonify needs an app context, which the app fixture holds open
@@ -63,6 +63,14 @@ class TestErrorResponse:
     def test_error_response_takes_keywords_only(self):
         with pytest.raises(TypeError):
             error_response('TEST_ERROR', 'Test error message')
+
+    # Tested here as well as through notes, which a new app deletes
+    def test_quota_exceeded_is_a_409_with_its_message(self):
+        response, status = quota_exceeded('You can keep at most 3 things.')
+
+        assert status == 409
+        assert response.get_json()['error'] == {
+            'code': 'QUOTA_EXCEEDED', 'message': 'You can keep at most 3 things.'}
 
 
 class TestGlobalErrorHandlers:
