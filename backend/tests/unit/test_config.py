@@ -330,6 +330,7 @@ class TestConfigValues:
 
         assert config.JWT_ACCESS_TOKEN_EXPIRES == timedelta(minutes=15)
         assert config.JWT_REFRESH_TOKEN_EXPIRES == timedelta(days=30)
+        assert config.SESSION_IDLE_TIMEOUT == timedelta(days=7)
 
     def test_jwt_cookie_settings(self, monkeypatch):
         """JWT cookie settings should be configured for security"""

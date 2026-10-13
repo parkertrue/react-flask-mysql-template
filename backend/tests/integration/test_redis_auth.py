@@ -102,7 +102,22 @@ class TestSessionBounds:
 
         ttl = integration_redis.get_client().ttl(
             f'refresh_tokens:{integration_user.id}')
-        assert 29 * 24 * 3600 < ttl <= 30 * 24 * 3600
+        # The script rounds the expiry up to a whole second
+        assert 6 * 24 * 3600 < ttl <= 7 * 24 * 3600 + 1
+
+    def test_key_outlives_a_shorter_token_recorded_after_a_longer_one(
+        self, integration_user, integration_redis
+    ):
+        """A session near its 30-day cap rotates to a token that expires
+        before another device's: the key must keep that device's session"""
+        user_id = integration_user.id
+        integration_redis.store_refresh_token(user_id, 'fresh-device', 7 * 24 * 3600)
+        integration_redis.store_refresh_token(user_id, 'ending-session', 3600)
+
+        integration_redis.rotate_refresh_token(user_id, 'ending-session', 'last-hour', 3600)
+
+        ttl = integration_redis.get_client().ttl(f'refresh_tokens:{user_id}')
+        assert 7 * 24 * 3600 - 60 < ttl <= 7 * 24 * 3600 + 1
 
     def test_logout_all_reports_live_sessions(
         self, integration_client, integration_user, integration_redis

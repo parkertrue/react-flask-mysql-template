@@ -127,8 +127,8 @@ class TestTokenManagement:
         assert service.store_refresh_token(1, 'test-jti', ttl_seconds=3600) is True
         call = service._record_token.call_args.kwargs
         assert call['keys'] == ['refresh_tokens:1']
-        jti, _, _, _, ttl, replaces = call['args']
-        assert (jti, ttl, replaces) == ('test-jti', 3600, '')
+        jti, expires_at, now, _, replaces = call['args']
+        assert (jti, round(expires_at - now), replaces) == ('test-jti', 3600, '')
 
     def test_store_refresh_token_error(self, service, caplog):
         """Should return None on Redis errors"""
@@ -142,7 +142,7 @@ class TestTokenManagement:
         service._record_token.return_value = 1
 
         assert service.rotate_refresh_token(1, 'old-jti', 'new-jti', ttl_seconds=60) is True
-        jti, _, _, _, _, replaces = service._record_token.call_args.kwargs['args']
+        jti, _, _, _, replaces = service._record_token.call_args.kwargs['args']
         assert (jti, replaces) == ('new-jti', 'old-jti')
 
     def test_rotate_refresh_token_refuses_a_token_already_rotated(self, service):

@@ -124,7 +124,11 @@ class Config:
         # JWT configuration
         self.JWT_SECRET_KEY = os.getenv('SECRET_KEY', '')
         self.JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
+        # A session lasts at most JWT_REFRESH_TOKEN_EXPIRES from login, and
+        # ends sooner once it goes SESSION_IDLE_TIMEOUT without a refresh:
+        # each refresh token expires at the earlier of the two
         self.JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+        self.SESSION_IDLE_TIMEOUT = timedelta(days=7)
         # Access tokens travel in the Authorization header, refresh tokens in
         # an HttpOnly cookie (always, in Flask-JWT-Extended) that is only sent
         # to the /api/auth routes.

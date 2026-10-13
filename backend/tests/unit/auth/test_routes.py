@@ -10,6 +10,7 @@ from sqlalchemy import select, func
 
 from app.auth import routes as auth_routes
 from app.auth.models import User
+from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE
 from app.utils.passwords import verify_password
 
 
@@ -337,6 +338,7 @@ class TestLoginEndpoint:
 LOGIN_PAYLOAD = {'email': 'test@example.com', 'password': 'TestPassword123'}
 DAY = 24 * 60 * 60
 SESSION_LIFETIME = 30 * DAY  # JWT_REFRESH_TOKEN_EXPIRES
+IDLE_TIMEOUT = 7 * DAY  # SESSION_IDLE_TIMEOUT
 
 
 def refresh_claims(client):
@@ -432,12 +434,43 @@ class TestRefreshEndpoint:
 
         claims = refresh_claims(client)
 
-        assert before <= claims['auth_time'] <= int(time.time())
-        assert claims['exp'] == claims['auth_time'] + SESSION_LIFETIME
+        after = int(time.time())
+        assert before <= claims['auth_time'] <= after
+        assert before + IDLE_TIMEOUT <= claims['exp'] <= after + IDLE_TIMEOUT
+        assert fake_redis.ttls[claims['jti']] == IDLE_TIMEOUT
+
+    def test_refresh_extends_an_active_session_by_the_idle_timeout(
+            self, app, client, sample_user, fake_redis):
+        """Each use buys another idle window, not the rest of the 30 days"""
+        auth_time = int(time.time()) - 20 * DAY
+        csrf = set_refresh_token(app, client, sample_user, fake_redis, auth_time,
+                                 expires_in=DAY)
+        before = int(time.time())
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 200
+        claims = refresh_claims(client)
+        assert claims['auth_time'] == auth_time
+        assert before + IDLE_TIMEOUT <= claims['exp'] <= int(time.time()) + IDLE_TIMEOUT
+        assert fake_redis.ttls[claims['jti']] == IDLE_TIMEOUT
+
+    def test_refresh_after_the_idle_timeout_is_refused(
+            self, app, client, sample_user, fake_redis):
+        """A session well within its 30 days, left unused past its window"""
+        auth_time = int(time.time()) - 10 * DAY
+        csrf = set_refresh_token(app, client, sample_user, fake_redis, auth_time,
+                                 expires_in=-60)
+
+        response = client.post('/api/auth/refresh', headers=csrf)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_TOKEN_EXPIRED'
 
     def test_refresh_never_extends_the_session_past_its_lifetime(
             self, app, client, sample_user, fake_redis):
-        """A rotated token expires when the session does, not 30 days from now"""
+        """Near the end of its 30 days, a rotated token expires when the
+        session does, not a whole idle window from now"""
         auth_time = int(time.time()) - 29 * DAY
         csrf = set_refresh_token(app, client, sample_user, fake_redis, auth_time,
                                  expires_in=DAY)
@@ -486,7 +519,8 @@ class TestRefreshEndpoint:
         response = client.post('/api/auth/refresh', headers=csrf)
 
         assert response.status_code == 503
-        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert response.get_json()['error'] == {
+            'code': 'SERVICE_UNAVAILABLE', 'message': SERVICE_UNAVAILABLE_MESSAGE}
 
     def test_refresh_fails_closed_when_the_check_fails(
             self, client, sample_user, fake_redis, monkeypatch):
@@ -610,6 +644,18 @@ class TestLogoutEndpoint:
 
         self.assert_logout_all_failed(client.post('/api/auth/logout-all', headers=csrf))
 
+    def test_logout_all_while_the_token_store_is_down(
+            self, app, client, sample_user, monkeypatch):
+        """The token check fails before the route runs; a signed-in user
+        must not be told that sign-in is unavailable"""
+        csrf = login(client)
+        monkeypatch.setitem(app.extensions, 'redis_service', None)
+
+        response = client.post('/api/auth/logout-all', headers=csrf)
+
+        self.assert_logout_all_failed(response)
+        assert response.get_json()['error']['message'] == SERVICE_UNAVAILABLE_MESSAGE
+
 
 class TestAuthenticationFlow:
     """Test complete authentication workflows."""
@@ -703,7 +749,8 @@ class TestSignInWithoutRedis:
 
     def assert_unavailable(self, response):
         assert response.status_code == 503
-        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert response.get_json()['error'] == {
+            'code': 'SERVICE_UNAVAILABLE', 'message': SERVICE_UNAVAILABLE_MESSAGE}
         assert 'Set-Cookie' not in response.headers
 
     def test_login_when_redis_is_down(self, app, client, sample_user, no_redis, monkeypatch):
