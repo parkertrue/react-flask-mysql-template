@@ -91,6 +91,17 @@ server {
         add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()" always;
     }
 
+    # The app's icon is public/favicon.svg, named in index.html. Browsers that
+    # ask for /favicon.ico anyway get a 404 instead of index.html, or the file
+    # itself if an app adds one to public/.
+    location = /favicon.ico {
+        try_files $uri =404;
+        include /etc/nginx/security_headers.conf;
+        add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'" always;
+        log_not_found off;
+        access_log off;
+    }
+
     # Auth endpoints - stricter rate limiting
     location ~ ^/api/auth/(login|register)$ {
         limit_req zone=auth burst=20 nodelay;
@@ -119,8 +130,9 @@ server {
         include /etc/nginx/proxy_params.conf;
     }
 
-    # API endpoints - moderate rate limiting
-    location /api {
+    # API endpoints - moderate rate limiting. The trailing slash leaves a page
+    # whose path merely starts with "api" (/apidocs) to the SPA.
+    location /api/ {
         limit_req zone=api burst=20 nodelay;
         limit_req_status 429;
         limit_conn addr 20;
