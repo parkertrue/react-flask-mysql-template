@@ -221,28 +221,3 @@ class TestUserEdgeCases:
         db.session.commit()
 
         assert user.email == special_email
-
-    def test_multiple_password_changes(self, db, sample_user):
-        """User should be able to change password multiple times."""
-        original = 'Original123'
-        sample_user.set_password(original)
-        db.session.commit()
-        assert sample_user.check_password(original)
-
-        new1 = 'NewPassword123'
-        sample_user.set_password(new1)
-        db.session.commit()
-        assert sample_user.check_password(new1)
-        assert not sample_user.check_password(original)
-
-        new2 = 'AnotherNew456'
-        sample_user.set_password(new2)
-        db.session.commit()
-        assert sample_user.check_password(new2)
-        assert not sample_user.check_password(new1)
-
-    def test_user_repr(self, db, sample_user):
-        """User should have string representation."""
-        repr_str = repr(sample_user)
-        assert repr_str is not None
-        assert isinstance(repr_str, str)

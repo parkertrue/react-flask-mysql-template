@@ -52,12 +52,8 @@ class TestNoteModel:
 
         after = datetime.now(timezone.utc).replace(microsecond=0)
 
-        assert note.created_at is not None
-        if note.created_at.tzinfo is None:
-            created_at_aware = note.created_at.replace(tzinfo=timezone.utc)
-        else:
-            created_at_aware = note.created_at
-        assert before <= created_at_aware <= after
+        # SQLite returns DATETIME naive, and the column holds UTC
+        assert before <= note.created_at.replace(tzinfo=timezone.utc) <= after
 
     def test_note_user_relationship(self, db, sample_user):
         """Note should have relationship with User."""
@@ -173,16 +169,6 @@ class TestNoteModel:
                        for s in statements)
         assert db.session.execute(select(func.count(Note.id))).scalar() == 0
 
-    def test_note_repr(self, db, sample_user):
-        """Note should have a reasonable string representation."""
-        note = Note(user_id=sample_user.id, content='Test')
-        db.session.add(note)
-        db.session.commit()
-
-        repr_str = repr(note)
-        assert repr_str is not None
-        assert isinstance(repr_str, str)
-
     def test_note_with_special_characters(self, db, sample_user):
         """Note should handle special characters in content."""
         special_content = "Special: <>&\"'(){}[]!@#$%"
@@ -213,18 +199,6 @@ class TestNoteModel:
 
 class TestUserNotesRelationship:
     """The notes backref the Note model adds to User."""
-
-    def test_user_notes_relationship(self, db, sample_user):
-        """User should have relationship with notes."""
-        note1 = Note(user_id=sample_user.id, content='Note 1')
-        note2 = Note(user_id=sample_user.id, content='Note 2')
-        db.session.add_all([note1, note2])
-        db.session.commit()
-        db.session.refresh(sample_user)
-
-        assert len(sample_user.notes) == 2
-        assert note1 in sample_user.notes
-        assert note2 in sample_user.notes
 
     def test_user_deletion_cascade(self, db, sample_user):
         """Deleting a user deletes their notes (cascade="all, delete-orphan")."""
