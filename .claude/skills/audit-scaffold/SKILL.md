@@ -79,9 +79,10 @@ where scaffolding breaks quietly. Tear the stack down afterward.
 - Which renames (`app`, `appdb`, `APP_NAME`, compose projects) were spread over
   more places than the steps admit?
 - Could any step be replaced by a check that fails loudly (a test or lint
-  rule) instead of a line in the docs? Could removing the example be one
-  command (a script), exercised by a CI job that removes it and runs the
-  suites? That is the natural guard for most findings here.
+  rule) instead of a line in the docs? CI's Scaffold job already runs
+  `.github/scripts/remove_examples.py` and then the suites: compare its
+  `DELETE` and `EDITS` with what each step actually needed, and say what else
+  could move into the script or a test.
 
 Clean up: tear down any stack, remove the worktree as RULES.md describes
 (unlink `node_modules` first), and delete any branch you created.

@@ -185,9 +185,11 @@ The dev server listens on localhost only. To open it from another device on your
 
 ```bash
 set -a && source ../.env.dev && set +a
-flask db migrate -m "describe change"
+flask db migrate -m "describe change" --rev-id 0003_describe_change
 flask db upgrade
 ```
+
+Migration files are named after their revision id alone (`backend/migrations/alembic.ini`), so give each one a `--rev-id` of the next number and a short name, as `0001_users` and `0002_notes` do.
 
 ---
 
@@ -279,14 +281,14 @@ docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e dow
 
 GitHub Actions (`.github/workflows/`):
 
-* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, runs them again after deleting the example code as [Starting a New App](#starting-a-new-app-from-this-template) describes (`.github/scripts/remove_examples.py`), validates all three compose files, lints the workflows and Dependabot config (zizmor) and both Dockerfiles (hadolint), refuses trailing whitespace (outside Markdown) and a missing final newline in any tracked file (`.editorconfig` sets editors to match), and checks the rendered nginx config (`nginx -T`, then the gixy-ng security analyzer), on every push and pull request to `main`.
+* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, runs them again after deleting the example code as [Starting a New App](#starting-a-new-app-from-this-template) describes (`.github/scripts/remove_examples.py`), validates all three compose files, lints the workflows and Dependabot config (zizmor) and both Dockerfiles (hadolint), checks that `LICENSE` exists, refuses trailing whitespace (outside Markdown) and a missing final newline in any tracked file (`.editorconfig` sets editors to match), and checks the rendered nginx config (`nginx -T`, then the gixy-ng security analyzer), on every push and pull request to `main`.
 * **Integration & E2E** (`integration-e2e.yml`) runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
 
 Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
 
 Dependabot (`.github/dependabot.yml`) opens weekly update PRs for the Python locks, npm, Docker images and GitHub Actions. For it to also open security fixes as soon as an advisory is published, enable Dependabot alerts and security updates under the repository's Settings > Advanced Security.
 
-To stop a failing check from merging, require these status checks on `main` (Settings > Branches): Backend unit, Frontend unit, Compose files, Workflows, Dockerfiles, Nginx config, Backend integration and Playwright E2E.
+To stop a failing check from merging, require these status checks on `main` (Settings > Branches): Backend unit, Frontend unit, Scaffold, Compose files, Workflows, Dockerfiles, Nginx config, Backend integration and Playwright E2E.
 
 ---
 

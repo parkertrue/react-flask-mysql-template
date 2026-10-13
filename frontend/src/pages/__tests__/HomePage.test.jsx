@@ -11,7 +11,7 @@ async function renderPage() {
   renderRoutes([{ path: '/', element: <HomePage /> }])
   // The API status demo checks the API on mount: wait for its answer, so no
   // request outlives the test
-  expect(await screen.findByText('API Status: ok')).toBeInTheDocument()
+  expect(await screen.findByText('API status: ok')).toBeInTheDocument()
 }
 
 const links = () => Object.fromEntries(
