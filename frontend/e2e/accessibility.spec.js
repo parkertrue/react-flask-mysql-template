@@ -1,8 +1,24 @@
 import { test, expect } from '@playwright/test'
 import {
-  expectNoCspViolations, expectNoViolations, memberSince, registerAndLogin,
+  expectNoCspViolations, expectNoViolations, expectReflow, expectTargetSize,
+  expectVisibleFocus, expireAccessToken, fillRegistration, holdRequests, memberSince,
+  register, registerAndLogin, serviceUnavailable, uniqueEmail,
 } from './helpers'
 import { APP_NAME } from '../src/appName.js'
+
+const VISITOR_PAGES = [
+  ['/', APP_NAME, `Welcome to ${APP_NAME}`],
+  ['/login', `Log in | ${APP_NAME}`, 'Log in'],
+  ['/register', `Register | ${APP_NAME}`, 'Register'],
+  ['/no-such-page', `Page not found | ${APP_NAME}`, 'Page not found'],
+]
+
+/** Fill in the login form and submit it, without waiting */
+async function submitLogin(page, email = 'someone@example.com') {
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('SecurePass123')
+  await page.getByRole('button', { name: 'Log in' }).click()
+}
 
 test.describe('Accessibility', () => {
   // These tests visit every page, so anything the app does that the CSP
@@ -10,18 +26,22 @@ test.describe('Accessibility', () => {
   expectNoCspViolations(test)
 
   test.describe('a visitor', () => {
-    for (const [path, title, heading] of [
-      ['/', APP_NAME, `Welcome to ${APP_NAME}`],
-      ['/login', `Log in | ${APP_NAME}`, 'Log in'],
-      ['/register', `Register | ${APP_NAME}`, 'Register'],
-      ['/no-such-page', `Page not found | ${APP_NAME}`, 'Page not found'],
-    ]) {
+    for (const [path, title, heading] of VISITOR_PAGES) {
       test(`${path} has a title, a heading and no violations`, async ({ page }) => {
         await page.goto(path)
 
         await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
         await expect(page).toHaveTitle(title)
         await expectNoViolations(page)
+      })
+
+      test(`${path} reflows, shows focus and has large enough targets`, async ({ page }) => {
+        await page.goto(path)
+        await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+
+        await expectReflow(page)
+        await expectVisibleFocus(page)
+        await expectTargetSize(page)
       })
     }
 
@@ -33,13 +53,62 @@ test.describe('Accessibility', () => {
       await expectNoViolations(page)
     })
 
-    // Forced colors (Windows High Contrast) drop a button's background, its
-    // only edge, so the stylesheet gives it a border there instead
-    test('buttons keep an edge in forced-colors mode', async ({ page }) => {
+    // Layout moves focus on every change of path, the browser's own back
+    // and forward included, so a screen reader names the page reached
+    test('back and forward focus the page\'s heading', async ({ page }) => {
+      await page.goto('/')
+      await page.getByRole('link', { name: 'Log in' }).first().click()
+      await expect(page.getByRole('heading', { level: 1, name: 'Log in' })).toBeFocused()
+
+      await page.goBack()
+      await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` }))
+        .toBeFocused()
+
+      await page.goForward()
+      await expect(page.getByRole('heading', { level: 1, name: 'Log in' })).toBeFocused()
+    })
+
+    // Forced colors (Windows High Contrast) drop backgrounds, so a button's
+    // only edge, and a field needs its border to show where it is
+    test('buttons and fields keep an edge in forced-colors mode', async ({ page }) => {
       await page.emulateMedia({ forcedColors: 'active' })
       await page.goto('/login')
 
       await expect(page.getByRole('button', { name: 'Log in' })).toHaveCSS('border-top-style', 'solid')
+      await expect(page.getByLabel('Email')).toHaveCSS('border-top-style', 'solid')
+      await expect(page.getByLabel('Email')).toHaveCSS('border-top-width', '1px')
+    })
+
+    test('logging in, busy and then failed, has no violations', async ({ page }) => {
+      const release = await holdRequests(page, 'POST', '**/api/auth/login', serviceUnavailable)
+      await page.goto('/login')
+      await submitLogin(page)
+
+      await expect(page.getByRole('button', { name: 'Logging in...' })).toBeFocused()
+      await expectNoViolations(page)
+
+      release()
+      await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+      await expectNoViolations(page)
+    })
+
+    test('registering, busy, has no violations', async ({ page }) => {
+      const release = await holdRequests(page, 'POST', '**/api/auth/register', serviceUnavailable)
+      await page.goto('/register')
+      await fillRegistration(page, uniqueEmail('e2e-a11y-busy'))
+
+      await expect(page.getByRole('button', { name: /creating account/i })).toBeVisible()
+      await expectNoViolations(page)
+
+      release()
+      await expect(page.getByRole('alert')).toBeVisible()
+    })
+
+    test('the login page after registering has no violations', async ({ page }) => {
+      await register(page, uniqueEmail('e2e-a11y-registered'))
+
+      await expect(page.getByRole('status')).toHaveText('Registration successful. Please log in.')
+      await expectNoViolations(page)
     })
   })
 
@@ -55,6 +124,57 @@ test.describe('Accessibility', () => {
       // Focus moved to the new page's heading, which a screen reader reads
       await expect(page.getByRole('heading', { level: 1, name: 'Account' })).toBeFocused()
       await expect(memberSince(page)).toBeVisible()
+      await expectNoViolations(page)
+    })
+
+    test('the account page reflows, shows focus and has large enough targets', async ({ page }) => {
+      await page.goto('/account')
+      await expect(memberSince(page)).toBeVisible()
+
+      await expectReflow(page)
+      await expectVisibleFocus(page)
+      await expectTargetSize(page)
+    })
+
+    test('the account page, loading and then failed, has no violations', async ({ page }) => {
+      const release = await holdRequests(page, 'GET', '**/api/account', serviceUnavailable)
+      await page.goto('/account')
+
+      await expect(page.getByText('Loading account details...')).toBeVisible()
+      await expectNoViolations(page)
+
+      release()
+      await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+      await expectNoViolations(page)
+    })
+
+    test('logging out all devices, busy and then failed, has no violations', async ({ page }) => {
+      await page.goto('/account')
+      await expect(memberSince(page)).toBeVisible()
+      const release = await holdRequests(page, 'POST', '**/api/auth/logout-all', serviceUnavailable)
+      await page.getByRole('button', { name: 'Log out all devices' }).click()
+
+      await expect(page.getByRole('button', { name: 'Logging out...' })).toBeFocused()
+      await expectNoViolations(page)
+
+      release()
+      await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+      await expectNoViolations(page)
+    })
+
+    // The refresh cookie is gone, so the refresh is refused just as when the
+    // session's time is up or another device logged out everywhere
+    test('a session that ends on its own says so on the login page', async ({ page, context }) => {
+      await page.goto('/account')
+      await expect(memberSince(page)).toBeVisible()
+      await expireAccessToken(page)
+      await context.clearCookies()
+
+      await page.reload()
+
+      await expect(page).toHaveURL(/\/login/)
+      await expect(page.getByRole('status'))
+        .toHaveText('Your session has ended. Please log in again.')
       await expectNoViolations(page)
     })
   })

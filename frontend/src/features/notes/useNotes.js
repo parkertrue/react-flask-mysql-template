@@ -14,6 +14,9 @@ export function useNotes() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  // Whether the first page has arrived, so a failed load never claims the
+  // user has no notes
+  const [loaded, setLoaded] = useState(false)
   // What the last add, save, delete or Load more did, for screen readers,
   // or that the first load is running. Cleared when the next one starts, so
   // the same words are read again.
@@ -28,6 +31,7 @@ export function useNotes() {
       const page = await fetchNotes()
       setNotes(page.notes)
       setNextCursor(page.next_cursor)
+      setLoaded(true)
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
@@ -47,6 +51,7 @@ export function useNotes() {
     return () => {
       setNotes([])
       setNextCursor(null)
+      setLoaded(false)
       setStatus('')
     }
   }, [isAuthenticated, loadNotes])
@@ -116,6 +121,7 @@ export function useNotes() {
   return {
     notes,
     loading,
+    loaded,
     loadingMore,
     hasMore: nextCursor !== null,
     submitting,

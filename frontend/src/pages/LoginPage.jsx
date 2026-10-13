@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { loginUser } from '@/auth/authService'
@@ -14,11 +14,24 @@ import {
 } from '@/utils/validation'
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, sessionEnded } = useAuth()
   const location = useLocation()
+  const registered = location.state?.registered
   const { values, errors, handleChange, validate } = useFormFields({ email: '', password: '' })
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  // Why the user is here, for screen readers. Filled after the first render:
+  // a live region added along with its text is not read.
+  const [status, setStatus] = useState('')
+  const notice = registered
+    ? 'Registration successful. Please log in.'
+    : sessionEnded ? 'Your session has ended. Please log in again.' : ''
+
+  useEffect(() => {
+    // Announcing the notice once the region exists is what this effect is for
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStatus(notice)
+  }, [notice])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -56,11 +69,10 @@ export default function LoginPage() {
         <div className="auth-card">
           <h1 id="login-heading">Log in</h1>
 
-          {location.state?.registered && (
-            <p className="success-message" role="status">
-              Registration successful. Please log in.
-            </p>
+          {notice && (
+            <p className={registered ? 'success-message' : 'info-message'}>{notice}</p>
           )}
+          <p className="visually-hidden" role="status">{status}</p>
 
           <form
             onSubmit={handleSubmit}

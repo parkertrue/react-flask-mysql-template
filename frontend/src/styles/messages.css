@@ -12,3 +12,11 @@
 .success-message {
   background-color: var(--color-success);
 }
+
+/* Neutral news, such as a session that has ended */
+.info-message {
+  padding: 0.75rem;
+  margin: 1rem 0;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+}

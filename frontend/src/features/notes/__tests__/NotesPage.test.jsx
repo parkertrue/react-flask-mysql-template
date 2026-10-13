@@ -63,11 +63,12 @@ describe('NotesPage', () => {
     expect(screen.getByLabelText('New note')).not.toHaveFocus()
   })
 
-  it('announces why the notes could not be loaded', async () => {
+  it('announces why the notes could not be loaded, without claiming there are none', async () => {
     fetchNotes.mockRejectedValue(failure('Something went wrong'))
     renderPage()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+    expect(screen.queryByText(/no notes yet/i)).not.toBeInTheDocument()
   })
 
   describe('adding a note', () => {

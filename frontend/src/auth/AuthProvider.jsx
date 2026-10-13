@@ -8,8 +8,10 @@ export function AuthProvider({ children }) {
   // from storage, every component sees each change at once.
   const token = useSyncExternalStore(storage.subscribe, storage.getAccessToken)
   const email = useSyncExternalStore(storage.subscribe, storage.getEmail)
+  const sessionEnded = useSyncExternalStore(storage.subscribe, storage.getSessionEnded)
 
   const login = (accessToken, csrf, userEmail) => {
+    storage.clearSessionEnded()
     storage.setEmail(userEmail)
     storage.setRefreshCsrf(csrf)
     storage.setAccessToken(accessToken)
@@ -18,6 +20,7 @@ export function AuthProvider({ children }) {
   const value = {
     email,
     isAuthenticated: !!token,
+    sessionEnded,
     login,
     logout: storage.clearAuth
   }

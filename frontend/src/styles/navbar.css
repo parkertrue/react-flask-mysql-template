@@ -42,9 +42,11 @@
   min-width: 0;
 }
 
-/* Emails can be long: cut them short on screen; screen readers get it all */
+/* Emails can be long: cut them short on screen; screen readers get it all.
+   The padding makes the link a 24px target (WCAG 2.5.8). */
 .user-email {
   font-size: 0.9rem;
+  padding-block: 0.25rem;
   max-width: 20rem;
   overflow: hidden;
   text-overflow: ellipsis;

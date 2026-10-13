@@ -67,6 +67,9 @@ test('logout from all devices signs the other device out', async ({ page, browse
 
     expect((await refreshed).status()).toBe(401)
     await expect(other).toHaveURL(/\/login/)
+    // and told why, since that user never logged out
+    await expect(other.getByRole('status'))
+      .toHaveText('Your session has ended. Please log in again.')
   } finally {
     await otherContext.close()
   }

@@ -110,9 +110,10 @@ api.interceptors.response.use(
         // error is temporary: keep the session, fail just these requests with
         // the refresh's own message, and let the next request try again.
         // Clearing storage ends the session everywhere: AuthProvider re-renders
-        // and ProtectedRoute sends the user to log in, without a page reload.
+        // and ProtectedRoute sends the user to log in, without a page reload,
+        // where the login page says the session has ended.
         if (refreshError.response?.status === 401) {
-          storage.clearAuth()
+          storage.endSession()
         }
 
         return Promise.reject(refreshError)
@@ -123,7 +124,7 @@ api.interceptors.response.use(
       (errorCode === 'AUTH_INVALID_TOKEN' || errorCode === 'AUTH_MISSING_TOKEN') &&
       !url?.startsWith('/auth/logout')
     ) {
-      storage.clearAuth()
+      storage.endSession()
     }
 
     return Promise.reject(error)

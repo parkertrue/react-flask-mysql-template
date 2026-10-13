@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
-  expectNoCspViolations, expectNoViolations, logout, registerAndLogin,
+  expectNoCspViolations, expectNoViolations, expectReflow, expectTargetSize,
+  expectVisibleFocus, holdRequests, logout, registerAndLogin, serviceUnavailable,
 } from './helpers'
 import { APP_NAME } from '../src/appName.js'
 
@@ -160,11 +161,120 @@ test.describe('Notes accessibility', () => {
     await expectNoViolations(page)
   })
 
-  test('the delete confirmation has no violations', async ({ page }) => {
+  test('the delete confirmation has no violations, and an edge in forced-colors mode', async ({ page }) => {
     await addNote(page, 'A note to delete')
     await page.getByRole('button', { name: /^Delete note #/ }).click()
 
-    await expect(page.getByRole('dialog', { name: 'Delete this note?' })).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Delete this note?' })
+    await expect(dialog).toBeVisible()
+    await expectNoViolations(page)
+
+    // Its border is transparent until forced colors drop the background
+    await page.emulateMedia({ forcedColors: 'active' })
+    await expect(dialog).not.toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
+    await expect(dialog).toHaveCSS('border-top-width', '1px')
+  })
+
+  test('the notes page reflows, shows focus and has large enough targets', async ({ page }) => {
+    await addNote(page, 'A note to tab past')
+
+    await expectReflow(page)
+    await expectVisibleFocus(page)
+    await expectTargetSize(page)
+  })
+
+  test('adding, busy and then failed, has no violations', async ({ page }) => {
+    await expect(noNotesYet(page)).toBeVisible()
+    const release = await holdRequests(page, 'POST', '**/api/notes', serviceUnavailable)
+    await noteInput(page).fill('A note that fails')
+    await page.getByRole('button', { name: 'Add Note' }).click()
+
+    await expect(page.getByRole('button', { name: 'Adding...' })).toBeVisible()
+    await expectNoViolations(page)
+
+    release()
+    await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+    await expectNoViolations(page)
+  })
+
+  test('saving, busy and then failed, has no violations', async ({ page }) => {
+    await addNote(page, 'A note to save')
+    const release = await holdRequests(page, 'PUT', '**/api/notes/*', serviceUnavailable)
+    await page.getByRole('button', { name: /^Edit note #/ }).click()
+    await page.getByRole('textbox', { name: /^Edit note #/ }).fill('Changed')
+    await page.getByRole('button', { name: 'Save' }).click()
+
+    await expect(page.getByRole('button', { name: 'Saving...' })).toBeVisible()
+    await expectNoViolations(page)
+
+    release()
+    await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+    await expectNoViolations(page)
+  })
+
+  test('deleting, busy and then failed, has no violations', async ({ page }) => {
+    await addNote(page, 'A note to keep after all')
+    const release = await holdRequests(page, 'DELETE', '**/api/notes/*', serviceUnavailable)
+    await page.getByRole('button', { name: /^Delete note #/ }).click()
+    await page.getByRole('dialog', { name: 'Delete this note?' })
+      .getByRole('button', { name: 'Delete' }).click()
+
+    await expect(page.getByRole('button', { name: /^Deleting note #/ })).toBeVisible()
+    await expectNoViolations(page)
+
+    release()
+    await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+    await expectNoViolations(page)
+  })
+})
+
+test.describe('Notes accessibility, with the list answered by the test', () => {
+  expectNoCspViolations(test)
+
+  test.beforeEach(async ({ page }) => {
+    await registerAndLogin(page, 'e2e-notes-a11y-list')
+  })
+
+  test('a failed load has no violations, and does not claim there are no notes', async ({ page }) => {
+    await page.route('**/api/notes', route => route.fulfill(serviceUnavailable))
+    await page.goto('/notes')
+
+    await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+    await expect(noNotesYet(page)).toBeHidden()
+    await expectNoViolations(page)
+  })
+
+  test('a full page with Load more, then loading more, has no violations', async ({ page }) => {
+    // A first page of 20 with more to come; the next page is held
+    const notes = Array.from({ length: 20 }, (_, i) => ({
+      id: 40 - i, user_id: 1, content: `Listed note ${40 - i}`,
+      created_at: '2026-01-01T12:00:00+00:00',
+    }))
+    await page.route('**/api/notes', route => route.request().method() === 'GET'
+      ? route.fulfill({ json: { notes, next_cursor: 21 } })
+      : route.fallback())
+    const release = await holdRequests(page, 'GET', '**/api/notes?before=*', {
+      json: { notes: [], next_cursor: null },
+    })
+    await page.goto('/notes')
+
+    await expect(page.getByRole('listitem')).toHaveCount(20)
+    await expectNoViolations(page)
+
+    await page.getByRole('button', { name: 'Load more' }).click()
+    await expect(page.getByRole('button', { name: 'Loading...' })).toBeFocused()
+    await expectNoViolations(page)
+    release()
+  })
+
+  // A page that crashes after it has shown: the error page takes focus
+  test('the error page has no violations, and takes focus', async ({ page }) => {
+    await page.goto('/')
+    await page.route('**/api/notes', route => route.fulfill({ json: { notes: 'oops' } }))
+    await page.getByRole('link', { name: 'My Notes', exact: true }).click()
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Something went wrong' }))
+      .toBeFocused()
     await expectNoViolations(page)
   })
 })

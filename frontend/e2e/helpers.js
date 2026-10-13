@@ -105,6 +105,112 @@ export async function expectNoViolations(page) {
   expect(violations.map(v => ({ rule: v.id, nodes: v.nodes.map(n => n.html) }))).toEqual([])
 }
 
+/** The backend's answer while MySQL or Redis is down */
+export const serviceUnavailable = {
+  status: 503,
+  json: {
+    error: {
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'The service is temporarily unavailable. Please try again.',
+    },
+  },
+}
+
+/**
+ * Hold the page's `method` requests to `url` until the returned release()
+ * is called, to show a busy state. Each then gets `answer` (route.fulfill
+ * options), or goes through to the server when there is none.
+ */
+export async function holdRequests(page, method, url, answer) {
+  let release
+  const released = new Promise(resolve => { release = resolve })
+  await page.route(url, async route => {
+    if (route.request().method() !== method) return route.fallback()
+    await released
+    return answer ? route.fulfill(answer) : route.fallback()
+  })
+  return release
+}
+
+// The text-spacing overrides WCAG 1.4.12 says content must survive
+const TEXT_SPACING = `* {
+  line-height: 1.5 !important;
+  letter-spacing: 0.12em !important;
+  word-spacing: 0.16em !important;
+}
+p { margin-bottom: 2em !important; }`
+
+/** How far the page scrolls sideways with `css` applied */
+const overflowWith = (page, css) => page.evaluate(css => {
+  // A constructed stylesheet: the CSP refuses a <style> element
+  const sheet = new CSSStyleSheet()
+  sheet.replaceSync(css)
+  document.adoptedStyleSheets = [sheet]
+  const { scrollWidth, clientWidth } = document.documentElement
+  document.adoptedStyleSheets = []
+  return scrollWidth - clientWidth
+}, css)
+
+/**
+ * Nothing scrolls sideways: WCAG 1.4.10 and 1.4.12 at 320px wide (400%
+ * zoom), as it is and with the text-spacing overrides, and 1.4.4 with
+ * text at 200% at the page's own width.
+ */
+export async function expectReflow(page) {
+  expect(await overflowWith(page, 'html { font-size: 200% !important; }'),
+    'sideways scroll with text at 200%').toBeLessThanOrEqual(0)
+
+  const viewport = page.viewportSize()
+  await page.setViewportSize({ width: 320, height: 640 })
+  expect(await overflowWith(page, ''), 'sideways scroll at 320px').toBeLessThanOrEqual(0)
+  expect(await overflowWith(page, TEXT_SPACING),
+    'sideways scroll at 320px with text spacing').toBeLessThanOrEqual(0)
+  await page.setViewportSize(viewport)
+}
+
+/**
+ * WCAG 2.4.7 and 2.4.11: Tab through the whole page; every stop shows a
+ * focus outline and is not hidden under anything (the navbar, a dialog).
+ */
+export async function expectVisibleFocus(page) {
+  await page.evaluate(() => document.activeElement?.blur())
+  const seen = []
+  for (;;) {
+    await page.keyboard.press('Tab')
+    const stop = await page.evaluate(() => {
+      const el = document.activeElement
+      if (!el || el === document.body) return null
+      const { outlineStyle, outlineWidth } = getComputedStyle(el)
+      const box = el.getBoundingClientRect()
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+      return {
+        name: `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || el.id).trim()}"`,
+        outlined: outlineStyle !== 'none' && parseFloat(outlineWidth) > 0,
+        uncovered: el === hit || el.contains(hit),
+      }
+    })
+    if (stop === null || seen.includes(stop.name)) break
+    seen.push(stop.name)
+    expect(stop, `focus on ${stop.name}`).toEqual({ ...stop, outlined: true, uncovered: true })
+  }
+  expect(seen.length, 'Tab reached the page\'s controls').toBeGreaterThan(0)
+}
+
+/**
+ * WCAG 2.5.8: every control is at least 24 by 24 px, except a link inside
+ * a sentence, which the rule exempts.
+ */
+export async function expectTargetSize(page) {
+  const small = await page.evaluate(() => [
+    ...document.querySelectorAll('a[href], button, input, textarea, select'),
+  ]
+    .filter(el => el.checkVisibility() && !el.closest('p'))
+    .map(el => ({ el, box: el.getBoundingClientRect() }))
+    .filter(({ box }) => box.width < 24 || box.height < 24)
+    .map(({ el, box }) => `${el.outerHTML.slice(0, 80)} is ${box.width}x${box.height}`))
+  expect(small).toEqual([])
+}
+
 /**
  * Fail each test in the calling describe block if the page's CSP (nginx)
  * blocked anything: the CSP allows only the app's own files.
