@@ -6,31 +6,13 @@ vi.mock('@/api/api')
 
 describe('healthService', () => {
   describe('checkHealth', () => {
-    it('should call GET /health', async () => {
-      const mockResponse = {
-        data: {
-          status: 'ok',
-          timestamp: '2024-01-01T00:00:00Z'
-        }
-      }
-      api.get.mockResolvedValue(mockResponse)
+    it('should call GET /health and return its body', async () => {
+      api.get.mockResolvedValue({ data: { status: 'ok' } })
 
       const result = await checkHealth()
 
       expect(api.get).toHaveBeenCalledWith('/health')
-      expect(result).toEqual(mockResponse.data)
-    })
-
-    it('should return status object', async () => {
-      const mockResponse = {
-        data: { status: 'ok' }
-      }
-      api.get.mockResolvedValue(mockResponse)
-
-      const result = await checkHealth()
-
-      expect(result).toHaveProperty('status')
-      expect(result.status).toBe('ok')
+      expect(result).toEqual({ status: 'ok' })
     })
 
     it('should propagate errors from API', async () => {

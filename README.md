@@ -279,7 +279,7 @@ docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e dow
 
 GitHub Actions (`.github/workflows/`):
 
-* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, validates all three compose files, lints the workflows and Dependabot config (zizmor) and both Dockerfiles (hadolint), and checks the rendered nginx config (`nginx -T`, then the gixy-ng security analyzer), on every push and pull request to `main`.
+* **CI** (`ci.yml`) runs lint and the backend and frontend unit suites, runs them again after deleting the example code as [Starting a New App](#starting-a-new-app-from-this-template) describes (`.github/scripts/remove_examples.py`), validates all three compose files, lints the workflows and Dependabot config (zizmor) and both Dockerfiles (hadolint), and checks the rendered nginx config (`nginx -T`, then the gixy-ng security analyzer), on every push and pull request to `main`.
 * **Integration & E2E** (`integration-e2e.yml`) runs the integration and Playwright suites on every push and pull request to `main`, nightly to catch drift in base images, and on demand from the Actions tab.
 
 Every job has a read-only token and a timeout, and actions are pinned to commit SHAs.
@@ -406,9 +406,11 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
 
 **Where a feature plugs in:**
 - `backend/app/features.py`: its blueprint
-- `frontend/src/routes.jsx`: its page's route
+- `frontend/src/routes.jsx`: its page's route, and `frontend/src/__tests__/routes.test.jsx`
 - `frontend/src/components/layout/Navbar.jsx` and `frontend/src/pages/HomePage.jsx`: the links to it, and their tests
 - `AFTER_LOGIN_PATH` in `frontend/src/auth/GuestRoute.jsx`: where logging in leads
+
+CI's Scaffold job deletes the examples and edits exactly these files (`.github/scripts/remove_examples.py`), then runs lint and the unit suites, so shared code can't come to depend on an example. Changing a wiring point means changing the script with it.
 
 **Steps:**
 
@@ -418,15 +420,15 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
    - **Delete it**, and build your feature in the same shape: delete those folders and files.
 
    Either way, delete `backend/migrations/versions/0002_notes.py` (step 4 generates yours) and update the wiring points above.
-3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, and everything that mentions `ApiStatus` in `frontend/src/pages/HomePage.jsx` and `frontend/src/pages/__tests__/HomePage.test.jsx`.
-4. Generate a migration for your tables. From `backend/`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev):
+3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, the `ApiStatus` import and element in `frontend/src/pages/HomePage.jsx`, and the line in `renderPage` of `frontend/src/pages/__tests__/HomePage.test.jsx` that waits for the API status.
+4. Generate a migration for your tables. From `backend/`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev). If the dev backend ran after step 1 while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
 
    ```bash
    flask db upgrade
-   flask db migrate -m "<your feature>"
+   flask db migrate -m "<your feature>" --rev-id 0002_<your_feature>
    ```
 
-   Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly. If the dev backend ran while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
+   Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly.
 5. Name the app: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match).
 6. Rewrite this README and `CLAUDE.md` for your app, and choose its license: replace `LICENSE` and the `license` field in `frontend/package.json` (keeping MIT still means putting your own name on the copyright line).
 
