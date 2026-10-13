@@ -130,6 +130,7 @@ pygments==2.21.0
 pyjwt==2.15.1
     # via
     #   -c requirements.txt
+    #   -r requirements.in
     #   flask-jwt-extended
 pymysql==1.2.3
     # via

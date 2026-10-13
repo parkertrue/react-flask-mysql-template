@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 from datetime import datetime, timezone
 
 from flask import Blueprint, abort, g, request, make_response, jsonify, current_app
@@ -42,8 +43,9 @@ def _login_email_key():
     set loosely, lets one attacker guess an account's password from many. The
     email is normalized as the schema stores it, so every spelling of one
     address shares a bucket, then lowercased like MySQL's case-insensitive
-    match on users.email, and hashed so the limiter's Redis keys hold no
-    addresses.
+    match on users.email, and hashed with SECRET_KEY so the limiter's Redis
+    keys hold no addresses: a plain hash would let anyone who reads Redis
+    confirm a guessed one.
     """
     body = request.get_json(silent=True)
     email = body.get('email') if isinstance(body, dict) else None
@@ -54,7 +56,8 @@ def _login_email_key():
     except ValueError:
         # The login itself will answer 422; any key will do
         email = email.strip()
-    return 'email:' + hashlib.sha256(email.lower().encode()).hexdigest()
+    secret = current_app.config['JWT_SECRET_KEY'].encode()
+    return 'email:' + hmac.new(secret, email.lower().encode(), hashlib.sha256).hexdigest()
 
 
 def _login_email_and_ip_key():
