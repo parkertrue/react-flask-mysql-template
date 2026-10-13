@@ -126,10 +126,14 @@ describes. Nothing else.
 
 Tear the test stack down. Then, **for the rate-limit probes only**, bring up
 the production-config stack (RULES.md): the test stack runs `IntegrationConfig`,
-which turns Flask's limits off and trusts no proxy. Exceed the login limit for
-one account using rotating `X-Forwarded-For` values and different spellings
-of the same email, and check the per-IP limit keys on the real client
-address. Tear it down.
+which turns Flask's limits off and trusts no proxy. Check each login limit
+(`backend/app/auth/routes.py`): 5 failures a minute for one account from one
+address answer 429, while the same account still logs in from a second
+address (a stranger's guesses lock out only the stranger); 100 failures an
+hour for one account from rotating addresses answer 429 from any address;
+successful logins count toward neither; different spellings of the same
+email share one counter; and a forged `X-Forwarded-For` cannot change the
+address the limits key on. Tear it down.
 
 **Skipped until deployed** (list under *Skipped*): Observatory and SSL Labs
 against the real domain, Docker Bench and CIS on the host, SSH, firewall and

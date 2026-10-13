@@ -61,6 +61,8 @@ npm run test:e2e:ui
 npm run test:e2e:debug
 ```
 
+CI also fails on trailing whitespace outside `*.md` and on a file without a final newline (`.editorconfig`; the Workflows job in `ci.yml`).
+
 ### Running a single backend test
 ```bash
 cd backend
