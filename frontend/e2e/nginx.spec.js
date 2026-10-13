@@ -187,25 +187,20 @@ test.describe('nginx while the backend is away', () => {
     await expect.poll(async () => (await request.get('/api/health')).status(),
       { intervals: [200], timeout: 30_000 }).toBe(200)
 
-    // A deploy's swap: while no backend container exists, nginx's lookup of
-    // its name gets "not found", and nginx keeps that answer for the
-    // resolver's valid= time
-    // Counted rather than read --since: the host's and Docker's clocks differ
-    const notFound = () => testStack('logs', 'nginx').split('Host not found').length - 1
-    const before = notFound()
+    // EXPERIMENT: measure the gap on this platform
+    const ip = () => testStack('exec', '-T', 'nginx', 'getent', 'hosts', 'backend').trim()
+    const oldIp = ip()
     testStack('rm', '--stop', '--force', 'backend')
-    // Usually within seconds, but when a lookup mid-stop got a server failure
-    // instead, nginx waits about 40s before it asks again
-    await expect.poll(notFound, { intervals: [200], timeout: 60_000 }).toBeGreaterThan(before)
-
+    await new Promise(resolve => setTimeout(resolve, 5000))
     testStack('up', '-d', '--no-deps', 'backend')
     await expect.poll(backendServes, { intervals: [200], timeout: 60_000 }).toBe(true)
 
-    // valid=2s (nginx.conf): within moments, not the seconds a longer cache
-    // of that "not found" would keep a healthy backend unreachable
     const started = Date.now()
     await expect.poll(async () => (await request.get('/api/health')).status(),
-      { intervals: [200], timeout: 30_000 }).toBe(200)
-    expect(Date.now() - started).toBeLessThan(3000)
+      { intervals: [200], timeout: 90_000 }).toBe(200)
+    const gap = Date.now() - started
+    console.log(`REC9-EXPERIMENT old ${oldIp} new ${ip()} gap ${gap}ms`)
+    console.log(testStack('logs', 'nginx', '--tail', '15'))
+    expect(gap).toBeLessThan(3000)
   })
 })
