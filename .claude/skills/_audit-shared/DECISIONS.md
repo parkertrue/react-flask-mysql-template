@@ -167,6 +167,17 @@ with a unique index on (owner, key), written in the same transaction as the
 row; a repeat returns the existing row. A key kept only in Redis would not
 catch this case. *Revisit when:* a feature's writes must never repeat.
 
+The same goes for a refresh. If the backend stalls past nginx's 60s during
+`/auth/refresh`, the client gets a 504, but the backend can still finish the
+rotation: the old token is revoked and the new cookie goes out in a response
+no one receives. The client's next refresh then gets 401
+`AUTH_TOKEN_REVOKED`, and that device is signed out. It takes a stall of over
+a minute landing on a refresh, and the cost is one login. Accepting the
+previous token for a grace window after rotation would avoid it, but it
+weakens one-time rotation (a stolen token could be replayed inside the
+window) and complicates the Lua script. *Revisit when:* users report
+sign-outs after slow responses, or refresh moves behind a shorter timeout.
+
 ## Deferred until the app grows
 
 **TanStack Query.** It would replace the hand-written loading, error and
@@ -190,9 +201,19 @@ recovery check is blocked by the missing backups). They are not new findings.
 - **Account security beyond the basics:** no password change, password
   reset, multi-factor login, or common/breached-password check (ASVS 5.0
   chapter 6, Authentication). Reset and change wait on email verification.
+  No list of active sessions either (ASVS 7.5.2): a user can end every
+  session with "Log out all devices" but cannot see them. It belongs on
+  `AccountPage`.
 - **No deployment yet**, so these don't exist: automated backups and a
   restore procedure, server hardening (SSH, firewall, Fail2ban), certificate
   auto-renewal, CD, monitoring, centralized logging, a CDN.
+- **README's production section waits for the first server.** The Let's
+  Encrypt steps still edit the tracked `docker-compose.yml` and the shared
+  nginx template (which breaks CI and the test stack if followed), README
+  doesn't list what production lacks, and there is no operator runbook
+  (detached start, status, logs, rollback, TLS key rotation, a failed
+  `up -d`). All three get written and tried on a real server rather than on
+  paper. Until then the docs and recovery checks don't report them.
 - **TLS between containers** is not needed while every service shares one
   host: MySQL and Redis traffic stays on the `internal` network, and anyone
   who can sniff that bridge already has root on the host. It becomes required
