@@ -428,4 +428,8 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
 
    Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly. If the dev backend ran while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
 5. Name the app: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match).
-6. Rewrite this README and `CLAUDE.md` for your app.
+6. Rewrite this README and `CLAUDE.md` for your app, and choose its license: replace `LICENSE` and the `license` field in `frontend/package.json` (keeping MIT still means putting your own name on the copyright line).
+
+# License
+
+MIT, see [`LICENSE`](LICENSE). The production build also writes the bundled libraries' own notices to `third-party-licenses.txt`, which nginx serves beside the app.

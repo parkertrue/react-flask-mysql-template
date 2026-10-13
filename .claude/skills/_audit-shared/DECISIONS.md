@@ -103,6 +103,15 @@ and MySQL speaks TLS over TCP only. They are fixed by bumping the pinned tag
 once upstream ships one. *Revisit when:* the CVE is in the server's TLS or
 authentication path, or the compose file starts running mysqlsh.
 
+**The backend image ships `ordered-set` without its license file.** It is
+MIT (a Flask-Limiter dependency), and its wheel has no license file in
+`.dist-info`, unlike every other installed package. MIT's notice condition
+applies to copies handed to others, and the backend image only runs on the
+operator's own server. The frontend's notices do ship
+(`third-party-licenses.txt`), since every visitor receives the bundle.
+*Revisit when:* images are pushed to a public registry or shipped to anyone
+else to run.
+
 **Password composition rules and no spaces.** Registration requires upper
 and lower case and a digit, and both register and login refuse spaces. That
 gives up ASVS 6.2.5 ("passwords of any composition") and NIST's advice to
