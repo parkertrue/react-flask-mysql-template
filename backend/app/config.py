@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
+from sqlalchemy import URL
+
 from app.utils.redis_service import RATELIMIT_REDIS_OPTIONS
 
 MIN_SECRET_KEY_LENGTH = 32
@@ -46,22 +48,21 @@ class Config:
 
         self.SQLALCHEMY_DATABASE_URI = None
         if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_NAME]):
-            # Credentials are percent-encoded: a password containing @ / : or #
-            # would otherwise be parsed as part of the host.
-            self.SQLALCHEMY_DATABASE_URI = (
-                f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
-                f'{quote(self.DB_PASSWORD, safe="")}@'
-                f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
+            # A URL object, not a string: it escapes a password containing
+            # @ / : or #, and prints it as *** wherever the URL is logged
+            self.SQLALCHEMY_DATABASE_URI = URL.create(
+                'mysql+pymysql',
+                username=self.DB_USER,
+                password=self.DB_PASSWORD,
+                host=self.DB_HOST,
+                port=self.DB_PORT,
+                database=self.DB_NAME,
             )
         elif self.USES_SERVICES:
             raise ValueError(
                 'Missing required database environment variables: '
                 'DB_HOST, DB_NAME, DB_USER, DB_PASSWORD')
 
-        # MySQL closes connections idle past wait_timeout (8h by default), and
-        # any restart or network blip drops them all; without a ping, the next
-        # request on each dead pooled connection fails with a 500. Recycling
-        # well before wait_timeout keeps the ping from finding many dead ones.
         connect_args = {
             # Every timestamp is UTC, and the API says so. NOW() and
             # CURRENT_TIMESTAMP follow the connection's time zone, which would
@@ -77,6 +78,11 @@ class Config:
         if query_timeout:
             connect_args.update(read_timeout=query_timeout, write_timeout=query_timeout)
         self.SQLALCHEMY_ENGINE_OPTIONS = {
+            # MySQL closes connections idle past wait_timeout (8h by default),
+            # and any restart or network blip drops them all; without a ping,
+            # the next request on each dead pooled connection fails with a
+            # 500. Recycling well before wait_timeout keeps the ping from
+            # finding many dead ones.
             'pool_pre_ping': True,
             'pool_recycle': 1800,
             'connect_args': connect_args,
@@ -154,10 +160,6 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration"""
 
-    def __init__(self):
-        super().__init__()
-        self.APP_ENV = 'development'
-
 
 class UnitTestConfig(Config):
     """Unit tests: in-memory SQLite, no Redis, no rate limiting"""
@@ -166,7 +168,6 @@ class UnitTestConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'unit'
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
         # MySQL's pool and connection settings mean nothing to SQLite, whose
         # CURRENT_TIMESTAMP is always UTC
@@ -179,7 +180,6 @@ class IntegrationConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'integration'
         self.RATELIMIT_ENABLED = False
         e2e_mode = os.getenv('E2E_MODE', 'false').lower() == 'true'
         # CSRF protection is browser-only; disable it for API integration
@@ -192,7 +192,6 @@ class ProductionConfig(Config):
 
     def __init__(self):
         super().__init__()
-        self.APP_ENV = 'production'
         self.FLASK_DEBUG = False
         self.TRUSTED_PROXY_COUNT = 1  # nginx
 

@@ -9,7 +9,6 @@ export function note(overrides = {}) {
   const id = overrides.id ?? 1
   return {
     id,
-    user_id: 1,
     content: `Note ${id}`,
     created_at: '2026-01-01T12:00:00+00:00',
     ...overrides,

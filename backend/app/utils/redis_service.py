@@ -156,6 +156,7 @@ class RedisService:
         self._record_token = self._client.register_script(_RECORD_TOKEN)
 
     def get_client(self) -> redis.Redis:
+        """The raw client, for tests that inspect or plant keys"""
         return self._client
 
     def _check_reachable(self) -> None:

@@ -21,9 +21,8 @@ generated files), and `.claude/` (part 5 reads the audit prompts, but only to
 find manual checks lint could take over). Tests are in scope, but for test
 comments report only stale or wrong ones, not redundant narration.
 
-Whitespace and formatting (trailing spaces, final newlines) are out of scope,
-except for one finding proposing a guard (an `.editorconfig` or lint rule) if
-they are inconsistent.
+Whitespace and formatting (trailing spaces, final newlines) are out of scope:
+`.editorconfig` and CI's Whitespace step cover them.
 
 ## 1. comments
 

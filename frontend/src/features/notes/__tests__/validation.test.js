@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import path from 'path'
+import { backendConstant } from '@/test/backend'
 import { validateNoteContent, NOTE_MAX_LENGTH } from '../validation'
 
 describe('validateNoteContent', () => {
@@ -38,7 +37,5 @@ describe('validateNoteContent', () => {
 
 // The backend's limit is the real one; this only spares the user a round trip
 it('NOTE_MAX_LENGTH matches the backend', () => {
-  const source = readFileSync(
-    path.resolve(import.meta.dirname, '../../../../../backend/app/notes/models.py'), 'utf8')
-  expect(NOTE_MAX_LENGTH).toBe(Number(source.match(/^NOTE_MAX_LENGTH = (\d+)$/m)[1]))
+  expect(NOTE_MAX_LENGTH).toBe(backendConstant('notes/models.py', 'NOTE_MAX_LENGTH'))
 })

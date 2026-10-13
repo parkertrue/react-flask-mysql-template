@@ -10,14 +10,13 @@ from alembic import context
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
-    # Flask-SQLAlchemy 3. The template's fallback to get_engine() for older
-    # versions is deprecated, and warned on every migration.
+    # Flask-SQLAlchemy 3 only: Flask-Migrate's generated fallback to
+    # db.get_engine() is deprecated and warns on every migration.
     return current_app.extensions['migrate'].db.engine
 
 

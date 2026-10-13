@@ -159,7 +159,7 @@ export default defineConfig([
   {
     files: ['src/**/__tests__/**', 'src/test/**', '**/*.{test,spec}.{js,jsx}'],
     languageOptions: {
-      globals: { ...globals.node, ...globals.vitest },
+      globals: globals.node,
     },
     rules: {
       'no-console': 'off',

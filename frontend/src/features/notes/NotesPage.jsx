@@ -39,8 +39,8 @@ export default function NotesPage() {
 
   return (
     <div className="notes-page">
-      <PageTitle>My Notes</PageTitle>
-      <h1 ref={headingRef} tabIndex={-1}>My Notes</h1>
+      <PageTitle>My notes</PageTitle>
+      <h1 ref={headingRef} tabIndex={-1}>My notes</h1>
 
       <NoteForm onSubmit={addNote} submitting={submitting} />
 

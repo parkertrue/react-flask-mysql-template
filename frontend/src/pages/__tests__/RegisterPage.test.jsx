@@ -19,7 +19,7 @@ function renderPage() {
 const field = {
   email: () => screen.getByLabelText('Email'),
   password: () => screen.getByLabelText('Password'),
-  confirmPassword: () => screen.getByLabelText('Confirm Password'),
+  confirmPassword: () => screen.getByLabelText('Confirm password'),
 }
 const submitButton = () => screen.getByRole('button', { name: /register|creating account/i })
 

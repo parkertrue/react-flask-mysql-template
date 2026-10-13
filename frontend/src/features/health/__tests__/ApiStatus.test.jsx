@@ -12,7 +12,7 @@ describe('ApiStatus', () => {
     checkHealth.mockReturnValue(new Promise(() => {}))
     render(<ApiStatus />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('API Status: checking')
+    expect(screen.getByRole('status')).toHaveTextContent('API status: checking')
   })
 
   it.each([
@@ -22,6 +22,6 @@ describe('ApiStatus', () => {
     arrange()
     render(<ApiStatus />)
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(`API Status: ${status}`))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(`API status: ${status}`))
   })
 })

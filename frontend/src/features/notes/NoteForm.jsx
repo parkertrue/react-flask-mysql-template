@@ -9,7 +9,7 @@ export default function NoteForm({
   submitting,
   id = 'note-input',
   label = 'New note',
-  submitLabel = 'Add Note',
+  submitLabel = 'Add note',
   busyLabel = 'Adding...',
   initialContent = '',
   onCancel,

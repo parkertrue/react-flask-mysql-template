@@ -48,7 +48,7 @@ EDITS = {
     ],
     'frontend/src/components/layout/Navbar.jsx': [
         ("""          {isAuthenticated ? (
-            <NavLink to="/notes" className="nav-link">My Notes</NavLink>
+            <NavLink to="/notes" className="nav-link">My notes</NavLink>
           ) : (
             <>
 """, """          {!isAuthenticated && (
@@ -56,19 +56,19 @@ EDITS = {
 """),
     ],
     'frontend/src/components/layout/__tests__/Navbar.test.jsx': [
-        ("expect(links()).toEqual({ Home: '/', 'My Notes': '/notes' })",
+        ("expect(links()).toEqual({ Home: '/', 'My notes': '/notes' })",
          "expect(links()).toEqual({ Home: '/' })"),
-        ("    ['/notes', true, ['My Notes']],\n", ''),
+        ("    ['/notes', true, ['My notes']],\n", ''),
     ],
     'frontend/src/pages/HomePage.jsx': [
         ("import ApiStatus from '@/features/health/ApiStatus'\n", ''),
         ('        <ApiStatus />\n', ''),
-        ('<Link to="/notes" className="btn btn-primary">View My Notes</Link>',
+        ('<Link to="/notes" className="btn btn-primary">View my notes</Link>',
          '<Link to="/account" className="btn btn-primary">Your account</Link>'),
     ],
     'frontend/src/pages/__tests__/HomePage.test.jsx': [
-        ("  expect(await screen.findByText('API Status: ok')).toBeInTheDocument()\n", ''),
-        ("expect(links()).toEqual({ 'View My Notes': '/notes' })",
+        ("  expect(await screen.findByText('API status: ok')).toBeInTheDocument()\n", ''),
+        ("expect(links()).toEqual({ 'View my notes': '/notes' })",
          "expect(links()).toEqual({ 'Your account': '/account' })"),
     ],
 }

@@ -29,7 +29,7 @@ describe('Navbar', () => {
     signIn('user@example.com')
     renderNavbar('/')
 
-    expect(links()).toEqual({ Home: '/', 'My Notes': '/notes' })
+    expect(links()).toEqual({ Home: '/', 'My notes': '/notes' })
     // The email is the account link; its name says where it goes
     expect(screen.getByRole('link', { name: 'user@example.com (account)' }))
       .toHaveAttribute('href', '/account')
@@ -40,7 +40,7 @@ describe('Navbar', () => {
     ['/', false, ['Home']],
     ['/login', false, ['Log in']],
     ['/register', false, ['Register']],
-    ['/notes', true, ['My Notes']],
+    ['/notes', true, ['My notes']],
     ['/account', true, ['user@example.com']],
   ])('marks the link to %s as the current page', (path, signedIn, expected) => {
     if (signedIn) signIn('user@example.com')

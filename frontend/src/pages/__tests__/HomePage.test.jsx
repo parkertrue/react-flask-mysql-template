@@ -11,7 +11,7 @@ async function renderPage() {
   renderRoutes([{ path: '/', element: <HomePage /> }])
   // The API status demo checks the API on mount: wait for its answer, so no
   // request outlives the test
-  expect(await screen.findByText('API Status: ok')).toBeInTheDocument()
+  expect(await screen.findByText('API status: ok')).toBeInTheDocument()
 }
 
 const links = () => Object.fromEntries(
@@ -29,13 +29,13 @@ describe('HomePage', () => {
   it('offers a visitor registration and login', async () => {
     await renderPage()
 
-    expect(links()).toEqual({ 'Get Started': '/register', 'Log in': '/login' })
+    expect(links()).toEqual({ 'Get started': '/register', 'Log in': '/login' })
   })
 
   it('offers a signed-in user their notes instead', async () => {
     signIn()
     await renderPage()
 
-    expect(links()).toEqual({ 'View My Notes': '/notes' })
+    expect(links()).toEqual({ 'View my notes': '/notes' })
   })
 })

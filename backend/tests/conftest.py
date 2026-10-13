@@ -94,9 +94,7 @@ class FakeRedisService:
         return (user_id, jti) in self.tokens
 
     def revoke_token(self, user_id, jti):
-        present = (user_id, jti) in self.tokens
         self.tokens.discard((user_id, jti))
-        return present
 
     def revoke_all_user_tokens(self, user_id):
         mine = {t for t in self.tokens if t[0] == user_id}
@@ -115,7 +113,7 @@ def integration_app():
     Uses IntegrationConfig which:
     - Reads MySQL/Redis connection details from environment
     - Connects to test services on ports 3307 (MySQL) and 6380 (Redis)
-    - Disables rate limiting for test speed
+    - Disables rate limiting (test_rate_limits_redis.py turns it back on)
 
     Environment variables are loaded by run_tests.sh from .env.test. If running
     pytest directly, ensure .env.test is loaded first.

@@ -146,8 +146,8 @@ services:
       REDIS_USERNAME: app
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       SECRET_KEY: ${SECRET_KEY}
-      # This service only runs for Playwright, which needs the browser-facing
-      # cookie settings: Secure cookies and CSRF protection on.
+      # Only Playwright uses this service, and a browser sends the refresh
+      # cookie's CSRF header, so keep CSRF protection on (IntegrationConfig).
       E2E_MODE: "true"
     depends_on:
       migrate:

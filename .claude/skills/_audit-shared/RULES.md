@@ -110,7 +110,9 @@ Audits are **read-only** with respect to the repository:
 - Backend tools: `source backend/.venv/Scripts/activate` (or `.venv/bin/activate`
   on Linux/macOS). Frontend: `npm` in `frontend/`.
 - CI runs on pushes to `main` and on pull requests: ruff, ESLint, both unit
-  suites with coverage, compose validation, zizmor, hadolint and gixy-ng.
+  suites with coverage, the same again after `remove_examples.py` (the
+  Scaffold job), compose validation, zizmor, a license and a whitespace
+  check, hadolint and gixy-ng.
   Integration and E2E run on `main`, on pull requests, and daily. Check the
   `on:` blocks in `.github/workflows/` if in doubt. **Read CI results instead
   of re-running them:** `gh run list --commit $(git rev-parse HEAD)` first,

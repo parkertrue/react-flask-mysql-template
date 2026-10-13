@@ -11,7 +11,7 @@ const noteInput = page => page.getByLabel('New note')
 /** Add a note through the form and wait for it to be listed */
 async function addNote(page, text) {
   await noteInput(page).fill(text)
-  await page.getByRole('button', { name: 'Add Note' }).click()
+  await page.getByRole('button', { name: 'Add note' }).click()
   await expect(page.getByText(text)).toBeVisible()
 }
 
@@ -82,7 +82,7 @@ test.describe('Notes CRUD Operations', () => {
   })
 
   test('empty note submission shows validation', async ({ page }) => {
-    await page.getByRole('button', { name: 'Add Note' }).click()
+    await page.getByRole('button', { name: 'Add note' }).click()
 
     // Explained on the field, which gets focus so a screen reader reads it
     await expect(noteInput(page)).toHaveAccessibleDescription(
@@ -149,7 +149,7 @@ test.describe('Notes accessibility', () => {
   test('the notes page has no violations', async ({ page }) => {
     await addNote(page, 'A note to check')
 
-    await expect(page).toHaveTitle(`My Notes | ${APP_NAME}`)
+    await expect(page).toHaveTitle(`My notes | ${APP_NAME}`)
     await expectNoViolations(page)
   })
 
@@ -187,7 +187,7 @@ test.describe('Notes accessibility', () => {
     await expect(noNotesYet(page)).toBeVisible()
     const release = await holdRequests(page, 'POST', '**/api/notes', serviceUnavailable)
     await noteInput(page).fill('A note that fails')
-    await page.getByRole('button', { name: 'Add Note' }).click()
+    await page.getByRole('button', { name: 'Add note' }).click()
 
     await expect(page.getByRole('button', { name: 'Adding...' })).toBeVisible()
     await expectNoViolations(page)
@@ -247,7 +247,7 @@ test.describe('Notes accessibility, with the list answered by the test', () => {
   test('a full page with Load more, then loading more, has no violations', async ({ page }) => {
     // A first page of 20 with more to come; the next page is held
     const notes = Array.from({ length: 20 }, (_, i) => ({
-      id: 40 - i, user_id: 1, content: `Listed note ${40 - i}`,
+      id: 40 - i, content: `Listed note ${40 - i}`,
       created_at: '2026-01-01T12:00:00+00:00',
     }))
     await page.route('**/api/notes', route => route.request().method() === 'GET'
@@ -271,7 +271,7 @@ test.describe('Notes accessibility, with the list answered by the test', () => {
   test('the error page has no violations, and takes focus', async ({ page }) => {
     await page.goto('/')
     await page.route('**/api/notes', route => route.fulfill({ json: { notes: 'oops' } }))
-    await page.getByRole('link', { name: 'My Notes', exact: true }).click()
+    await page.getByRole('link', { name: 'My notes', exact: true }).click()
 
     await expect(page.getByRole('heading', { level: 1, name: 'Something went wrong' }))
       .toBeFocused()

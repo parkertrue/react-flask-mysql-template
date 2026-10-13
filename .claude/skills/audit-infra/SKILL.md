@@ -55,12 +55,13 @@ Files: `.env.dev`, `.env.test`, `.env.prod.example`, `backend/app/config.py`,
 
 ### nginx
 Files: `nginx/` (Dockerfile, `nginx.conf`, `proxy_params.conf`,
-`security_headers.conf`, `templates/`).
+`security_headers.conf`, `resource_headers.conf`, `templates/`).
 - Compare TLS settings with the Mozilla "intermediate" profile, and headers and
   caching with h5bp `server-configs-nginx`. Is the CSP as strict as the
   built app allows (check `frontend/index.html` and the build output for inline
   scripts and styles)?
-- Does every `location` that sets `add_header` include `security_headers.conf`?
+- Does every `location` that sets `add_header` include `security_headers.conf`,
+  directly or through `resource_headers.conf`?
 - Body cap, rate and connection limits, and JSON error bodies: consistent with
   Flask's limits and the API's error shape?
 - Catch-all server, HTTP→HTTPS redirect, upstream re-resolution, timeouts and
