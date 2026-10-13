@@ -163,7 +163,8 @@ recommend moving it into CI and dropping it from the prompt.
 | **nit** | Wording or style. Report at most five; skip the rest. |
 
 Rate by impact on a real deployment of an app built from this template, not by
-how much work the fix is.
+how much work the fix is. `/audit-legal` maps these levels onto legal
+exposure in its own table.
 
 ## Report
 
@@ -212,7 +213,8 @@ another check's report from the same day in `temp/audits/` already has it,
 cite that ID (`see INFRA-1`) instead of reporting it again, unless you add
 new evidence. The orchestrator merges what remains.
 
-ID prefixes: `INFRA`, `TEST`, `SEC`, `REC`, `CODE`, `A11Y`, `DOCS`, `SCAF`.
+ID prefixes: `INFRA`, `TEST`, `SEC`, `REC`, `CODE`, `A11Y`, `DOCS`, `SCAF`,
+`LEGAL`.
 Order findings by severity. Give each one a precise `file:line`.
 
 When done, reply with **only**: the verdict, the counts, the top five

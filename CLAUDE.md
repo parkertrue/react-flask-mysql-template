@@ -78,8 +78,9 @@ Skills in `.claude/skills/` that audit the template, run on demand only, never a
 | `/audit-tests` | Test infrastructure and patterns, then coverage gaps; mutation spot checks | After a feature lands |
 | `/audit-security` | ASVS L2 code review, dependency CVEs, scans of the local test stack | After auth, config or dependency changes |
 | `/audit-recovery` | Failure drills on a throwaway production-config stack; restore and compromise readiness | After infra changes |
-| `/audit-code` | Comments, dead code, debug leftovers, naming consistency | Before a PR |
+| `/audit-code` | Comments, dead code, debug leftovers, naming consistency; imports a built-in or a common library could replace; the lint setup itself | Before a PR |
 | `/audit-a11y` | WCAG 2.2 AA beyond what axe catches | After UI changes |
+| `/audit-legal` | Licenses (the template's and its dependencies'), privacy law, terms, user content, accessibility law, required notices; risks for a lawyer, not legal advice | Before publishing, and after a change that collects new personal data or adds a third-party service or dependency |
 | `/audit-docs` | README and CLAUDE.md against the code | After significant changes |
 | `/audit-scaffold` | Acts out "Starting a New App" in a throwaway worktree | After structural changes |
 | `/audit <tier>` | Runs a tier (`daily`, `periodic`, `ops`, `release`) and merges the reports | `release` before publishing |

@@ -20,7 +20,11 @@ described below.
 | `daily` | audit-infra | Every day, or after any config or infra change |
 | `periodic` | audit-tests, audit-security, audit-code, audit-a11y, audit-docs, audit-scaffold | Every week or two, and after any feature lands |
 | `ops` | audit-security, audit-recovery | Monthly, and after infra or deployment changes |
-| `release` | all eight | Before tagging a release or publishing the template |
+| `release` | all nine (the eight above plus audit-legal) | Before tagging a release or publishing the template |
+
+`audit-legal` runs only in `release`, or on its own (`/audit-legal`) after a
+change that collects new personal data, adds a third-party service, or adds
+a dependency.
 
 **Arguments:** `$ARGUMENTS`. The first word is the tier. Any further words
 name individual checks to run instead of the tier's list (for example
@@ -33,7 +37,7 @@ above and ask which tier to run. Do not guess.
    tree is clean). If Docker is not running (`docker info`), tell the user that
    the Docker-dependent parts will be reported as skipped, and continue.
 2. Split the tier's checks into two groups:
-   - **No Docker:** audit-code, audit-docs, audit-tests.
+   - **No Docker:** audit-code, audit-docs, audit-tests, audit-legal.
    - **Docker** (they share the test or production-config stack, which only
      one may use at a time): audit-infra, audit-security, audit-a11y,
      audit-scaffold, audit-recovery, in that order.
