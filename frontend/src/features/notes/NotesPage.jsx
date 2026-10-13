@@ -7,7 +7,7 @@ import './notes.css'
 
 export default function NotesPage() {
   const {
-    notes, loading, loadingMore, hasMore, submitting, error, status,
+    notes, loading, loaded, loadingMore, hasMore, submitting, error, status,
     addNote, editNote, removeNote, loadMore
   } = useNotes()
   // Where focus goes when the last note is deleted
@@ -52,6 +52,7 @@ export default function NotesPage() {
         ref={listRef}
         notes={notes}
         loading={loading}
+        loaded={loaded}
         onEdit={editNote}
         onDelete={removeNote}
         emptiedFocusRef={headingRef}

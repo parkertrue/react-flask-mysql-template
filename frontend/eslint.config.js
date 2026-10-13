@@ -188,7 +188,8 @@ export default defineConfig([
     files: ['e2e/**/*.spec.js'],
     extends: [playwright.configs['flat/recommended']],
     rules: {
-      'playwright/expect-expect': 'error',
+      // e2e/helpers.js's expect* helpers (expectNoViolations, ...) assert too
+      'playwright/expect-expect': ['error', { assertFunctionPatterns: ['^expect[A-Z]'] }],
       'playwright/no-conditional-expect': 'error',
       'playwright/no-conditional-in-test': 'error',
     },

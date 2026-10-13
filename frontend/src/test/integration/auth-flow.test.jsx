@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { routes } from '@/routes'
 import { storage } from '@/auth/storage'
@@ -32,7 +32,9 @@ describe('Authentication Flow Integration Tests', () => {
       await fillRegistration(user, 'test@example.com')
 
       expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
-      expect(screen.getByRole('status')).toHaveTextContent('Registration successful')
+      // Filled once the page is in place, so screen readers read it
+      await waitFor(() =>
+        expect(screen.getByRole('status')).toHaveTextContent('Registration successful'))
     })
 
     it('shows the server message when the email is taken', async () => {

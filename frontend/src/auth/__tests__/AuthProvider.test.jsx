@@ -25,12 +25,14 @@ describe('AuthProvider', () => {
     expect(result.current.email).toBe('stored@example.com')
   })
 
-  it('login stores the session and signs in', () => {
+  it('login stores the session and signs in, forgetting an ended one', () => {
+    storage.endSession()
     const { result } = renderAuth()
 
     act(() => result.current.login('access', 'csrf', 'user@example.com'))
 
     expect(result.current.isAuthenticated).toBe(true)
+    expect(result.current.sessionEnded).toBe(false)
     expect(result.current.email).toBe('user@example.com')
     expect(storage.getAccessToken()).toBe('access')
     expect(storage.getRefreshCsrf()).toBe('csrf')
@@ -43,18 +45,21 @@ describe('AuthProvider', () => {
     act(() => result.current.logout())
 
     expect(result.current.isAuthenticated).toBe(false)
+    // Logging out on purpose is no news to the user
+    expect(result.current.sessionEnded).toBe(false)
     expect(result.current.email).toBeNull()
     expect(storage.getRefreshCsrf()).toBeNull()
   })
 
-  // The api client ends a session by clearing storage when a refresh fails
-  it('signs out when the session is cleared outside React', () => {
+  // The api client ends a session in storage when a refresh fails
+  it('signs out, and says the session ended, when it ends outside React', () => {
     signIn()
     const { result } = renderAuth()
 
-    act(() => storage.clearAuth())
+    act(() => storage.endSession())
 
     expect(result.current.isAuthenticated).toBe(false)
+    expect(result.current.sessionEnded).toBe(true)
   })
 
   it('follows another tab signing in and out', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import LoginPage from '../LoginPage'
 import GuestRoute, { AFTER_LOGIN_PATH } from '@/auth/GuestRoute'
 import { storage } from '@/auth/storage'
@@ -44,10 +44,28 @@ describe('LoginPage', () => {
     expect(document.title).toBe(`Log in | ${APP_NAME}`)
   })
 
-  it('confirms a registration that just happened', () => {
-    renderPage({ pathname: '/login', state: { registered: true } })
+  // The status line is in the page from the start, and filled once it is
+  // shown: a live region added along with its text is not read
+  it('keeps an empty status line for a visitor with nothing to be told', () => {
+    renderPage()
 
-    expect(screen.getByRole('status')).toHaveTextContent('Registration successful')
+    expect(screen.getByRole('status')).toHaveTextContent(/^$/)
+  })
+
+  it.each([
+    ['a registration that just happened', () => {}, { registered: true },
+      'Registration successful. Please log in.'],
+    ['a session that ended on its own', () => storage.endSession(), undefined,
+      'Your session has ended. Please log in again.'],
+    ['a registration over an ended session', () => storage.endSession(), { registered: true },
+      'Registration successful. Please log in.'],
+  ])('tells the user about %s', async (_, arrange, state, message) => {
+    arrange()
+    renderPage({ pathname: '/login', state })
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(message))
+    // And on screen, for everyone
+    expect(screen.getAllByText(message)).toHaveLength(2)
   })
 
   describe('validation', () => {

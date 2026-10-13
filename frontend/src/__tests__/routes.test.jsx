@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import { routes } from '../routes'
@@ -14,6 +15,13 @@ vi.mock('@/pages/AccountPage', () => ({ default: () => <p>Account page</p> }))
 vi.mock('@/features/notes/NotesPage', () => ({ default: () => <p>Notes page</p> }))
 
 const page = () => screen.getByRole('main')
+
+// A page that works until the user does something, then crashes
+function BreaksOnClick() {
+  const [broken, setBroken] = useState(false)
+  if (broken) throw new Error('Broken later')
+  return <button type="button" onClick={() => setBroken(true)}>Break</button>
+}
 
 describe('routes', () => {
   it.each([
@@ -60,6 +68,19 @@ describe('routes', () => {
 
     expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
     expect(screen.getByRole('navigation')).toBeInTheDocument()
+  })
+
+  // The focused control goes with the page, and the path is unchanged, so
+  // only the error page itself can take focus off <body>
+  it("focus the error page's heading when a page crashes after showing", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    HomePage.mockImplementation(BreaksOnClick)
+    const { user } = renderRoutes(routes, '/')
+
+    await user.click(screen.getByRole('button', { name: 'Break' }))
+
+    expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toHaveFocus()
   })
 
   it('show the error page inside a main landmark when the layout itself crashes', () => {

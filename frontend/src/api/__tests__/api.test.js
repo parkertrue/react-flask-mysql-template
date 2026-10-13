@@ -207,6 +207,8 @@ describe('expired access token', () => {
     await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
+    // So the login page can say why the user is there
+    expect(storage.getSessionEnded()).toBe(true)
     expect(window.location.href).toBe('http://localhost/')
   })
 
@@ -315,6 +317,7 @@ describe('invalid or missing token', () => {
     await expect(api.get('/protected')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBeNull()
+    expect(storage.getSessionEnded()).toBe(true)
     expect(window.location.href).toBe('http://localhost/')
   })
 
@@ -325,6 +328,7 @@ describe('invalid or missing token', () => {
     await expect(api.post('/auth/logout')).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(storage.getAccessToken()).toBe('token')
+    expect(storage.getSessionEnded()).toBe(false)
     expect(window.location.href).toBe('http://localhost/')
   })
 })

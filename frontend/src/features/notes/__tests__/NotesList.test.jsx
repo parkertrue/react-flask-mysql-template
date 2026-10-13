@@ -15,10 +15,16 @@ describe('NotesList', () => {
   })
 
   it('invites a first note when there are none', () => {
-    render(<NotesList notes={[]} loading={false} />)
+    render(<NotesList notes={[]} loading={false} loaded={true} />)
 
     expect(screen.getByText(/no notes yet/i)).toBeInTheDocument()
     expect(screen.queryByRole('list')).not.toBeInTheDocument()
+  })
+
+  it('claims nothing about the notes before they have loaded', () => {
+    render(<NotesList notes={[]} loading={false} loaded={false} />)
+
+    expect(screen.queryByText(/no notes yet/i)).not.toBeInTheDocument()
   })
 
   it('lists each note with its number, in the order given', () => {

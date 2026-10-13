@@ -77,12 +77,40 @@ describe('storage utility', () => {
     })
   })
 
+  describe('a session that ended on its own', () => {
+    it('clears the session and remembers that it ended', () => {
+      storage.setAccessToken('token')
+      storage.setRefreshCsrf('csrf')
+      storage.setEmail('test@example.com')
+
+      storage.endSession()
+
+      expect(storage.getAccessToken()).toBeNull()
+      expect(storage.getRefreshCsrf()).toBeNull()
+      expect(storage.getEmail()).toBeNull()
+      expect(storage.getSessionEnded()).toBe(true)
+    })
+
+    it.each([
+      ['a logout', () => storage.clearAuth()],
+      ['clearSessionEnded', () => storage.clearSessionEnded()],
+    ])('is forgotten after %s', (_, forget) => {
+      storage.endSession()
+
+      forget()
+
+      expect(storage.getSessionEnded()).toBe(false)
+    })
+  })
+
   describe('subscribe', () => {
     it.each([
       ['setAccessToken', () => storage.setAccessToken('token')],
       ['setRefreshCsrf', () => storage.setRefreshCsrf('csrf')],
       ['setEmail', () => storage.setEmail('user@example.com')],
       ['clearAuth', () => storage.clearAuth()],
+      ['endSession', () => storage.endSession()],
+      ['clearSessionEnded', () => storage.clearSessionEnded()],
     ])('tells the listener about %s', (_, change) => {
       const listener = vi.fn()
       const unsubscribe = storage.subscribe(listener)

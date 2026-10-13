@@ -273,7 +273,7 @@ Locally, Playwright reuses a test stack that is already running (for quick rerun
 docker compose --env-file .env.test -f docker-compose.test.yml --profile e2e down -v
 ```
 
-`accessibility.spec.js` runs [axe](https://github.com/dequelabs/axe-core) on every page against the WCAG 2.2 A and AA rules, catching what jsdom cannot, such as color contrast.
+`accessibility.spec.js` runs [axe](https://github.com/dequelabs/axe-core) on every shared page, busy and failed states included, against the WCAG 2.2 A and AA rules, catching what jsdom cannot, such as color contrast. It also checks what axe cannot: reflow at 320px, visible focus, target size and focus after back and forward. Each feature's spec does the same for its own pages.
 
 ## Continuous Integration
 
