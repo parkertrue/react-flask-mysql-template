@@ -1,9 +1,11 @@
+import sqlite3
 from unittest.mock import patch
 
 import pytest
 import redis
 from flask import abort, request
 from flask_jwt_extended import create_refresh_token, decode_token
+from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
 
 import app as app_module
@@ -223,6 +225,26 @@ class TestDatabaseOutage:
 
         assert response.status_code == 500
         assert response.get_json()['error']['code'] == 'INTERNAL_ERROR'
+
+    def test_a_failed_write_logs_no_sql_parameters(self, app, client, caplog):
+        """The logged exception text must not carry the row being written"""
+        def database_down(conn, cursor, statement, parameters, context, executemany):
+            if statement.startswith('INSERT'):
+                raise sqlite3.OperationalError('database is locked')
+
+        engine = app_module.db.engine
+        event.listen(engine, 'before_cursor_execute', database_down)
+        try:
+            response = client.post('/api/auth/register', json={
+                'email': 'stalled@example.com', 'password': 'TestPassword123'})
+        finally:
+            event.remove(engine, 'before_cursor_execute', database_down)
+
+        assert response.status_code == 503
+        assert 'Database unavailable' in caplog.text
+        assert 'INSERT INTO users' in caplog.text
+        assert 'stalled@example.com' not in caplog.text
+        assert 'scrypt:' not in caplog.text
 
     def test_user_lookup_during_an_outage_is_503(self, client, auth_token, monkeypatch):
         """Every @jwt_required route loads the user first, so this is where it fails"""

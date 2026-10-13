@@ -80,6 +80,10 @@ class Config:
             'pool_pre_ping': True,
             'pool_recycle': 1800,
             'connect_args': connect_args,
+            # A failed statement's exception text, which the error handlers
+            # log, would otherwise carry its values: password hashes, emails
+            # and note text.
+            'hide_parameters': True,
         }
 
         # Redis configuration
@@ -160,9 +164,9 @@ class UnitTestConfig(Config):
         super().__init__()
         self.APP_ENV = 'unit'
         self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-        # MySQL's settings mean nothing to SQLite, whose CURRENT_TIMESTAMP is
-        # always UTC
-        self.SQLALCHEMY_ENGINE_OPTIONS = {}
+        # MySQL's pool and connection settings mean nothing to SQLite, whose
+        # CURRENT_TIMESTAMP is always UTC
+        self.SQLALCHEMY_ENGINE_OPTIONS = {'hide_parameters': True}
         self.RATELIMIT_ENABLED = False
 
 

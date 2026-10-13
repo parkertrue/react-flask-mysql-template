@@ -382,6 +382,17 @@ class TestConfigValues:
         options = config_class().SQLALCHEMY_ENGINE_OPTIONS
         assert options['connect_args']['init_command'] == "SET time_zone = '+00:00'"
 
+    @pytest.mark.parametrize('config_class', [
+        DevelopmentConfig, UnitTestConfig, IntegrationConfig, ProductionConfig])
+    def test_sql_parameters_stay_out_of_the_logs(self, config_class, monkeypatch):
+        """A failed statement's values (password hashes, emails, note text)
+        must not reach the log. test_app_factory.py shows it working."""
+        monkeypatch.setenv('SECRET_KEY', STRONG_SECRET)
+
+        options = config_class().SQLALCHEMY_ENGINE_OPTIONS
+
+        assert options['hide_parameters'] is True
+
     @pytest.mark.parametrize('config_class', [DevelopmentConfig, IntegrationConfig])
     def test_database_calls_time_out(self, config_class, monkeypatch):
         """A hung database must not hold request threads forever.

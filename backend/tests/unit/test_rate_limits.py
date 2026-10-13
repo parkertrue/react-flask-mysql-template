@@ -1,3 +1,4 @@
+import hashlib
 import time
 
 import pytest
@@ -7,6 +8,7 @@ from flask_jwt_extended import (
 
 from app import db, limiter
 from app.auth.models import User
+from app.auth.routes import _login_email_key
 from tests.conftest import FakeRedisService
 from tests.unit.test_app_factory import build_app
 
@@ -121,6 +123,23 @@ def test_account_limit_covers_every_spelling_of_a_domain(limited_app):
         login(client, '203.0.113.7', 'nobody@bücher.de')
 
     assert login(client, '203.0.113.7', 'nobody@xn--bcher-kva.de').status_code == 429
+
+
+def test_account_limit_keys_reveal_no_address(monkeypatch):
+    """Reading Redis must not confirm a guessed address: the key is keyed by
+    SECRET_KEY, not a plain hash anyone can recompute."""
+    email = 'nobody@example.com'
+    keys = []
+    for secret in ('a' * 32, 'b' * 32):
+        app = build_app(monkeypatch, JWT_SECRET_KEY=secret)
+        with app.test_request_context(json={'email': email}):
+            keys.append(_login_email_key())
+
+    assert keys[0] != keys[1]
+    plain_hash = hashlib.sha256(email.encode()).hexdigest()
+    for key in keys:
+        assert email not in key
+        assert plain_hash not in key
 
 
 @pytest.mark.parametrize('body', [{'email': 123, 'password': 'x'}, ['not', 'an', 'object']])

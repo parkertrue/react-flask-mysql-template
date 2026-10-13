@@ -8,6 +8,8 @@ cryptography
 gunicorn
 Flask
 Flask-JWT-Extended
+# app/auth/routes.py catches its exceptions directly
+PyJWT
 Flask-Limiter
 Flask-Migrate
 Flask-SQLAlchemy
