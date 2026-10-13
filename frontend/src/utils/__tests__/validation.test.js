@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import path from 'path'
+import { backendConstant } from '@/test/backend'
 import {
   validatePassword,
   validateEmail,
@@ -141,16 +140,11 @@ describe('validatePasswordMatch', () => {
 // The backend's limits are the real ones; these only spare the user a round
 // trip. Read from its source, so changing one side alone fails here.
 describe('limits match the backend', () => {
-  const backend = file => readFileSync(
-    path.resolve(import.meta.dirname, '../../../../backend/app', file), 'utf8')
-  const constant = (file, name) =>
-    Number(backend(file).match(new RegExp(`^${name} = (\\d+)$`, 'm'))[1])
-
   it.each([
     ['PASSWORD_MIN_LENGTH', PASSWORD_MIN_LENGTH, 'auth/schemas.py'],
     ['PASSWORD_MAX_LENGTH', PASSWORD_MAX_LENGTH, 'auth/schemas.py'],
     ['EMAIL_MAX_LENGTH', EMAIL_MAX_LENGTH, 'auth/models.py'],
   ])('%s', (name, value, file) => {
-    expect(value).toBe(constant(file, name))
+    expect(value).toBe(backendConstant(file, name))
   })
 })

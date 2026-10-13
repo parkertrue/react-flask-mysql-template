@@ -1,6 +1,6 @@
 import { afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 
 // React warns when state changes outside act(): the test asserted, or ended,
 // before the component settled, which is how flaky tests start. Fail the

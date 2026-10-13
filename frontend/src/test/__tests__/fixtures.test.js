@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'fs'
 import path from 'path'
+import { BACKEND_APP } from '../backend'
 import { ERROR_CODES, errorBody } from '../fixtures'
-
-const BACKEND_APP = path.resolve(import.meta.dirname, '../../../../backend/app')
 
 function backendErrorCodes() {
   const codes = new Set()

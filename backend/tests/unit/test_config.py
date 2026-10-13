@@ -62,7 +62,7 @@ class TestConfigClasses:
         assert config.REDIS_DB == 0
         assert config.REDIS_PASSWORD == 'redispass'
         assert config.JWT_SECRET_KEY == 'testsecret'
-        assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://test:test@localhost:3306/test'
+        assert config.SQLALCHEMY_DATABASE_URI.render_as_string(hide_password=False) == 'mysql+pymysql://test:test@localhost:3306/test'
         assert config.REDIS_URI == 'redis://app:redispass@localhost:6379/0'
         assert config.RATELIMIT_STORAGE_URI == 'redis://app:redispass@localhost:6379/0'
 
@@ -140,9 +140,8 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, DevelopmentConfig)
         assert type(config) is DevelopmentConfig
-        assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://testuser:testpass@testhost:3306/testdb'
+        assert config.SQLALCHEMY_DATABASE_URI.render_as_string(hide_password=False) == 'mysql+pymysql://testuser:testpass@testhost:3306/testdb'
         assert config.REDIS_URI == 'redis://app:redispass@redishost:6379/1'
         assert config.RATELIMIT_STORAGE_URI == 'redis://app:redispass@redishost:6379/1'
 
@@ -153,7 +152,6 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, UnitTestConfig)
         assert type(config) is UnitTestConfig
         assert config.SQLALCHEMY_DATABASE_URI == 'sqlite:///:memory:'
         assert config.USES_SERVICES is False
@@ -174,7 +172,6 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, ProductionConfig)
         assert type(config) is ProductionConfig
         assert config.RATELIMIT_ENABLED is True
         assert config.USES_SERVICES is True
@@ -194,9 +191,8 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, ProductionConfig)
         assert type(config) is ProductionConfig
-        assert config.SQLALCHEMY_DATABASE_URI == 'mysql+pymysql://produser:prodpass@prodhost:3306/proddb'
+        assert config.SQLALCHEMY_DATABASE_URI.render_as_string(hide_password=False) == 'mysql+pymysql://produser:prodpass@prodhost:3306/proddb'
         assert config.REDIS_URI == 'redis://app:prodredispass@prodredis:6379/0'
         assert config.RATELIMIT_STORAGE_URI == 'redis://app:prodredispass@prodredis:6379/0'
 
@@ -225,7 +221,6 @@ class TestGetConfigFactory:
 
         config = get_config()
 
-        assert isinstance(config, ProductionConfig)
         assert type(config) is ProductionConfig
 
 
@@ -554,6 +549,12 @@ class TestConnectionUris:
         assert make_url(config.SQLALCHEMY_DATABASE_URI).host == config.DB_HOST
         assert parse_url(config.REDIS_URI)['password'] == 'r@dis/pw'
         assert parse_url(config.REDIS_URI)['username'] == 'app:1'
+
+    def test_database_password_is_hidden_when_printed(self):
+        config = DevelopmentConfig()
+
+        assert str(config.SQLALCHEMY_DATABASE_URI) == (
+            'mysql+pymysql://user:***@dbhost:3306/db')
 
     def test_redis_username_is_required(self, monkeypatch):
         """No fallback to Redis's "default" user, which the compose files disable"""

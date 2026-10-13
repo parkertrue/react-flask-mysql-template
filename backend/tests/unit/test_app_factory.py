@@ -145,6 +145,8 @@ class TestJsonErrors:
         (413, 'PAYLOAD_TOO_LARGE'),
         (415, 'UNSUPPORTED_MEDIA_TYPE'),
         (429, 'RATE_LIMITED'),
+        # A status with no entry of its own, as a new feature might abort with
+        (403, 'HTTP_ERROR'),
     ])
     def test_http_errors_are_json(self, monkeypatch, status, code):
         app = build_app(monkeypatch)
@@ -157,6 +159,18 @@ class TestJsonErrors:
 
         assert response.status_code == status
         assert response.get_json()['error']['code'] == code
+
+    def test_an_unlisted_status_is_named_by_werkzeug(self, monkeypatch):
+        app = build_app(monkeypatch)
+
+        @app.route('/_abort')
+        def forbidden():
+            abort(403)
+
+        response = app.test_client().get('/_abort')
+
+        assert response.get_json() == {
+            'error': {'code': 'HTTP_ERROR', 'message': 'Forbidden'}}
 
     @pytest.mark.parametrize('body', ['null', '[]', '"text"'])
     def test_non_object_json_body_is_validation_error(self, client, body):

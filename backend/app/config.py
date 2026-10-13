@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
+from sqlalchemy import URL
+
 from app.utils.redis_service import RATELIMIT_REDIS_OPTIONS
 
 MIN_SECRET_KEY_LENGTH = 32
@@ -46,12 +48,15 @@ class Config:
 
         self.SQLALCHEMY_DATABASE_URI = None
         if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_NAME]):
-            # Credentials are percent-encoded: a password containing @ / : or #
-            # would otherwise be parsed as part of the host.
-            self.SQLALCHEMY_DATABASE_URI = (
-                f'mysql+pymysql://{quote(self.DB_USER, safe="")}:'
-                f'{quote(self.DB_PASSWORD, safe="")}@'
-                f'{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
+            # A URL object, not a string: it escapes a password containing
+            # @ / : or #, and prints it as *** wherever the URL is logged
+            self.SQLALCHEMY_DATABASE_URI = URL.create(
+                'mysql+pymysql',
+                username=self.DB_USER,
+                password=self.DB_PASSWORD,
+                host=self.DB_HOST,
+                port=self.DB_PORT,
+                database=self.DB_NAME,
             )
         elif self.USES_SERVICES:
             raise ValueError(

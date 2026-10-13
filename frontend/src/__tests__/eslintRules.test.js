@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest'
 import { ESLint } from 'eslint'
 
 // The lint rules are config, and config fails silently: a later block
@@ -74,7 +75,7 @@ describe('code rules', () => {
   it.each([
     ['src/components/forms/x.jsx', 'export const X = () => <input />'],
     ['src/pages/x.jsx', 'export const X = () => <button aria-disabled="true" />'],
-    ['src/pages/__tests__/x.test.jsx', "vi.mock('@/api/api')"],
+    ['src/pages/__tests__/x.test.jsx', "import { vi } from 'vitest'; vi.mock('@/api/api')"],
     ['e2e/x.js', "console.log('x')"],
   ])('allows %s: %s', async (filePath, code) => {
     expect(await ruleIds(filePath, code)).toEqual([])
@@ -105,8 +106,8 @@ describe('test rules', () => {
   })
 
   it.each([
-    ['src/x/__tests__/a.test.js', "const x = 1; it('a', () => { expect(x).toBe(1) })"],
-    ['e2e/x.spec.js', "test('a', async ({ page }) => { await expect(page).toHaveURL('/') })"],
+    ['src/x/__tests__/a.test.js', "import { it, expect } from 'vitest'; const x = 1; it('a', () => { expect(x).toBe(1) })"],
+    ['e2e/x.spec.js', "import { test, expect } from '@playwright/test'\n\ntest('a', async ({ page }) => { await expect(page).toHaveURL('/') })"],
   ])('allows %s: %s', async (filePath, code) => {
     expect(await ruleIds(filePath, code)).toEqual([])
   })

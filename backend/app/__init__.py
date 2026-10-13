@@ -6,6 +6,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
 from sqlalchemy.exc import InterfaceError, OperationalError
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
@@ -23,6 +24,19 @@ migrate = Migrate()
 # daily quota on the whole API would lock out everyone sharing an address
 # (an office, a campus, a mobile carrier's NAT) once a few of them hit it.
 limiter = Limiter(key_func=get_remote_address)
+
+# The code and message for each HTTP error the API expects; any other status
+# a route aborts with gets HTTP_ERROR and Werkzeug's name for it.
+HTTP_ERRORS = {
+    400: dict(code='BAD_REQUEST', message='Malformed request'),
+    404: dict(code='NOT_FOUND', message='Resource not found'),
+    405: dict(code='METHOD_NOT_ALLOWED', message='Method not allowed'),
+    413: dict(code='PAYLOAD_TOO_LARGE', message='Request body too large'),
+    415: dict(code='UNSUPPORTED_MEDIA_TYPE', message='Request body must be JSON'),
+    429: dict(
+        code='RATE_LIMITED', message='Too many requests, please try again later'),
+    500: dict(code='INTERNAL_ERROR', message='Something went wrong'),
+}
 
 
 def create_app():
@@ -175,64 +189,15 @@ def create_app():
             status=503
         )
 
-    # Generic error handlers. Werkzeug's defaults are HTML pages, which the
-    # frontend cannot show; every error leaves the API in the same JSON shape.
-    @app.errorhandler(400)
-    def bad_request(e):
+    # Werkzeug's own error pages are HTML, which the frontend cannot show;
+    # every error leaves the API in the same JSON shape. Flask logs an
+    # unhandled exception's traceback before this answers it as a 500.
+    @app.errorhandler(HTTPException)
+    def http_error(e):
         return error_response(
-            code='BAD_REQUEST',
-            message='Malformed request',
-            status=400
-        )
-
-    @app.errorhandler(404)
-    def not_found(e):
-        return error_response(
-            code='NOT_FOUND',
-            message='Resource not found',
-            status=404
-        )
-
-    @app.errorhandler(405)
-    def method_not_allowed(e):
-        return error_response(
-            code='METHOD_NOT_ALLOWED',
-            message='Method not allowed',
-            status=405
-        )
-
-    @app.errorhandler(413)
-    def payload_too_large(e):
-        return error_response(
-            code='PAYLOAD_TOO_LARGE',
-            message='Request body too large',
-            status=413
-        )
-
-    @app.errorhandler(415)
-    def unsupported_media_type(e):
-        return error_response(
-            code='UNSUPPORTED_MEDIA_TYPE',
-            message='Request body must be JSON',
-            status=415
-        )
-
-    @app.errorhandler(429)
-    def rate_limited(e):
-        return error_response(
-            code='RATE_LIMITED',
-            message='Too many requests, please try again later',
-            status=429
-        )
-
-    # No logging here: Flask logs the traceback of an unhandled exception
-    # before calling this handler.
-    @app.errorhandler(500)
-    def server_error(e):
-        return error_response(
-            code='INTERNAL_ERROR',
-            message='Something went wrong',
-            status=500
+            **HTTP_ERRORS.get(
+                e.code, dict(code='HTTP_ERROR', message=e.name)),
+            status=e.code
         )
 
     @app.after_request
