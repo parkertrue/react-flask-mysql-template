@@ -1,11 +1,18 @@
-# Errors (pyflakes and syntax) catch real bugs such as unused imports and
-# undefined names. Q keeps quotes consistent: single for strings, double for
-# docstrings. T20 (print) and ERA (commented-out code) keep debug leftovers
-# out; the app logs through `logging`. TID252 bans relative imports, so the
-# import-rule test (tests/unit/test_import_rules.py), which reads only
-# absolute ones, sees every import. Widen `select` if you want more.
+# The rules are listed in full, since ruff's own default set is far wider and
+# changes between releases. Widen `select` if you want more.
+# - E4, E7, E9 and F (pyflakes and syntax errors) catch real bugs such as
+#   unused imports and undefined names.
+# - Q keeps quotes consistent: single for strings, double for docstrings.
+# - T20 (print), ERA (commented-out code) and FIX (TODO, FIXME, HACK, XXX)
+#   keep leftovers out; the app logs through `logging`.
+# - TID252 bans relative imports, so the import-rule test
+#   (tests/unit/test_import_rules.py), which reads only absolute ones, sees
+#   every import. TID251 bans the calls listed below.
+# - DTZ refuses naive datetimes: every timestamp is UTC.
+# - S102 and S307 refuse exec and eval.
+# - RUF100 refuses a noqa that suppresses nothing.
 [lint]
-select = ["E4", "E7", "E9", "F", "Q", "T20", "ERA", "TID252"]
+select = ["E4", "E7", "E9", "F", "Q", "T20", "ERA", "FIX", "TID251", "TID252", "DTZ", "S102", "S307", "RUF100"]
 
 # Command-line scripts whose output is their job
 [lint.per-file-ignores]
@@ -17,3 +24,14 @@ inline-quotes = "single"
 
 [lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+# Rules CLAUDE.md states, enforced
+[lint.flake8-tidy-imports.banned-api]
+"flask_jwt_extended.get_jwt_identity".msg = "Read the user from flask_jwt_extended.current_user, which the user loader checks still exists."
+"pytest.skip".msg = "A skipped test passes whatever the code does."
+"pytest.mark.skip".msg = "A skipped test passes whatever the code does."
+"pytest.mark.skipif".msg = "A skipped test passes whatever the code does."
+"pytest.importorskip".msg = "A skipped test passes whatever the code does."
+"pytest.mark.xfail".msg = "An expected failure passes whatever the code does."
+"subprocess".msg = "The app runs no other programs."
+"os.system".msg = "The app runs no other programs."

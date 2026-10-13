@@ -54,14 +54,15 @@ router, fixtures), `frontend/playwright.config.js`, `frontend/e2e/helpers.js`.
 
 ## 3. Assertion quality
 
-CLAUDE.md requires that every assertion can fail. Search all suites for
-violations, mechanically where possible (for Python, an AST scan for `assert`
-under `if`/`try` and for tests without any assert; for JS, a grep for
-`expect` inside `if`/`catch`). Save the scan script in the report's appendix
-and propose it as a CI guard if it finds anything:
-- Assertions behind `if`, inside `try/except`, or after `isVisible()` checks;
-  status sets (`in [400, 422]`, `toBeOneOf`); assertions only on mocks being
-  called, never on outcomes; snapshots of large markup; `expect(true)`.
+CLAUDE.md requires that every assertion can fail. The guards already refuse
+the mechanical cases (CLAUDE.md, Test Architecture): an assert behind an `if`,
+`match` or `while` or inside a `try` or `suppress`, a status set, a test with
+no assert, weak-only asserts, the weak matchers, and skipped or focused
+tests. Check that they still pass, then look for what they can't see:
+- Hedges written another way (an assert after an `isVisible()` check whose
+  result decides the path, a status set built in a variable); assertions only
+  on mocks being called, never on outcomes; snapshots of large markup;
+  `expect(true)`. Propose a guard for any pattern you find more than once.
 - Tests that never assert, or whose only assertion is that nothing threw.
 - Frontend tests asserting class names, markup structure or `data-testid`
   instead of roles, labels and text.

@@ -42,7 +42,7 @@ test.describe('Notes CRUD Operations', () => {
     await page.getByRole('button', { name: 'Save' }).click()
 
     await expect(page.getByText('Updated note text')).toBeVisible()
-    await expect(page.getByText('Original note text')).not.toBeVisible()
+    await expect(page.getByText('Original note text')).toBeHidden()
 
     // Saved by the server, not only on screen
     await page.reload()
@@ -64,7 +64,7 @@ test.describe('Notes CRUD Operations', () => {
     const box = await dialog.boundingBox()
     expect(Math.abs(box.x + box.width / 2 - page.viewportSize().width / 2)).toBeLessThan(2)
     await page.keyboard.press('Escape')
-    await expect(dialog).not.toBeVisible()
+    await expect(dialog).toBeHidden()
     await expect(deleteButton).toBeFocused()
 
     await deleteButton.click()
@@ -108,7 +108,7 @@ test.describe('Notes CRUD Operations', () => {
 
     // The second user's list has loaded, and the first user's note is not in it
     await expect(noNotesYet(page)).toBeVisible()
-    await expect(page.getByText(firstUserNote)).not.toBeVisible()
+    await expect(page.getByText(firstUserNote)).toBeHidden()
   })
 
   test('older notes load a page at a time', async ({ page }) => {
@@ -127,13 +127,13 @@ test.describe('Notes CRUD Operations', () => {
     // Newest first: the oldest note is on the second page
     await expect(page.getByRole('listitem')).toHaveCount(20)
     await expect(page.getByText('Note number 21', { exact: true })).toBeVisible()
-    await expect(page.getByText('Note number 1', { exact: true })).not.toBeVisible()
+    await expect(page.getByText('Note number 1', { exact: true })).toBeHidden()
 
     await page.getByRole('button', { name: 'Load more' }).click()
 
     await expect(page.getByRole('listitem')).toHaveCount(21)
     await expect(page.getByText('Note number 1', { exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Load more' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: 'Load more' })).toBeHidden()
   })
 })
 

@@ -49,7 +49,11 @@ comment and flag:
   logic, magic numbers, workarounds, ordering that matters, anything a
   maintainer might "simplify" into a bug.
 - **Temporary markers:** `TODO`, `FIXME`, `HACK`, `XXX`, `NOCOMMIT`. Each one
-  is a finding: resolve it, or move it to the project's issue list.
+  is a finding: resolve it, or move it to the project's issue list. Lint
+  refuses them in JavaScript (`no-warning-comments`) and, all but `NOCOMMIT`,
+  in Python (ruff `FIX`), so look for `NOCOMMIT` in Python and for all of
+  them in files no linter reads: CSS, YAML, shell, Dockerfiles, nginx config
+  and docs.
 - **Inconsistent style:** comment tone, capitalization and punctuation
   differ from the file's neighbors.
 
@@ -74,9 +78,10 @@ way that would mislead someone into a bug (then **medium**).
   reads) counts as dead, unless a comment marks it as a deliberate test seam.
 - Debug leftovers that lint can't see. Lint already enforces `print` (ruff
   T20), commented-out Python (ruff ERA), `console.*` in app code (ESLint
-  `no-console`), and `.only` in E2E (Playwright `forbidOnly` in CI). Look only
-  for commented-out JS, `.skip` and `.only` in Vitest files, and debug-level
-  logging or `FLASK_DEBUG` reaching production config.
+  `no-console`), skipped and focused tests on every side (ruff `TID251`, the
+  Vitest and Playwright presets), and commented-out tests. Look only for
+  other commented-out JS, and debug-level logging or `FLASK_DEBUG` reaching
+  production config.
 
 ## 3. naming: consistency
 
@@ -140,7 +145,7 @@ Files: `backend/ruff.toml`, `backend/pytest.ini`, `backend/.coveragerc`,
 `frontend/vite.config.js`, and the tests that act as lint
 (`backend/tests/unit/test_import_rules.py`,
 `backend/tests/unit/test_assertions.py`,
-`frontend/src/__tests__/eslintImports.test.js`), plus the lint jobs in
+`frontend/src/__tests__/eslintRules.test.js`), plus the lint jobs in
 `.github/workflows/`. Run `ruff check .` and `npm run lint` first; a red run
 is a blocker.
 
