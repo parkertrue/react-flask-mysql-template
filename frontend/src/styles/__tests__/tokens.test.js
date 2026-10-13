@@ -20,6 +20,7 @@ const PAIRINGS = [
   ['links', 'primary', 'surface', TEXT],
   ['field errors', 'danger', 'surface', TEXT],
   ['hints', 'text-muted', 'surface', TEXT],
+  ['text on muted panels', 'text', 'surface-muted', TEXT],
   ['muted text on muted panels', 'text-muted', 'surface-muted', TEXT],
   // Borders and focus rings
   ['field borders', 'border', 'surface', NON_TEXT],

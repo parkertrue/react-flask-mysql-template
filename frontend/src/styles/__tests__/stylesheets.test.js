@@ -60,10 +60,9 @@ const unusedTokens = (tokensCss, sheets) => [...defined(tokensCss)].filter(name 
 const undefinedTokens = (tokensCss, sheets) => [...used(sheets)].filter(name => !defined(tokensCss).has(name))
 
 describe('stylesheets', () => {
+  // Only shared stylesheets are named: CI's Scaffold job deletes the features
   it('finds every stylesheet under src/', () => {
-    expect(stylesheets.map(label)).toEqual(expect.arrayContaining([
-      'styles/tokens.css', 'styles/buttons.css', 'features/notes/notes.css',
-    ]))
+    expect(stylesheets.map(label)).toEqual(expect.arrayContaining(['styles/tokens.css', 'styles/buttons.css']))
   })
 
   it.each(stylesheets.filter(file => file !== TOKENS).map(label))('%s names only color tokens', file => {
