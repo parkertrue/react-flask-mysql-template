@@ -25,7 +25,7 @@ from flask_limiter.util import get_remote_address
 from app import db, limiter
 from app.auth.models import User
 from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
-from app.utils.errors import error_response
+from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
 from app.utils.passwords import verify_password
 from app.utils.redis_service import get_redis_service
 
@@ -93,27 +93,30 @@ def _refresh_user_id():
 def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
     """Build a 200 response carrying a fresh access token and refresh cookie.
 
-    `auth_time` is when the user logged in, carried through every rotation:
-    the refresh token expires JWT_REFRESH_TOKEN_EXPIRES after it, however
-    often it is refreshed, so a session (or a stolen cookie) has an absolute
-    lifetime. Once it passes, the cookie is expired and refresh answers 401.
+    `auth_time` is when the user logged in, carried through every rotation.
+    The refresh token expires SESSION_IDLE_TIMEOUT from now, so a session
+    left unused that long ends, but never later than JWT_REFRESH_TOKEN_EXPIRES
+    after auth_time, however often it is refreshed: a session (or a stolen
+    cookie) has an absolute lifetime. Once either passes, the cookie is
+    expired and refresh answers 401.
 
     The new refresh token's JTI is recorded in Redis, in place of the JTI in
     `replaces` when rotating; the blocklist loader treats any refresh token
     whose JTI is absent there as revoked.
     """
+    now = datetime.now(timezone.utc)
     session_ends = (datetime.fromtimestamp(auth_time, timezone.utc)
                     + current_app.config['JWT_REFRESH_TOKEN_EXPIRES'])
-    remaining = session_ends - datetime.now(timezone.utc)
+    lifetime = min(current_app.config['SESSION_IDLE_TIMEOUT'], session_ends - now)
     access_token = create_access_token(identity=str(user_id))
     refresh_token = create_refresh_token(
         identity=str(user_id),
         additional_claims={'auth_time': auth_time},
-        expires_delta=remaining)
+        expires_delta=lifetime)
 
     redis_service = get_redis_service()
     jti = decode_token(refresh_token)['jti']
-    ttl = max(int(remaining.total_seconds()), 1)
+    ttl = max(int(lifetime.total_seconds()), 1)
     if redis_service is None:
         recorded = None
     elif replaces:
@@ -135,7 +138,7 @@ def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
         # up front.
         return error_response(
             code='SERVICE_UNAVAILABLE',
-            message='Sign-in is temporarily unavailable, please try again shortly',
+            message=SERVICE_UNAVAILABLE_MESSAGE,
             status=503
         )
 

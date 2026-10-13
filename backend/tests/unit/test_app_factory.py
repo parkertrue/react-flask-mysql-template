@@ -12,6 +12,7 @@ import app as app_module
 from app import create_app
 from app.config import UnitTestConfig
 from app.utils import redis_service
+from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE
 from app.utils.redis_service import get_redis_service
 
 
@@ -215,7 +216,8 @@ class TestDatabaseOutage:
         response = raising(error_class('SELECT 1', {}, Exception('2003 refused')))
 
         assert response.status_code == 503
-        assert response.get_json()['error']['code'] == 'SERVICE_UNAVAILABLE'
+        assert response.get_json()['error'] == {
+            'code': 'SERVICE_UNAVAILABLE', 'message': SERVICE_UNAVAILABLE_MESSAGE}
         tracebacks = [r for r in caplog.records if r.exc_info]
         assert len(tracebacks) == 1
         assert tracebacks[0].getMessage() == 'Database unavailable'

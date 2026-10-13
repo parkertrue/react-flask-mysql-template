@@ -9,7 +9,7 @@ from sqlalchemy.exc import InterfaceError, OperationalError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
-from app.utils.errors import error_response
+from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
 from app.utils.passwords import PasswordHashingBusy, init_password_hashing
 from app.utils.redis_service import (
     TokenStoreUnavailable, connect_redis, get_redis_service)
@@ -149,7 +149,7 @@ def create_app():
     def token_store_unavailable(e):
         return error_response(
             code='SERVICE_UNAVAILABLE',
-            message='Sign-in is unavailable, please try again shortly',
+            message=SERVICE_UNAVAILABLE_MESSAGE,
             status=503
         )
 
@@ -171,7 +171,7 @@ def create_app():
         app.logger.exception('Database unavailable')
         return error_response(
             code='SERVICE_UNAVAILABLE',
-            message='The service is unavailable, please try again shortly',
+            message=SERVICE_UNAVAILABLE_MESSAGE,
             status=503
         )
 

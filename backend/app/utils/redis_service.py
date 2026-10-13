@@ -77,8 +77,9 @@ def connect_redis(app: Flask) -> 'RedisService | None':
     return service
 
 
-# Logging in on an 11th device ends the session that would expire soonest,
-# so one account can never grow its Redis footprint without bound.
+# Logging in on an 11th device ends the session that would expire soonest
+# (with the idle timeout, mostly the one used least recently), so one account
+# can never grow its Redis footprint without bound.
 MAX_SESSIONS_PER_USER = 10
 
 
@@ -94,18 +95,21 @@ def _tokens_key(user_id: int) -> str:
 # turning one session into two. Swapping in one step also matters at the
 # session cap: storing first would evict another device's session.
 #   KEYS[1]  the user's set     ARGV[1]  new JTI       ARGV[2]  its expiry time
-#   ARGV[3]  now                ARGV[4]  session cap   ARGV[5]  TTL in seconds
-#   ARGV[6]  JTI to replace, or '' for a new sign-in
+#   ARGV[3]  now                ARGV[4]  session cap
+#   ARGV[5]  JTI to replace, or '' for a new sign-in
 _RECORD_TOKEN = """
-if ARGV[6] ~= '' and redis.call('ZREM', KEYS[1], ARGV[6]) == 0 then
+if ARGV[5] ~= '' and redis.call('ZREM', KEYS[1], ARGV[5]) == 0 then
   return 0
 end
 redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
 redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[3])
 -- Keep the newest sessions; the lowest scores expire first
 redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -(tonumber(ARGV[4]) + 1))
--- The newest token expires last, so the key can go with it
-redis.call('EXPIRE', KEYS[1], ARGV[5])
+-- The key goes when its last token expires. That need not be the token
+-- just recorded: one near its session's 30-day cap expires before another
+-- device's fresh sign-in.
+local last = redis.call('ZRANGE', KEYS[1], -1, -1, 'WITHSCORES')
+redis.call('EXPIREAT', KEYS[1], math.ceil(tonumber(last[2])))
 return 1
 """
 
@@ -171,7 +175,7 @@ class RedisService:
         now = time.time()
         recorded = self._record_token(
             keys=[_tokens_key(user_id)],
-            args=[jti, now + ttl_seconds, now, MAX_SESSIONS_PER_USER, ttl_seconds, replaces])
+            args=[jti, now + ttl_seconds, now, MAX_SESSIONS_PER_USER, replaces])
         return recorded == 1
 
     def store_refresh_token(self, user_id: int, jti: str, ttl_seconds: int) -> bool | None:
