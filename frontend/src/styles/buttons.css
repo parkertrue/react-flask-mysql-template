@@ -4,12 +4,6 @@
   font-size: 1rem;
 }
 
-/* aria-disabled keeps a busy button focusable, so focus is not lost. Its
-   label says what it is doing ("Saving..."), so it keeps full contrast. */
-.btn[aria-disabled='true'] {
-  cursor: progress;
-}
-
 /* Forced colors (Windows High Contrast) drop the background, which is the
    only edge a button has: give it a border there */
 @media (forced-colors: active) {
@@ -20,17 +14,27 @@
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: white;
+  color: var(--color-on-strong);
 }
 
 .btn-secondary {
   background-color: var(--color-secondary);
-  color: white;
+  color: var(--color-on-strong);
 }
 
 .btn-danger {
   background-color: var(--color-danger);
-  color: white;
+  color: var(--color-on-strong);
+}
+
+/* aria-disabled keeps a busy button focusable, so focus is not lost. It
+   looks inactive whatever its color, yet its label stays readable (4.5:1);
+   an inset edge, unlike a border, leaves its size alone. */
+.btn[aria-disabled='true'] {
+  background-color: var(--color-busy-surface);
+  color: var(--color-busy-text);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  cursor: progress;
 }
 
 .btn-small {

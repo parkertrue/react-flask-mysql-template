@@ -4,21 +4,17 @@
   gap: 0.5rem;
 }
 
-/* A FormField's input with its buttons beside it; stacked on narrow screens */
+/* A FormField's input with its buttons beside it, or below it once the
+   row is too narrow for both */
 .form-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
 .form-row .form-input {
-  flex: 1;
+  flex: 1 1 15rem;
   min-width: 0;
-}
-
-@media (max-width: 768px) {
-  .form-row {
-    flex-direction: column;
-  }
 }
 
 .form-label {

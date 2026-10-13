@@ -6,7 +6,8 @@
 
 .main-content {
   flex: 1;
-  padding: 2rem;
+  /* 1rem on a phone, growing to 2rem on wider screens */
+  padding: clamp(1rem, 4vw, 2rem);
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -16,10 +17,4 @@
 .message-page {
   text-align: center;
   padding: 3rem 0;
-}
-
-@media (max-width: 768px) {
-  .main-content {
-    padding: 1rem;
-  }
 }
