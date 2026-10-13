@@ -1,0 +1,113 @@
+import { ESLint } from 'eslint'
+
+// The lint rules are config, and config fails silently: a later block
+// replaces an earlier one's options, and a rule whose file glob or selector
+// stops matching reports nothing. These plant code in made-up files and lint
+// it with the real eslint.config.js, as tests/unit/test_import_rules.py and
+// test_assertions.py do for the backend.
+const eslint = new ESLint()
+
+const ruleIds = async (filePath, code) => {
+  const [result] = await eslint.lintText(`${code}\n`, { filePath })
+  return result.messages.map(message => message.ruleId)
+}
+
+describe('import rules', () => {
+  it.each([
+    // A relative path that leaves its folder, however it is written
+    ['src/features/notes/x.js', "import '../health/useHealth'", 'local/relative-within-folder'],
+    ['src/auth/x.js', "import '../routes'", 'local/relative-within-folder'],
+    ['src/auth/x.js', "export * from '../features/notes/useNotes'", 'local/relative-within-folder'],
+    ['src/utils/x.js', "import('../pages/HomePage')", 'local/relative-within-folder'],
+    ['src/routes.jsx', "import './pages/HomePage'", 'local/relative-within-folder'],
+    ['src/components/layout/x.js', "import '../../features/notes/useNotes'", 'no-restricted-imports'],
+    // The one-way rules on the @/ alias
+    ['src/utils/x.js', "import '@/features/notes/useNotes'", 'no-restricted-imports'],
+    ['src/auth/x.js', "import '@/routes'", 'no-restricted-imports'],
+    ['src/components/x.js', "import '@/pages/HomePage'", 'no-restricted-imports'],
+    ['src/features/notes/x.js', "import '@/features/health/useHealth'", 'no-restricted-imports'],
+    ['src/features/notes/x.js', "import '@/pages/HomePage'", 'no-restricted-imports'],
+    ['src/features/notes/x.js', "import '@/routes'", 'no-restricted-imports'],
+    ['src/features/notes/__tests__/x.js', "import '@/features/health/useHealth'", 'no-restricted-imports'],
+  ])('refuses %s: %s', async (filePath, code, ruleId) => {
+    expect(await ruleIds(filePath, code)).toContain(ruleId)
+  })
+
+  it.each([
+    ['src/features/notes/x.js', "import './useNotes'"],
+    ['src/features/notes/x.js', "import '@/auth/useAuth'"],
+    ['src/features/notes/__tests__/x.js', "import '../useNotes'"],
+    ['src/features/notes/__tests__/x.js', "import '@/routes'"],
+    ['src/components/layout/x.js', "import '../forms/FormField'"],
+    ['src/test/integration/x.js', "import '../fixtures'"],
+    ['src/__tests__/x.js', "import '../routes'"],
+    ['src/pages/x.js', "import '@/features/notes/NotesPage'"],
+  ])('allows %s: %s', async (filePath, code) => {
+    expect(await ruleIds(filePath, code)).toEqual([])
+  })
+})
+
+describe('code rules', () => {
+  it.each([
+    // Form controls go through FormField, in .js files as in .jsx
+    ['src/pages/x.jsx', 'export const X = () => <input />', 'no-restricted-syntax'],
+    ['src/features/notes/x.js', 'export const X = () => <textarea />', 'no-restricted-syntax'],
+    ['src/pages/__tests__/x.test.jsx', 'render(<select />)', 'no-restricted-syntax'],
+    // Markup rules hold everywhere, FormField's folder and tests included
+    ['src/pages/x.jsx', 'export const X = () => <p dangerouslySetInnerHTML={{ __html: x }} />', 'no-restricted-syntax'],
+    ['src/pages/x.jsx', 'export const X = () => <p data-testid="x" />', 'no-restricted-syntax'],
+    ['src/pages/x.jsx', 'export const X = () => <button disabled />', 'no-restricted-syntax'],
+    ['src/components/forms/x.jsx', 'export const X = () => <input disabled />', 'no-restricted-syntax'],
+    ['src/pages/__tests__/x.test.jsx', "screen.getByTestId('x')", 'no-restricted-syntax'],
+    ['src/pages/__tests__/x.test.jsx', "vi.mock('@/auth/storage')", 'no-restricted-syntax'],
+    ['src/auth/__tests__/x.test.jsx', "vi.mock('../storage')", 'no-restricted-syntax'],
+    // Leftovers and strings run as code
+    ['src/utils/x.js', "console.log('x')", 'no-console'],
+    ['src/utils/x.js', '// TODO: x', 'no-warning-comments'],
+    ['src/utils/x.js', "eval('x')", 'no-eval'],
+    ['src/utils/x.js', "setTimeout('x()')", 'no-implied-eval'],
+    ['src/utils/x.js', "new Function('x')", 'no-new-func'],
+  ])('refuses %s: %s', async (filePath, code, ruleId) => {
+    expect(await ruleIds(filePath, code)).toContain(ruleId)
+  })
+
+  it.each([
+    ['src/components/forms/x.jsx', 'export const X = () => <input />'],
+    ['src/pages/x.jsx', 'export const X = () => <button aria-disabled="true" />'],
+    ['src/pages/__tests__/x.test.jsx', "vi.mock('@/api/api')"],
+    ['e2e/x.js', "console.log('x')"],
+  ])('allows %s: %s', async (filePath, code) => {
+    expect(await ruleIds(filePath, code)).toEqual([])
+  })
+})
+
+describe('test rules', () => {
+  it.each([
+    // Unit tests, named .test or .spec, as Vitest runs both
+    ['src/x/__tests__/a.test.jsx', "it('a', () => { if (x) expect(x).toBe(1) })", 'vitest/no-conditional-expect'],
+    ['src/x/__tests__/a.spec.jsx', "it('a', () => { if (x) expect(x).toBe(1) })", 'vitest/no-conditional-expect'],
+    ['src/x/__tests__/a.test.js', "it('a', () => { run() })", 'vitest/expect-expect'],
+    ['src/x/__tests__/a.test.js', "it.skip('a', () => { expect(x).toBe(1) })", 'vitest/no-disabled-tests'],
+    ['src/x/__tests__/a.test.js', "it.only('a', () => { expect(x).toBe(1) })", 'vitest/no-focused-tests'],
+    ['src/x/__tests__/a.test.js', "// it('a', () => { expect(x).toBe(1) })", 'vitest/no-commented-out-tests'],
+    ['src/x/__tests__/a.test.js', "it('a', () => { expect(x).toBeDefined() })", 'vitest/no-restricted-matchers'],
+    ['src/x/__tests__/a.test.js', "it('a', () => { expect(x).toBeTruthy() })", 'vitest/no-restricted-matchers'],
+    ['src/x/__tests__/a.test.js', "it('a', () => { expect(x).not.toBeNull() })", 'vitest/no-restricted-matchers'],
+    ['src/x/__tests__/a.test.js', "it('a', () => { expect(x).toBeOneOf([1, 2]) })", 'vitest/no-restricted-matchers'],
+    // End-to-end tests
+    ['e2e/x.spec.js', "test('a', async ({ page }) => { await page.goto('/') })", 'playwright/expect-expect'],
+    ['e2e/x.spec.js', "test('a', async ({ page }) => { if (x) await expect(page).toHaveURL('/') })", 'playwright/no-conditional-in-test'],
+    ['e2e/x.spec.js', "test.skip('a', async ({ page }) => { await expect(page).toHaveURL('/') })", 'playwright/no-skipped-test'],
+    ['e2e/x.spec.js', "test.only('a', async ({ page }) => { await expect(page).toHaveURL('/') })", 'playwright/no-focused-test'],
+    ['e2e/x.spec.js', "test('a', async ({ page }) => { await page.waitForTimeout(1); await expect(page).toHaveURL('/') })", 'playwright/no-wait-for-timeout'],
+  ])('refuses %s: %s', async (filePath, code, ruleId) => {
+    expect(await ruleIds(filePath, code)).toContain(ruleId)
+  })
+
+  it.each([
+    ['src/x/__tests__/a.test.js', "const x = 1; it('a', () => { expect(x).toBe(1) })"],
+    ['e2e/x.spec.js', "test('a', async ({ page }) => { await expect(page).toHaveURL('/') })"],
+  ])('allows %s: %s', async (filePath, code) => {
+    expect(await ruleIds(filePath, code)).toEqual([])
+  })
+})

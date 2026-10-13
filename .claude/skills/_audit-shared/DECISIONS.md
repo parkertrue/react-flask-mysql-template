@@ -187,6 +187,55 @@ weakens one-time rotation (a stolen token could be replayed inside the
 window) and complicates the Lua script. *Revisit when:* users report
 sign-outs after slow responses, or refresh moves behind a shorter timeout.
 
+**Python import contracts stay a custom test, not import-linter.**
+`tests/unit/test_import_rules.py` does what import-linter's `layers` (with
+`exhaustive = true`) and `protected` contracts do, and finds new features by
+itself. import-linter (tried, version 2.15) skips packages without an
+`__init__.py`, so adopting it means five empty `__init__.py` files, a
+scaffold step to list each feature in the contract, and five dev packages
+(about 10 MB). *Revisit when:* the feature packages get `__init__.py` for
+another reason, or the rules outgrow the test (more layers, per-feature
+exceptions).
+
+**Frontend folder rules stay a custom ESLint rule, not
+`eslint-plugin-boundaries`.** `eslint.config.js`'s `relative-within-folder`
+rule (about 25 lines) and the `@/` patterns enforce the one-way imports, and
+`src/__tests__/eslintRules.test.js` plants violations of each. `boundaries`
+would declare the same rules more declaratively, but it resolves paths
+through `eslint-plugin-import`'s resolvers, so the `@/` alias needs two or
+three more dev packages, and the planted tests would stay anyway, since
+config fails silently. *Revisit when:* the rules outgrow the custom rule
+(more layers, per-feature exceptions), as for import-linter above.
+
+**Ruff's `select` lists every rule in full.** Ruff 0.16's own default set is
+far wider than pyflakes and syntax errors (`I`, `SIM`, `B`, `RUF`, `UP` and
+about 30 more families), and it changes between releases, so
+`extend-select` would turn on whatever the installed ruff defaults to.
+*Revisit when:* the repo chooses to adopt ruff's defaults.
+
+**axios stays.** The api client relies on what axios provides: request and
+response interceptors, `error.config` for retrying the original request,
+JSON and non-2xx handling, and the `err.response.{status,data}` shape that
+`getErrorMessage`, `AccountPage` and 8 test files read. A `fetch` wrapper
+would hand-write all of it. It costs 23 KB gzipped in the bundle; its 27
+lockfile packages (all MIT) are mostly Node-only and not bundled. *Revisit
+when:* the client needs streaming or `AbortSignal` beyond what axios offers,
+or a major axios release changes the interceptor API.
+
+**Pages load data in effects, not React Router loaders.** `AccountPage` and
+`useNotes` fetch in `useEffect`, while the app already uses
+`createBrowserRouter`. A loader would fire before `ProtectedRoute` renders,
+so a signed-out visit would send an unauthenticated request and land on the
+`errorElement` instead of `/login`. Using loaders means moving both guards
+into loaders (`throw redirect(...)`) and rebuilding the "Loading..." live
+regions on `useNavigation`. *Revisit when:* together with TanStack Query
+(below), or when a page needs data before first paint.
+
+**pytest-cov stays.** `coverage run -m pytest` plus `coverage report` could
+replace it, but that saves one small dev package in exchange for rewriting
+`run_tests.sh`'s `--cov`/`--cov-append`/`--cov-fail-under` flags. *Revisit
+when:* pytest-cov lags a pytest major release.
+
 ## Deferred until the app grows
 
 **TanStack Query.** It would replace the hand-written loading, error and

@@ -34,12 +34,12 @@ this app and record what each one turns up:
 - **Access control:** every route that touches user data requires a token
   and scopes queries to `current_user` (try reading or paginating another
   user's notes via the cursor, and `PUT`/`DELETE /api/notes/<id>` on another
-  user's note: both must answer 404 exactly like a missing id). Nothing reads identity from
-  `get_jwt_identity()`.
+  user's note: both must answer 404 exactly like a missing id). Lint refuses
+  `get_jwt_identity()` (ruff `TID251`).
 - **Input and output:** every request body and query passes through a Pydantic
   schema; size limits at nginx and Flask; email and password normalization;
-  no raw SQL with interpolation; no `dangerouslySetInnerHTML`; no
-  `eval`/`subprocess`/`os.system` in app code; error responses leak no stack
+  no raw SQL with interpolation (lint already refuses `dangerouslySetInnerHTML`,
+  `eval`, `subprocess` and `os.system`); error responses leak no stack
   traces, SQL, or internal hostnames.
 - **Secrets:** nothing secret in git history
   (`git log -p --all -S 'SECRET_KEY=' -- . ':!*.example' ':!*.examples' ':!.env.dev' ':!.env.test' ':!.claude'`

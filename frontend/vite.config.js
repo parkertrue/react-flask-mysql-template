@@ -1,11 +1,11 @@
 import { configDefaults, defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import { fileURLToPath } from 'url'
 import { readdirSync } from 'fs'
+import path from 'path'
 
 const floor = { statements: 95, branches: 95, functions: 95, lines: 95 }
 const foldersIn = folder =>
-  readdirSync(new URL(`./${folder}`, import.meta.url), { withFileTypes: true })
+  readdirSync(path.join(import.meta.dirname, folder), { withFileTypes: true })
     .filter(entry => entry.isDirectory() && entry.name !== '__tests__')
     .map(entry => `${folder}/${entry.name}/**`)
 // Every folder of src/ and each feature on its own, plus the root files, so
@@ -22,7 +22,7 @@ export default defineConfig({
   // `@/x` is src/x, so an import survives its file moving. jsconfig.json
   // maps the same path for the editor.
   resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }
+    alias: { '@': path.join(import.meta.dirname, 'src') }
   },
   // The bundle is a copy of every library in it, and their licenses (MIT
   // for all of them today) require their notices to travel with it. This

@@ -6,7 +6,6 @@ import vitest from '@vitest/eslint-plugin'
 import playwright from 'eslint-plugin-playwright'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import path from 'path'
-import { fileURLToPath } from 'url'
 
 // Each block below that restricts imports repeats this, since a later block
 // replaces an earlier one's options for the same rule rather than adding to
@@ -18,10 +17,36 @@ const NO_CLIMBING = {
 const restrictImports = (...patterns) =>
   ({ 'no-restricted-imports': ['error', { patterns: [...patterns, NO_CLIMBING] }] })
 
+// The same holds for no-restricted-syntax. These apply to every file in
+// src/, and FORM_CONTROL to all but FormField's own folder.
+const NO_TEXT_AS_HTML = {
+  selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+  message: 'Render text, which React escapes. User markup must be sanitized first (CLAUDE.md).',
+}
+const NO_TEST_IDS = {
+  selector: "JSXAttribute[name.name='data-testid'], Identifier[name=/ByTestId$/]",
+  message: 'Find elements by role, label or text: production markup has no data-testid.',
+}
+const NO_DISABLED = {
+  selector: "JSXAttribute[name.name='disabled']",
+  message: 'disabled drops keyboard focus: mark a busy control aria-disabled or readOnly and guard its handler.',
+}
+const NO_MOCKED_STORAGE = {
+  selector: "CallExpression[callee.object.name='vi'][callee.property.name=/^(mock|doMock)$/][arguments.0.value=/(^|[^a-zA-Z])storage$/]",
+  message: 'Tests use the real localStorage (signIn() for a session), never a mocked storage.',
+}
+const FORM_CONTROL = {
+  selector: 'JSXOpeningElement[name.name=/^(input|textarea|select)$/]',
+  message: 'Use FormField (src/components/forms) instead of a raw form control.',
+}
+const restrictSyntax = (...selectors) => ({
+  'no-restricted-syntax': ['error', NO_TEXT_AS_HTML, NO_TEST_IDS, NO_DISABLED, NO_MOCKED_STORAGE, ...selectors],
+})
+
 // The folder a file belongs to: a feature (features/notes), a top-level
 // folder of src/ (auth, pages, ...), or src/ itself for its root files.
 // A __tests__ folder belongs to the folder it sits in.
-const SRC = fileURLToPath(new URL('./src', import.meta.url))
+const SRC = path.join(import.meta.dirname, 'src')
 const folderOf = file => {
   const parts = path.relative(SRC, file).split(path.sep).filter(part => part !== '__tests__')
   if (parts[0] === '..') return null
@@ -64,16 +89,20 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      ecmaVersion: 'latest',
       globals: globals.browser,
       parserOptions: {
         ecmaFeatures: { jsx: true },
       },
     },
-    // Debug output stays out of shipped code (`debugger` is already an
-    // error in js.configs.recommended)
+    // Debug output and temporary markers stay out of shipped code
+    // (`debugger` is already an error in js.configs.recommended), and so
+    // does running a string as code
     rules: {
       'no-console': 'error',
+      'no-warning-comments': ['error', { terms: ['todo', 'fixme', 'hack', 'xxx', 'nocommit'] }],
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
     },
   },
   {
@@ -81,8 +110,15 @@ export default defineConfig([
     plugins: { local: { rules: { 'relative-within-folder': relativeWithinFolder } } },
     rules: {
       ...restrictImports(),
+      ...restrictSyntax(FORM_CONTROL),
       'local/relative-within-folder': 'error',
     },
+  },
+  {
+    // Fields go through FormField, which ties the label, hint and message to
+    // the input for screen readers. Only it renders a raw form control
+    files: ['src/components/forms/**'],
+    rules: restrictSyntax(),
   },
   {
     // Shared code never depends on a feature or a page, so deleting a
@@ -111,18 +147,6 @@ export default defineConfig([
     }),
   },
   {
-    // Fields go through FormField, which ties the label, hint and message to
-    // the input for screen readers
-    files: ['src/**/*.jsx'],
-    ignores: ['src/components/forms/**'],
-    rules: {
-      'no-restricted-syntax': ['error', {
-        selector: 'JSXOpeningElement[name.name=/^(input|textarea|select)$/]',
-        message: 'Use FormField (src/components/forms) instead of a raw form control.',
-      }],
-    },
-  },
-  {
     // Build and test tooling runs under Node, not in the browser
     files: ['*.config.js', 'e2e/**'],
     languageOptions: {
@@ -133,7 +157,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/__tests__/**', 'src/test/**', '**/*.test.{js,jsx}'],
+    files: ['src/**/__tests__/**', 'src/test/**', '**/*.{test,spec}.{js,jsx}'],
     languageOptions: {
       globals: { ...globals.node, ...globals.vitest },
     },
@@ -143,17 +167,26 @@ export default defineConfig([
   },
   {
     // Every assertion must be able to fail: none behind an if or in a catch,
-    // and no test without one (backend: tests/unit/test_assertions.py)
-    files: ['src/**/*.test.{js,jsx}'],
-    plugins: { vitest },
+    // none that almost any value passes, and no test without one, skipped
+    // or focused (backend: tests/unit/test_assertions.py). The presets ship
+    // some rules as warnings, which `npm run lint` fails on too
+    files: ['src/**/*.{test,spec}.{js,jsx}'],
+    extends: [vitest.configs.recommended],
     rules: {
-      'vitest/expect-expect': 'error',
       'vitest/no-conditional-expect': 'error',
+      'vitest/no-restricted-matchers': ['error', {
+        toBeDefined: 'Assert the value itself.',
+        toBeTruthy: 'Assert the value itself.',
+        toBeFalsy: 'Assert the value itself.',
+        'not.toBeNull': 'Assert the value itself.',
+        'not.toBeUndefined': 'Assert the value itself.',
+        toBeOneOf: 'Pin the one answer the code gives.',
+      }],
     },
   },
   {
     files: ['e2e/**/*.spec.js'],
-    plugins: { playwright },
+    extends: [playwright.configs['flat/recommended']],
     rules: {
       'playwright/expect-expect': 'error',
       'playwright/no-conditional-expect': 'error',

@@ -1,9 +1,11 @@
 """Every assertion must be able to fail (CLAUDE.md, Test Architecture).
 
 Scans every test module for the hedges that let a test pass whatever the
-code does: an assert that only runs behind an `if` or inside a `try`, an
-`assert a or b`, a test that asserts nothing at all, and a test whose every
-assert is one any value passes (`is not None`, `isinstance`, a bare name).
+code does: an assert that may not run (behind an `if`, `match` or `while`, or
+inside a `try` or `suppress`), an assert that accepts several answers
+(`a or b`, `x in (400, 422)`, `x if c else True`), a test that asserts nothing
+at all, and a test whose every assert is one any value passes (`is not None`,
+`isinstance`, a bare name).
 """
 import ast
 from pathlib import Path
@@ -63,19 +65,37 @@ def _only_weak_asserts(test):
     return bool(asserts) and not helper_checks and all(map(_is_weak, asserts))
 
 
+def _may_skip_body(node):
+    """A statement whose body may not run, or whose failures it swallows"""
+    if isinstance(node, (ast.If, ast.While, ast.Match, ast.Try, ast.TryStar)):
+        return True
+    return isinstance(node, (ast.With, ast.AsyncWith)) and any(
+        isinstance(item.context_expr, ast.Call) and _called_name(item.context_expr) == 'suppress'
+        for item in node.items)
+
+
+def _accepts_several(test):
+    """`a or b`, `x in (400, 422)` or `x if c else y`: more than one answer passes"""
+    if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.Or):
+        return True
+    if isinstance(test, ast.Compare) and any(isinstance(op, ast.In) for op in test.ops):
+        return any(isinstance(c, (ast.List, ast.Tuple, ast.Set)) for c in test.comparators)
+    return isinstance(test, ast.IfExp)
+
+
 def _hedges(node, guarded=False):
     """(line, problem) for each hedged assert under node"""
     for child in ast.iter_child_nodes(node):
         if isinstance(child, ast.Assert):
             if guarded:
-                yield child.lineno, 'assert behind an if or inside a try'
-            if isinstance(child.test, ast.BoolOp) and isinstance(child.test.op, ast.Or):
-                yield child.lineno, 'assert a or b'
+                yield child.lineno, 'assert that may not run'
+            if _accepts_several(child.test):
+                yield child.lineno, 'assert that accepts several answers'
         if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             # A nested helper is judged on its own
             yield from _hedges(child, False)
         else:
-            yield from _hedges(child, guarded or isinstance(child, (ast.If, ast.Try, ast.IfExp)))
+            yield from _hedges(child, guarded or _may_skip_body(child))
 
 
 def _violations(path, root=TESTS):
@@ -97,10 +117,19 @@ def test_no_test_hedges_its_assertions():
 
 
 @pytest.mark.parametrize('source, expected', [
-    ('def test_x(r):\n    if r.ok:\n        assert r.data == 1\n', 'behind an if'),
+    ('def test_x(r):\n    if r.ok:\n        assert r.data == 1\n', 'may not run'),
     ('def test_x(r):\n    try:\n        assert r.data == 1\n    except Exception:\n        pass\n',
-     'inside a try'),
-    ('def test_x(r):\n    assert r.status in (400, 422) or r.data\n', 'assert a or b'),
+     'may not run'),
+    ('def test_x(r):\n    while r.more:\n        assert r.next() == 1\n', 'may not run'),
+    ('def test_x(r):\n    match r.data:\n        case 1:\n            assert r.ok\n', 'may not run'),
+    ('def test_x(r):\n    with suppress(AssertionError):\n        assert r.data == 1\n', 'may not run'),
+    ('def test_x(r):\n    with contextlib.suppress(AssertionError):\n        assert r.data == 1\n',
+     'may not run'),
+    ('def test_x(r):\n    assert r.data == 1 or r.data == 2\n', 'accepts several answers'),
+    ('def test_x(r):\n    assert r.status in (400, 422)\n', 'accepts several answers'),
+    ('def test_x(r):\n    assert r.status in [400, 422]\n', 'accepts several answers'),
+    ('def test_x(r):\n    assert r.status in {400, 422}\n', 'accepts several answers'),
+    ('def test_x(r):\n    assert r.data == 1 if r.ok else True\n', 'accepts several answers'),
     ('def test_x(r):\n    r.get()\n', 'test_x never asserts'),
     ('def test_x(r):\n    assert r is not None\n    assert isinstance(r, str)\n    assert r\n',
      'test_x has only weak asserts'),
@@ -117,6 +146,9 @@ def test_each_rule_catches_a_hedge(tmp_path, source, expected):
     'def test_x(r):\n    assert r.status == 400\n',
     'def test_x(r):\n    for item in r.items:\n        assert item.ok\n',
     'def test_x(r):\n    with pytest.raises(ValueError):\n        r.get()\n',
+    'def test_x(r):\n    with r.session() as s:\n        assert s.data == 1\n',
+    # Membership in what the code returns pins one answer
+    "def test_x(r):\n    assert 'a@b.c' in r.emails\n",
     'def test_x(self, r):\n    self.assert_failed(r.get())\n',
     # A weak assert beside a real check is fine
     'def test_x(r):\n    assert r is not None\n    assert r.status == 400\n',
