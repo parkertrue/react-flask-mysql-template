@@ -187,20 +187,23 @@ test.describe('nginx while the backend is away', () => {
     await expect.poll(async () => (await request.get('/api/health')).status(),
       { intervals: [200], timeout: 30_000 }).toBe(200)
 
-    // EXPERIMENT: measure the gap on this platform
-    const ip = () => testStack('exec', '-T', 'nginx', 'getent', 'hosts', 'backend').trim()
-    const oldIp = ip()
+    // A deploy's swap. While no backend container exists, nginx's lookups of
+    // its name fail: Docker Desktop answers "not found", which nginx keeps
+    // for the resolver's valid= time, and Linux a server failure, after which
+    // nginx keeps the old address. Give it a few lookups' time.
     testStack('rm', '--stop', '--force', 'backend')
     await new Promise(resolve => setTimeout(resolve, 5000))
     testStack('up', '-d', '--no-deps', 'backend')
     await expect.poll(backendServes, { intervals: [200], timeout: 60_000 }).toBe(true)
 
+    // valid=2s (nginx.conf): within moments, not the seconds a longer cache
+    // of that "not found" would keep a healthy backend unreachable. This
+    // guards valid= only in part: Desktop's lookup lands in the wait about
+    // half the time, and on Linux the new container got the old address, so
+    // there is no gap to catch. It still fails if a swap breaks otherwise.
     const started = Date.now()
     await expect.poll(async () => (await request.get('/api/health')).status(),
-      { intervals: [200], timeout: 90_000 }).toBe(200)
-    const gap = Date.now() - started
-    console.log(`REC9-EXPERIMENT old ${oldIp} new ${ip()} gap ${gap}ms`)
-    console.log(testStack('logs', 'nginx', '--tail', '15'))
-    expect(gap).toBeLessThan(3000)
+      { intervals: [200], timeout: 30_000 }).toBe(200)
+    expect(Date.now() - started).toBeLessThan(3000)
   })
 })
