@@ -62,6 +62,16 @@ Ground rules when using these:
   layout and the import direction rules in CLAUDE.md came from this.
 - **TanStack Query docs**: https://tanstack.com/query/latest
   For deciding when hand-written data hooks should give way to a query library.
+- **Lint**
+  - ESLint rules: https://eslint.org/docs/latest/rules/ (core rules and their defaults)
+  - @vitest/eslint-plugin: https://github.com/vitest-dev/eslint-plugin-vitest (its `recommended` preset)
+  - eslint-plugin-playwright: https://github.com/playwright-community/eslint-plugin-playwright (its `flat/recommended` preset)
+  - eslint-plugin-boundaries: https://github.com/javierbrea/eslint-plugin-boundaries
+    (import rules between folders; the tool to weigh against the custom
+    `relative-within-folder` rule)
+- **Platform APIs**: MDN Web APIs (https://developer.mozilla.org/en-US/docs/Web/API)
+  and Baseline (https://web.dev/baseline) for what every supported browser
+  has, before reaching for a package.
 - **Accessibility**
   - WCAG 2.2 Quick Reference: https://www.w3.org/WAI/WCAG22/quickref/
   - WAI-ARIA Authoring Practices Guide (APG): https://www.w3.org/WAI/ARIA/apg/
@@ -91,6 +101,8 @@ Ground rules when using these:
   - Ruff rules: https://docs.astral.sh/ruff/rules/ (rule sets worth enabling)
   - pytest Good Integration Practices: https://docs.pytest.org/en/stable/explanation/goodpractices.html
   - pip-tools (the lock workflow): https://pip-tools.readthedocs.io
+  - import-linter: https://import-linter.readthedocs.io (import contracts
+    as config; the tool to weigh against `tests/unit/test_import_rules.py`)
 
 ## MySQL / SQLAlchemy
 
@@ -177,6 +189,43 @@ Ground rules when using these:
 - **Backups**: the 3-2-1 rule (3 copies, 2 media, 1 off-site); MySQL manual's
   Backup and Recovery chapter; Redis persistence docs (`/audit-recovery`)
 
+## Legal (for `/audit-legal`; none of this is legal advice)
+
+Primary texts and regulators' guidance outrank law-firm blogs. Confirm each
+before citing: thresholds, deadlines and state laws change often.
+
+- **Privacy, EU and UK**
+  - GDPR text: https://eur-lex.europa.eu/eli/reg/2016/679/oj (readable copy: https://gdpr-info.eu)
+  - CNIL GDPR Developer Guide: https://lincnil.github.io/GDPR-Developer-Guide/
+    The most practical source for this app: data inventory, minimization,
+    retention, user rights, cookies, logs.
+  - EDPB guidelines: https://www.edpb.europa.eu (consent 05/2020, Art. 5(3)
+    ePrivacy technical scope 2/2023, data subject rights)
+  - UK ICO guide to UK GDPR and PECR: https://ico.org.uk/for-organisations/
+- **Privacy, US**
+  - CCPA/CPRA, California AG: https://oag.ca.gov/privacy/ccpa (thresholds, notices, rights)
+  - CalOPPA (privacy policy requirement): California Business and Professions Code 22575-22579
+  - IAPP US State Privacy Legislation Tracker: https://iapp.org/resources/article/us-state-privacy-legislation-tracker/
+  - FTC: COPPA Rule and its FAQ (https://www.ftc.gov/business-guidance/privacy-security/childrens-privacy),
+    "Start with Security", and its dark-patterns staff report "Bringing Dark Patterns to Light" (2022)
+- **Accessibility law**
+  - ADA web guidance, US DOJ: https://www.ada.gov/resources/web-guidance/
+  - European Accessibility Act, Directive (EU) 2019/882: https://eur-lex.europa.eu/eli/dir/2019/882/oj
+  - Section 508: https://www.section508.gov
+- **Content and platforms**
+  - DMCA designated agent directory: https://www.copyright.gov/dmca-directory/
+  - EU Digital Services Act, Regulation (EU) 2022/2065: https://eur-lex.europa.eu/eli/reg/2022/2065/oj
+  - CAN-SPAM compliance guide, FTC: https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business
+- **Licenses**
+  - SPDX License List: https://spdx.org/licenses/
+  - choosealicense.com: https://choosealicense.com (comparing licenses for the template's own)
+  - Blue Oak Council license list: https://blueoakcouncil.org/list (permissive licenses, rated)
+  - OSI approved licenses: https://opensource.org/licenses
+- **Notices**
+  - security.txt, RFC 9116: https://www.rfc-editor.org/rfc/rfc9116
+- **Privacy engineering**
+  - OWASP Top 10 Privacy Risks: https://owasp.org/www-project-top-10-privacy-risks/
+
 ---
 
 ## Which sources each check starts with
@@ -190,3 +239,5 @@ Ground rules when using these:
 | `/audit-a11y` | WCAG 2.2 quick reference; WAI-ARIA APG |
 | `/audit-infra` (bottlenecks) | Use The Index, Luke; Gunicorn Design page; SQLAlchemy pooling |
 | `/audit-code`, `/audit-docs`, `/audit-scaffold` | CLAUDE.md (the spec) and the layer sections above |
+| `/audit-code` (imports, lint) | The installed version's docs for each dependency; Ruff rules; the Lint and Platform APIs entries; import-linter |
+| `/audit-legal` | The Legal section; CNIL GDPR Developer Guide first, then the CA AG CCPA pages, SPDX and choosealicense for licenses |

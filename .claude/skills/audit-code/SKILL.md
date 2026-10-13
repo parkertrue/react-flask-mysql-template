@@ -1,7 +1,7 @@
 ---
 name: audit-code
-description: Review code hygiene across the repo - comments (stale, redundant, change-history, author-specific, missing where needed), dead code and orphaned files, debug leftovers, and naming and pattern consistency against CLAUDE.md's conventions.
-argument-hint: "[comments|dead|naming]"
+description: Review code hygiene across the repo - comments (stale, redundant, change-history, author-specific, missing where needed), dead code and orphaned files, debug leftovers, naming and pattern consistency against CLAUDE.md's conventions, imports a built-in or a common library could replace, and the lint setup itself.
+argument-hint: "[comments|dead|naming|imports|lint ...]"
 disable-model-invocation: true
 context: fork
 ---
@@ -13,12 +13,13 @@ Then read `CLAUDE.md` (its **Naming Conventions** and the folder rules under
 **Architecture** are the spec here), plus `DECISIONS.md` from the same folder
 as RULES.md.
 
-**Scope:** `$ARGUMENTS`. If empty, run all three parts.
+**Scope:** `$ARGUMENTS`, one or more part names. If empty, run all five parts.
 
 **Files:** every tracked file (`git ls-files`) except lockfiles,
 `backend/migrations/{README,alembic.ini,script.py.mako}` (Alembic's
-generated files), and `.claude/`. Tests are in scope, but for test comments
-report only stale or wrong ones, not redundant narration.
+generated files), and `.claude/` (part 5 reads the audit prompts, but only to
+find manual checks lint could take over). Tests are in scope, but for test
+comments report only stale or wrong ones, not redundant narration.
 
 Whitespace and formatting (trailing spaces, final newlines) are out of scope,
 except for one finding proposing a guard (an `.editorconfig` or lint rule) if
@@ -94,6 +95,81 @@ Check names and patterns against CLAUDE.md's conventions and against each other:
 - Import direction rules (shared code never imports a feature or page;
   features never import each other). ESLint enforces part of this; check what
   it misses.
+
+## 4. imports: what a built-in or a common library could replace
+
+Work in both directions. Every suggestion must clear RULES.md's **lean** bar:
+name the lines it removes or simplifies, and what it costs (install size,
+transitive dependencies, maintenance and release cadence, license; a
+copyleft or unclear license is a finding tagged `(also /audit-legal)`). Read
+the package's own docs or changelog for what it currently offers; don't rely
+on memory. Do not re-report a library choice recorded in DECISIONS.md unless
+its *Revisit when* has come true.
+
+- **A dependency a built-in could replace.** For each third-party import in
+  `backend/` (app, scripts, tests) and `frontend/` (src, e2e, config files):
+  does the Python standard library (the version in `backend/Dockerfile`),
+  Node (the version CI pins), the browsers' platform APIs (`fetch`,
+  `AbortController`, `Intl`, `URLSearchParams`, `structuredClone`, the
+  `<dialog>` element), or a library already installed (Flask, Pydantic,
+  SQLAlchemy, React, React Router, Vitest) now do the same job? Weigh what
+  the dependency does that the built-in would need hand-written code for
+  (for example, axios's interceptors). Keeping a dependency is a valid
+  conclusion; propose a DECISIONS.md entry so the next run doesn't redo the
+  weighing.
+- **Hand-written code a common library or tool could replace.** Look for
+  code that re-implements what a widely used, maintained package does: custom
+  lint rules or AST-scanning tests that an existing plugin or tool covers
+  (for example, `import-linter` for Python import contracts), hand-rolled
+  retry, backoff, debounce, date or number formatting, parsing, validation
+  that duplicates a Pydantic or library feature, effect-based data loading
+  where a React Router or React built-in fits. Prefer what is already
+  installed, then the platform, then a new dependency.
+- **Standard-library and internal imports:** a module imported for one
+  trivial use that a builtin covers (`fileURLToPath(import.meta.url)` where
+  `import.meta.dirname` works), or a helper re-implemented in several places
+  instead of imported from one.
+
+Unused or misplaced packages belong to `/audit-security` (part 2): cite its
+latest report's ID instead of repeating them.
+
+## 5. lint: the lint setup itself
+
+Files: `backend/ruff.toml`, `backend/pytest.ini`, `backend/.coveragerc`,
+`frontend/eslint.config.js`, the coverage thresholds in
+`frontend/vite.config.js`, and the tests that act as lint
+(`backend/tests/unit/test_import_rules.py`,
+`backend/tests/unit/test_assertions.py`,
+`frontend/src/__tests__/eslintImports.test.js`), plus the lint jobs in
+`.github/workflows/`. Run `ruff check .` and `npm run lint` first; a red run
+is a blocker.
+
+- **Redundant config:** options set to their default (check the tool's docs
+  for the installed version), rules repeated across blocks, blocks that could
+  merge, ignores that match nothing.
+- **Custom code a maintained rule now covers:** each custom ESLint rule,
+  `no-restricted-syntax` selector and AST-scanning test: does a plugin rule,
+  a ruff rule, a preset (`vitest.configs.recommended`,
+  `playwright.configs['flat/recommended']`, a ruff rule set) or a tool do the
+  same? Weigh the lines saved against the dependency added, as in part 4.
+- **Rules worth turning on:** a ruff rule set or plugin rule that would catch
+  a class of problem this repo has had (check `temp/audits/` for repeats) or
+  that CLAUDE.md forbids in prose (for example, ruff `TID251` banned-api for
+  an API CLAUDE.md says never to call). Name the rules and run them once to
+  show what they would flag today; a rule that would need many suppressions
+  is not worth it.
+- **Manual checks lint could take over:** read the other `/audit-*` prompts
+  for steps that scan for a mechanical pattern (`.skip` and `.only`,
+  commented-out code). Each one a rule could catch is a finding whose fix
+  adds the rule and deletes the step from the prompt.
+- **Suppressions:** every `eslint-disable`, `noqa` and per-file ignore needs
+  a reason next to it and must still be necessary (remove it and run lint).
+- **Guards that can fail silently:** every structural rule (import
+  direction, raw form controls, assertion hedges) needs a test that plants a
+  violation and sees it caught. A rule with none is a finding.
+- **Consistency between the two sides:** where the backend and frontend
+  enforce the same CLAUDE.md rule (one-way imports, assertion hedges), do
+  they cover the same cases?
 
 ## Out of scope
 README and CLAUDE.md prose (`/audit-docs`); behavior (other checks).
