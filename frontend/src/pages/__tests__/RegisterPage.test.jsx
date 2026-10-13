@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import RegisterPage from '../RegisterPage'
 import LoginPage from '../LoginPage'
 import { registerUser } from '@/auth/authService'
@@ -84,7 +84,8 @@ describe('RegisterPage', () => {
       await user.click(submitButton())
 
       expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
-      expect(screen.getByRole('status')).toHaveTextContent('Registration successful')
+      // The login page fills its status line after its first render
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Registration successful'))
       expect(registerUser).toHaveBeenCalledWith('user@example.com', 'Password123')
     })
 
