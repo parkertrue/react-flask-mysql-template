@@ -1,4 +1,4 @@
-# React + Flask + MySQL Template
+# React + Flask Template
 
 This repository is a ready-to-use template for a React + Flask + MySQL web application, designed to eliminate the overhead of initial project scaffolding and environment configuration. 
 
