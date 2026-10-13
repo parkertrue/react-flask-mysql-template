@@ -40,6 +40,16 @@ test.describe('nginx', () => {
     expect(asset.headers()['cache-control']).toBe('public, max-age=31536000, immutable')
   })
 
+  test('the bundled libraries\' license notices are served as text', async ({ request }) => {
+    // Written by the build (vite.config.js); without it the SPA fallback
+    // would answer this path with index.html
+    const response = await request.get('/third-party-licenses.txt')
+
+    expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toBe('text/plain')
+    expect(await response.text()).toContain('## react - ')
+  })
+
   test('API responses are never stored', async ({ request }) => {
     // Set by Flask; nginx must pass it through untouched
     for (const path of ['/api/health', '/api/account']) {

@@ -24,6 +24,12 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }
   },
+  // The bundle is a copy of every library in it, and their licenses (MIT
+  // for all of them today) require their notices to travel with it. This
+  // writes them to a file nginx serves beside index.html.
+  build: {
+    license: { fileName: 'third-party-licenses.txt' },
+  },
   server: {
     // localhost only: the dev server proxies to Flask in debug mode, whose
     // tracebacks should not be reachable from the LAN. Opt in to LAN access
