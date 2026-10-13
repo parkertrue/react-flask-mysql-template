@@ -43,9 +43,10 @@ jobs:
       - name: Lint
         run: ruff check .
 
-      # Fails under the coverage floor in backend/.coveragerc
+      # The same command as locally: fails under the coverage floor in
+      # backend/.coveragerc, in total or for any one package of app/
       - name: Run unit tests
-        run: pytest tests/unit --cov=app --cov-report=term-missing
+        run: ./run_tests.sh unit
 
   frontend:
     name: Frontend unit

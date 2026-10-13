@@ -240,7 +240,7 @@ ruff check .                # Lint
 
 Integration runs start the test containers on ports 3307 (MySQL) and 6380 (Redis), wait for them to be healthy, and remove them afterwards. A bare `pytest` runs the unit tests only.
 
-Unit runs fail below 95% total coverage of `app/`, branches included (`backend/.coveragerc`), and any warning fails a test (`backend/pytest.ini`), so a deprecation gets fixed when it first appears rather than when the next major release removes it. Tests run in a new random order each time (`pytest-randomly`); to replay a failing order, pass the seed printed in the header: `pytest --randomly-seed=<seed>`.
+Unit runs fail below 95% coverage of `app/`, branches included, in total or for any one package (`backend/.coveragerc`, `run_tests.sh`), and any warning fails a test (`backend/pytest.ini`), so a deprecation gets fixed when it first appears rather than when the next major release removes it. Tests run in a new random order each time (`pytest-randomly`); to replay a failing order, pass the seed printed in the header: `pytest --randomly-seed=<seed>`.
 
 ## Frontend Tests
 
