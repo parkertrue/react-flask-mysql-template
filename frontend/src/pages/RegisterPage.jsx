@@ -44,8 +44,6 @@ export default function RegisterPage() {
     }
   }
 
-  // While submitting, inputs are read-only and the button aria-disabled
-  // rather than disabled: a disabled element drops keyboard focus
   return (
     <div className="auth-page">
       <PageTitle>Register</PageTitle>

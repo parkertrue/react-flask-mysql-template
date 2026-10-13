@@ -18,6 +18,7 @@ RUN rm /etc/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/proxy_params.conf /etc/nginx/proxy_params.conf
 COPY nginx/security_headers.conf /etc/nginx/security_headers.conf
+COPY nginx/resource_headers.conf /etc/nginx/resource_headers.conf
 COPY nginx/templates /etc/nginx/templates
 # Production rate limits, per client IP; see templates/
 # The auth rate covers login and register together. Flask's own limits are

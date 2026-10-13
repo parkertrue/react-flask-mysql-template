@@ -41,8 +41,6 @@ export default function AccountPage() {
     logout()
   }
 
-  // aria-disabled rather than disabled while busy: a disabled button drops
-  // keyboard focus
   return (
     <div className="account-page">
       <PageTitle>Account</PageTitle>
