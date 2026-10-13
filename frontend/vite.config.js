@@ -4,12 +4,17 @@ import { fileURLToPath } from 'url'
 import { readdirSync } from 'fs'
 
 const floor = { statements: 95, branches: 95, functions: 95, lines: 95 }
-// The shared folders, and each feature on its own
-const coveredFolders = [
-  'src/api', 'src/auth', 'src/components',
-  ...readdirSync(new URL('./src/features', import.meta.url), { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => `src/features/${entry.name}`),
+const foldersIn = folder =>
+  readdirSync(new URL(`./${folder}`, import.meta.url), { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name !== '__tests__')
+    .map(entry => `${folder}/${entry.name}/**`)
+// Every folder of src/ and each feature on its own, plus the root files, so
+// a new folder gets a floor without being listed. src/test is excluded
+// from coverage below.
+const coveredGlobs = [
+  ...foldersIn('src').filter(glob => !['src/features/**', 'src/test/**'].includes(glob)),
+  ...foldersIn('src/features'),
+  'src/*.{js,jsx}',
 ]
 
 export default defineConfig({
@@ -60,10 +65,11 @@ export default defineConfig({
       // behind well-covered code elsewhere in the total
       thresholds: {
         ...floor,
-        ...Object.fromEntries(coveredFolders.map(folder => [`${folder}/**`, floor])),
+        ...Object.fromEntries(coveredGlobs.map(glob => [glob, floor])),
       },
-      // Test files are left out automatically
-      exclude: ['src/test/**', 'src/main.jsx']
+      // Test files are left out automatically; a feature's own fixtures in
+      // __tests__ would pad its floor
+      exclude: ['src/test/**', 'src/**/__tests__/**', 'src/main.jsx']
     },
   }
 })

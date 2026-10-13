@@ -10,3 +10,7 @@ branch = True
 fail_under = 95
 show_missing = True
 skip_covered = True
+# The feature packages have no __init__.py, so without this a file in one
+# that no test imports would be left out of the report instead of counted
+# as 0%.
+include_namespace_packages = True

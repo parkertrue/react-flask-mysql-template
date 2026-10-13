@@ -66,12 +66,32 @@ activate_venv() {
             source .venv/Scripts/activate
         elif [ -f ".venv/bin/activate" ]; then
             source .venv/bin/activate
+        elif command -v pytest > /dev/null; then
+            # CI installs the dependencies straight into its Python
+            :
         else
             echo -e "${RED}❌ Virtual environment not found${NC}"
             echo "Run: python -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt"
             exit 1
         fi
     fi
+}
+
+# .coveragerc's floor reads only the total, where one package well under it
+# can hide behind the rest, so each package of app/, and the core files at
+# its top, must reach it on its own too
+check_package_coverage() {
+    local failed=0 scope
+    for scope in app/*/ app/; do
+        [ "$scope" = "app/__pycache__/" ] && continue
+        if [ "$scope" = "app/" ]; then scope="app/*.py"; else scope="${scope}*"; fi
+        if ! coverage report --include="$scope" > /dev/null; then
+            echo -e "${RED}❌ $scope is below the coverage floor${NC}"
+            coverage report --include="$scope" || true
+            failed=1
+        fi
+    done
+    return $failed
 }
 
 if [ "$#" -eq 0 ] || [ "$1" = "help" ]; then
@@ -121,6 +141,7 @@ case "$TEST_TYPE" in
             pytest tests/unit/ $VERBOSE
         else
             pytest tests/unit/ --cov=app --cov-report=term-missing $VERBOSE
+            check_package_coverage
         fi
         ;;
 
@@ -159,6 +180,7 @@ case "$TEST_TYPE" in
         echo -e "${GREEN}COMBINED COVERAGE REPORT${NC}"
         echo -e "${GREEN}================================${NC}"
         coverage report -m
+        check_package_coverage
 
         coverage html
         echo -e "${GREEN}✅ HTML coverage report: htmlcov/index.html${NC}"

@@ -2,8 +2,11 @@
 
 The shared core (config.py, utils/) imports no feature; a feature may import
 the core and auth (every app keeps it), but no other feature; only the app
-factory imports features.py, the one list that wires features in. Removing
-or replacing a feature therefore touches nothing outside it but that list.
+factory imports features.py, the one list that wires features in, and the
+factory imports no other feature. Removing or replacing a feature therefore
+touches nothing outside it but that list.
+
+Only absolute imports are read: ruff bans relative ones (TID252, ruff.toml).
 """
 import ast
 from pathlib import Path
@@ -46,6 +49,8 @@ def _violations(path, root=APP):
             continue
         if target == 'features' and owner not in {'__init__', 'features'}:
             yield f'{relative} imports features.py'
+        elif target not in CORE | SHARED_FEATURES and owner == '__init__':
+            yield f'{relative} (the app factory) imports the {target} feature'
         elif target not in CORE and owner in CORE - {'__init__', 'features'}:
             yield f'{relative} (shared core) imports the {target} feature'
         elif target not in CORE | SHARED_FEATURES and owner not in CORE:
@@ -72,6 +77,7 @@ def test_imports_point_one_way():
     ('orders/x.py', 'from app.billing.routes import billing_bp', 'the orders feature'),
     ('orders/x.py', 'from app import billing', 'the orders feature'),
     ('auth/x.py', 'from app.features import BLUEPRINTS', 'imports features.py'),
+    ('__init__.py', 'from app.orders.routes import orders_bp', 'the app factory'),
 ])
 def test_each_rule_catches_a_violation(tmp_path, owner, source, expected):
     """The scan itself works: a planted bad import is reported"""
@@ -86,6 +92,7 @@ def test_each_rule_catches_a_violation(tmp_path, owner, source, expected):
     ('orders/x.py', 'from app import db'),
     ('features.py', 'from app.orders.routes import orders_bp'),
     ('__init__.py', 'from app.features import register_features'),
+    ('__init__.py', 'from app.auth.models import User'),
 ])
 def test_allowed_imports_pass(tmp_path, owner, source):
     path = _plant(tmp_path, owner, source)
