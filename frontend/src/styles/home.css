@@ -17,12 +17,7 @@
 .home-actions {
   display: flex;
   gap: 1rem;
+  flex-wrap: wrap;
   justify-content: center;
   margin-top: 2rem;
-}
-
-@media (max-width: 768px) {
-  .home-actions {
-    flex-direction: column;
-  }
 }

@@ -8,11 +8,10 @@
 .auth-container {
   width: 100%;
   max-width: 400px;
-  padding: 0 1rem;
 }
 
 .auth-card {
-  background: white;
+  background-color: var(--color-surface);
   padding: 2rem;
 }
 
@@ -37,10 +36,4 @@
 .auth-link {
   color: var(--color-primary);
   text-decoration: underline;
-}
-
-@media (max-width: 768px) {
-  .auth-container {
-    padding: 0 0.5rem;
-  }
 }

@@ -1,13 +1,19 @@
-/* Every pairing the stylesheets use meets WCAG AA: text at least 4.5:1,
-   borders and focus rings at least 3:1. styles/__tests__/tokens.test.js
-   lists each pairing and checks it. */
+/* The app's only colors: every other stylesheet names a token
+   (styles/__tests__/stylesheets.test.js). Every pairing meets WCAG AA:
+   text at least 4.5:1, borders and focus rings at least 3:1.
+   styles/__tests__/tokens.test.js lists each pairing and checks it. */
 :root {
   --color-primary: #207ab7;
   --color-secondary: #667879;
   --color-danger: #c0392b;
-  --color-danger-surface: #fee;
   --color-success: #1e864a;
+  /* Text and focus rings on the filled colors above and the navbar */
+  --color-on-strong: #fff;
+  --color-text: #000;
   --color-text-muted: #666d79;
+  /* A busy button, whatever its color: see buttons.css */
+  --color-busy-surface: #e9ecef;
+  --color-busy-text: #495057;
   --color-border: #8a8a8a;
   --color-surface: #fff;
   --color-surface-muted: #f5f5f5;
