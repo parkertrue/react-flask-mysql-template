@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
 import { test, expect } from '@playwright/test'
 
 // What nginx itself promises (nginx/templates/default.conf.template), checked
@@ -5,6 +7,28 @@ import { test, expect } from '@playwright/test'
 // file notices one breaking.
 
 const HTTP = 'http://localhost:8080'
+
+const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
+
+// Runs docker compose against the test stack Playwright brought up, and
+// returns what it printed
+function testStack(...args) {
+  return execFileSync('docker', [
+    'compose', '--env-file', '.env.test', '-f', 'docker-compose.test.yml', '--profile', 'e2e', ...args,
+  ], { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+}
+
+// Whether the backend answers its health check from inside its own container,
+// bypassing nginx
+function backendServes() {
+  try {
+    testStack('exec', '-T', 'backend', 'python', '-c',
+      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=1)")
+    return true
+  } catch {
+    return false
+  }
+}
 
 const SECURITY_HEADERS = {
   'strict-transport-security': /max-age=\d+/,
@@ -21,7 +45,7 @@ async function firstAssetPath(request) {
 
 test.describe('nginx', () => {
   test('every kind of response carries the security headers', async ({ request }) => {
-    const paths = ['/', '/api/health', '/api/account', await firstAssetPath(request)]
+    const paths = ['/', '/api/health', '/api/account', '/favicon.ico', await firstAssetPath(request)]
 
     for (const path of paths) {
       const headers = (await request.get(path)).headers()
@@ -107,5 +131,79 @@ test.describe('nginx', () => {
     expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
     // nginx answers this itself, from a location of its own
     expect(response.headers()['content-security-policy']).toBe("default-src 'none'; frame-ancestors 'none'")
+  })
+
+  test('the app\'s icon is served, and /favicon.ico is not the page', async ({ request }) => {
+    const icon = await request.get('/favicon.svg')
+    const ico = await request.get('/favicon.ico')
+
+    expect(icon.status()).toBe(200)
+    expect(icon.headers()['content-type']).toBe('image/svg+xml')
+    // Without its own location, the SPA fallback would answer with index.html
+    expect(ico.status()).toBe(404)
+    expect(await ico.text()).not.toContain('<div id="root">')
+  })
+
+  test('a page whose path only starts with "api" is the app', async ({ request }) => {
+    const response = await request.get('/apidocs')
+
+    expect(response.status()).toBe(200)
+    expect(await response.text()).toContain('<div id="root">')
+  })
+})
+
+test.describe('nginx while the backend is away', () => {
+  test.describe.configure({ timeout: 180_000 })
+
+  // Whatever a test leaves behind, the next spec finds the backend running
+  test.afterAll(() => testStack('up', '-d', '--wait', '--no-deps', 'backend'))
+
+  test('a stopped backend answers at once, in the API\'s error shape', async ({ request }) => {
+    testStack('stop', 'backend')
+
+    // nginx keeps the stopped container's address (Docker's DNS answers a
+    // stopped name with a server failure, not "not found"), so each request
+    // waits out proxy_connect_timeout and gets a 504. Now and then one fails
+    // sooner as unreachable, a 502 from the same error page: poll for the 504.
+    const durations = []
+    let last
+    await expect.poll(async () => {
+      const started = Date.now()
+      last = await request.get('/api/health')
+      durations.push(Date.now() - started)
+      return last.status()
+    }, { intervals: [500], timeout: 30_000 }).toBe(504)
+
+    // The 2s connect timeout (proxy_params.conf), not a long hang
+    expect(Math.max(...durations)).toBeLessThan(3000)
+    expect(last.headers()['content-type']).toBe('application/json')
+    expect(await last.json()).toEqual(
+      { error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } })
+  })
+
+  test('a replaced backend is reached as soon as it serves', async ({ request }) => {
+    // From a running backend that nginx reaches, as before a deploy
+    testStack('up', '-d', '--wait', '--no-deps', 'backend')
+    await expect.poll(async () => (await request.get('/api/health')).status(),
+      { intervals: [200], timeout: 30_000 }).toBe(200)
+
+    // A deploy's swap. While no backend container exists, nginx's lookups of
+    // its name fail: Docker Desktop answers "not found", which nginx keeps
+    // for the resolver's valid= time, and Linux a server failure, after which
+    // nginx keeps the old address. Give it a few lookups' time.
+    testStack('rm', '--stop', '--force', 'backend')
+    await new Promise(resolve => setTimeout(resolve, 5000))
+    testStack('up', '-d', '--no-deps', 'backend')
+    await expect.poll(backendServes, { intervals: [200], timeout: 60_000 }).toBe(true)
+
+    // valid=2s (nginx.conf): within moments, not the seconds a longer cache
+    // of that "not found" would keep a healthy backend unreachable. This
+    // guards valid= only in part: Desktop's lookup lands in the wait about
+    // half the time, and on Linux the new container got the old address, so
+    // there is no gap to catch. It still fails if a swap breaks otherwise.
+    const started = Date.now()
+    await expect.poll(async () => (await request.get('/api/health')).status(),
+      { intervals: [200], timeout: 30_000 }).toBe(200)
+    expect(Date.now() - started).toBeLessThan(3000)
   })
 })

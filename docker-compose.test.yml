@@ -26,15 +26,19 @@ services:
       - "127.0.0.1:3307:3306"
     mem_limit: 512m
     cpus: 0.5
+    # Production's pids limits on every service, so E2E catches a change that
+    # needs more processes
+    pids_limit: 256
     tmpfs:
       - /var/lib/mysql
     # The tmpfs datadir counts toward mem_limit, and so does
     # performance_schema (~235 MB): with the defaults this throwaway database
-    # sat at its limit and swapped. It needs neither diagnostics nor a 100 MB
-    # redo log.
+    # sat at its limit and swapped. It needs no diagnostics, and a 32 MB redo
+    # log rather than 100 MB: under 32 MB, the image's first start logs that
+    # threads are waiting for redo space (MY-014084).
     command:
       - --performance-schema=OFF
-      - --innodb-redo-log-capacity=8M
+      - --innodb-redo-log-capacity=32M
 
   redis:
     image: redis:8.10-alpine
@@ -79,6 +83,7 @@ services:
       - "127.0.0.1:6380:6379"
     mem_limit: 128m
     cpus: 0.25
+    pids_limit: 64
 
   # Same as docker-compose.yml. One-shot: applies migrations as root, then
   # leaves DB_USER with data rights only (backend/restrict_db_user.py), and
@@ -112,6 +117,7 @@ services:
       redis:
         condition: service_healthy
     restart: "no"
+    pids_limit: 64
     profiles:
       - e2e
 
@@ -161,6 +167,7 @@ services:
       start_period: 60s
     mem_limit: 512m
     cpus: 1.0
+    pids_limit: 128
     profiles:
       - e2e
 
@@ -193,5 +200,6 @@ services:
     restart: "no"
     mem_limit: 256m
     cpus: 0.5
+    pids_limit: 64
     profiles:
       - e2e
