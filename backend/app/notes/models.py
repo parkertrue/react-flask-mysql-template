@@ -9,6 +9,9 @@ if TYPE_CHECKING:
 # The schemas validate against this, so an over-long note is a 422, not a
 # database error. frontend/src/features/notes/validation.js mirrors it.
 NOTE_MAX_LENGTH = 256
+# How many notes one account may keep. nginx's per-IP rate bounds requests,
+# not storage, so without this one account could fill the database's disk.
+NOTES_MAX_PER_USER = 1000
 
 
 class Note(db.Model):

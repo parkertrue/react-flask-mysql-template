@@ -59,4 +59,21 @@ describe('Notes, through the whole app', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Resource not found')
     expect(screen.getByText('Stale')).toBeInTheDocument()
   })
+
+  it('shows the API\'s message at the notes cap, and keeps the typed note', async () => {
+    signIn()
+    const message = 'You can keep at most 1,000 notes. Delete one to add another.'
+    server.use(
+      http.post('/api/notes', () =>
+        HttpResponse.json(errorBody('QUOTA_EXCEEDED', message), { status: 409 }))
+    )
+    const { user } = renderRoutes(routes, '/notes')
+
+    await screen.findByText(/no notes yet/i)
+    await user.type(screen.getByLabelText('New note'), 'One too many')
+    await user.click(screen.getByRole('button', { name: 'Add Note' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    expect(screen.getByLabelText('New note')).toHaveValue('One too many')
+  })
 })

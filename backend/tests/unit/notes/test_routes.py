@@ -372,6 +372,46 @@ class TestCreateNote:
         assert user2_notes[0]['content'] == 'User 2 note'
 
 
+@pytest.mark.usefixtures('notes_one_below_cap')
+class TestNotesCap:
+    """POST /api/notes refuses a note past NOTES_MAX_PER_USER"""
+
+    def post(self, client, headers, content='One more'):
+        return client.post('/api/notes', json={'content': content}, headers=headers)
+
+    def count(self, db, user):
+        return db.session.scalar(
+            select(func.count()).select_from(Note).where(Note.user_id == user.id))
+
+    def test_the_last_note_fits_and_the_next_is_refused(
+            self, client, auth_headers, db, sample_user):
+        assert self.post(client, auth_headers).status_code == 201
+
+        response = self.post(client, auth_headers, 'Past the cap')
+
+        assert response.status_code == 409
+        assert response.get_json()['error'] == {
+            'code': 'QUOTA_EXCEEDED',
+            'message': 'You can keep at most 1,000 notes. Delete one to add another.',
+        }
+        assert self.count(db, sample_user) == 1000
+
+    def test_another_user_is_unaffected(
+            self, client, auth_headers, second_auth_headers, db, second_user):
+        assert self.post(client, auth_headers).status_code == 201
+
+        assert self.post(client, second_auth_headers).status_code == 201
+        assert self.count(db, second_user) == 1
+
+    def test_deleting_a_note_makes_room(self, client, auth_headers, db, sample_user):
+        assert self.post(client, auth_headers).status_code == 201
+        oldest = db.session.scalar(
+            select(func.min(Note.id)).where(Note.user_id == sample_user.id))
+
+        assert client.delete(f'/api/notes/{oldest}', headers=auth_headers).status_code == 204
+        assert self.post(client, auth_headers).status_code == 201
+
+
 class TestUpdateNote:
     """PUT /api/notes/<id> replaces one of the user's own notes' content"""
 
