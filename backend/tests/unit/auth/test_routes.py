@@ -804,6 +804,15 @@ class TestUnusualRefreshTokens:
         assert response.status_code == 401
         assert response.get_json()['error']['code'] == code
 
+    def test_a_refused_token_logs_its_user_id_as_it_reads(
+            self, app, client, sample_user, fake_redis, security_events):
+        """Ids are numbers in the log, but a token whose subject is not one
+        is still logged rather than crashing the refusal"""
+        self.refresh_with(client, self.mint(app, sub='not-a-number', jti='some-jti'))
+
+        assert security_events() == [
+            {'message': 'refresh_refused', 'ip': '127.0.0.1', 'user_id': 'not-a-number'}]
+
     def test_no_csrf_value_is_sent_when_csrf_protection_is_off(
             self, app, client, sample_user, fake_redis, monkeypatch):
         """IntegrationConfig turns it off; a value the server never checks is noise"""
@@ -826,3 +835,102 @@ class TestUnusualRefreshTokens:
         assert response.status_code == 200
         assert any(c.startswith('__Secure-refresh_token=;')
                    for c in response.headers.getlist('Set-Cookie'))
+
+
+class TestSecurityEvents:
+    """What an investigation reads: each event names the user and the
+    address, and no line carries a password, token, CSRF value or email"""
+
+    def assert_absent(self, logged, *secrets):
+        text = json.dumps(logged())
+        for secret in secrets:
+            assert secret not in text
+
+    def test_register(self, client, db, security_events, logged):
+        client.post('/api/auth/register', json={
+            'email': 'new@example.com', 'password': 'ValidPass123'})
+        user_id = db.session.scalar(select(User.id).where(User.email == 'new@example.com'))
+
+        assert security_events() == [
+            {'message': 'registered', 'ip': '127.0.0.1', 'user_id': user_id}]
+        self.assert_absent(logged, 'new@example.com', 'ValidPass123')
+
+    def test_login(self, client, sample_user, fake_redis, security_events, logged):
+        body = client.post('/api/auth/login', json=LOGIN_PAYLOAD).get_json()
+        cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
+
+        assert security_events() == [
+            {'message': 'login_succeeded', 'ip': '127.0.0.1', 'user_id': sample_user.id}]
+        self.assert_absent(logged, *LOGIN_PAYLOAD.values(),
+                           body['access_token'], body['refresh_csrf'], cookie)
+
+    def test_failed_logins_name_the_account_however_its_email_is_spelled(
+            self, client, sample_user, security_events, logged):
+        for email in ('test@example.com', 'TEST@Example.com'):
+            client.post('/api/auth/login', json={'email': email, 'password': 'WrongPass123'})
+
+        account = auth_routes._email_digest('test@example.com')
+        first, second = security_events()
+        assert first == {'message': 'login_failed', 'ip': '127.0.0.1',
+                         'user_id': sample_user.id, 'account': account}
+        # Only MySQL finds the user for the second spelling; SQLite matches
+        # case-sensitively. The account is the same either way.
+        assert second['account'] == account
+        self.assert_absent(logged, 'test@example.com', 'TEST@Example.com', 'WrongPass123')
+
+    def test_a_failed_login_to_an_unknown_email_has_no_user(
+            self, client, db, security_events, logged):
+        client.post('/api/auth/login', json={
+            'email': 'nobody@example.com', 'password': 'WrongPass123'})
+
+        assert security_events() == [
+            {'message': 'login_failed', 'ip': '127.0.0.1', 'user_id': None,
+             'account': auth_routes._email_digest('nobody@example.com')}]
+        self.assert_absent(logged, 'nobody@example.com', 'WrongPass123')
+
+    def test_a_replayed_refresh_token(self, client, sample_user, fake_redis,
+                                      security_events, logged):
+        csrf = login(client)
+        old_cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
+        rotated = client.post('/api/auth/refresh', headers=csrf).get_json()
+
+        # A stolen copy of the cookie, used after its owner refreshed
+        client.set_cookie('__Secure-refresh_token', old_cookie, path='/api/auth')
+        client.post('/api/auth/refresh', headers=csrf)
+
+        assert security_events()[1:] == [
+            {'message': 'refresh_refused', 'ip': '127.0.0.1', 'user_id': sample_user.id}]
+        self.assert_absent(logged, old_cookie, csrf['X-CSRF-REFRESH-TOKEN'],
+                           rotated['access_token'], rotated['refresh_csrf'])
+
+    def test_a_refresh_that_lost_the_rotation_race(
+            self, app, client, sample_user, fake_redis, monkeypatch, security_events):
+        csrf = login(client)
+        cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
+        replay = app.test_client(use_cookies=False)
+        headers = {**csrf, 'Cookie': f'__Secure-refresh_token={cookie}'}
+        monkeypatch.setattr(fake_redis, 'is_token_valid', lambda *args: True)
+
+        replay.post('/api/auth/refresh', headers=headers)
+        replay.post('/api/auth/refresh', headers=headers)
+
+        assert security_events()[1:] == [
+            {'message': 'refresh_refused', 'ip': '127.0.0.1', 'user_id': sample_user.id}]
+
+    def test_logout(self, client, sample_user, fake_redis, security_events):
+        csrf = login(client)
+
+        client.post('/api/auth/logout', headers=csrf)
+
+        assert security_events()[1:] == [
+            {'message': 'logout', 'ip': '127.0.0.1', 'user_id': sample_user.id}]
+
+    def test_logout_all(self, app, client, sample_user, fake_redis, security_events):
+        login(app.test_client())
+        csrf = login(client)
+
+        client.post('/api/auth/logout-all', headers=csrf)
+
+        assert security_events()[2:] == [
+            {'message': 'logout_all', 'ip': '127.0.0.1', 'user_id': sample_user.id,
+             'sessions': 2}]

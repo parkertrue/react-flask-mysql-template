@@ -33,5 +33,6 @@ ENTRYPOINT ["./entrypoint.sh"]
 # stopping that belongs to a CDN or WAF.
 ENV WEB_CONCURRENCY=2
 # No control socket: nothing uses it, and in this read-only container with no
-# home directory, creating it logs an error on every start.
+# home directory, creating it logs an error on every start. No access log:
+# nginx's is the stack's one (nginx/nginx.conf), and it sees the real client.
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--worker-class", "gthread", "--threads", "4", "--timeout", "60", "--graceful-timeout", "30", "--keep-alive", "5", "--no-control-socket", "wsgi:app"]

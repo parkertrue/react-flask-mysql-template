@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
@@ -11,6 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.config import get_config
 from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
+from app.utils.log import configure_logging, security_event
 from app.utils.passwords import PasswordHashingBusy, init_password_hashing
 from app.utils.redis_service import (
     TokenStoreUnavailable, connect_redis, get_redis_service)
@@ -42,6 +43,7 @@ HTTP_ERRORS = {
 def create_app():
     """Build the app with the config APP_ENV selects (config.get_config)"""
     app = Flask(__name__)
+    configure_logging(app)
 
     config = get_config()
     app.config.from_object(config)
@@ -145,6 +147,10 @@ def create_app():
 
     @jwt.revoked_token_loader
     def revoked_token(jwt_header, jwt_payload):
+        # A refresh token that was rotated, logged out or revoked: a replay
+        # of an old one is how a stolen cookie shows up
+        sub = jwt_payload['sub']
+        security_event('refresh_refused', user_id=int(sub) if sub.isdigit() else sub)
         return error_response(
             code='AUTH_TOKEN_REVOKED',
             message='Session revoked',
@@ -194,6 +200,9 @@ def create_app():
     # unhandled exception's traceback before this answers it as a 500.
     @app.errorhandler(HTTPException)
     def http_error(e):
+        if e.code == 429:
+            # Flask-Limiter's description is the limit that was hit
+            security_event('rate_limited', path=request.path, limit=e.description)
         return error_response(
             **HTTP_ERRORS.get(
                 e.code, dict(code='HTTP_ERROR', message=e.name)),

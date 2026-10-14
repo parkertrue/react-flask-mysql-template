@@ -1,5 +1,8 @@
+import json
+
 import pytest
 
+from app.utils.log import JsonFormatter
 from tests.conftest import FakeRedisService
 
 
@@ -26,3 +29,19 @@ def fake_redis(request):
 def no_redis(app, fake_redis):
     """The unit app with Redis unreachable"""
     app.extensions['redis_service'] = None
+
+
+@pytest.fixture
+def logged(caplog):
+    """The app's log so far, each record as the JSON object production writes"""
+    formatter = JsonFormatter()
+    return lambda: [json.loads(formatter.format(record)) for record in caplog.records]
+
+
+@pytest.fixture
+def security_events(logged):
+    """The security events logged so far, without their time and level"""
+    def events():
+        return [{k: v for k, v in line.items() if k not in ('time', 'level', 'logger')}
+                for line in logged() if line['logger'] == 'app.security']
+    return events
