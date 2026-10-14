@@ -76,6 +76,16 @@ def test_sixth_failed_login_to_one_account_from_one_address_is_rate_limited(limi
     assert response.get_json()['error']['code'] == 'RATE_LIMITED'
 
 
+def test_a_refusal_is_logged_with_the_limit_and_the_real_client(limited_app, security_events):
+    client = limited_app.test_client()
+    for _ in range(6):
+        login(client, '203.0.113.7')
+
+    assert security_events()[-1] == {
+        'message': 'rate_limited', 'ip': '203.0.113.7',
+        'path': '/api/auth/login', 'limit': '5 per 1 minute'}
+
+
 def test_failed_logins_lock_out_only_the_address_sending_them(owner_app):
     """A stranger's wrong guesses must not keep the owner out"""
     client = owner_app.test_client()

@@ -26,6 +26,7 @@ from app import db, limiter
 from app.auth.models import User
 from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
 from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
+from app.utils.log import security_event
 from app.utils.passwords import verify_password
 from app.utils.redis_service import get_redis_service
 
@@ -36,16 +37,24 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 _DUMMY_PASSWORD_HASH = generate_password_hash('not-a-real-password')
 
 
+def _email_digest(email: str) -> str:
+    """Names one account without holding its address.
+
+    Lowercased like MySQL's case-insensitive match on users.email, and hashed
+    with SECRET_KEY: a plain hash would let anyone who reads Redis or the log
+    confirm a guessed address.
+    """
+    secret = current_app.config['JWT_SECRET_KEY'].encode()
+    return hmac.new(secret, email.lower().encode(), hashlib.sha256).hexdigest()
+
+
 def _login_email_key():
     """Rate-limit key for the account being logged in to, whatever the IP.
 
     A per-IP limit alone either locks out everyone behind a shared address or,
     set loosely, lets one attacker guess an account's password from many. The
     email is normalized as the schema stores it, so every spelling of one
-    address shares a bucket, then lowercased like MySQL's case-insensitive
-    match on users.email, and hashed with SECRET_KEY so the limiter's Redis
-    keys hold no addresses: a plain hash would let anyone who reads Redis
-    confirm a guessed one.
+    address shares a bucket.
     """
     body = request.get_json(silent=True)
     email = body.get('email') if isinstance(body, dict) else None
@@ -56,8 +65,7 @@ def _login_email_key():
     except ValueError:
         # The login itself will answer 422; any key will do
         email = email.strip()
-    secret = current_app.config['JWT_SECRET_KEY'].encode()
-    return 'email:' + hmac.new(secret, email.lower().encode(), hashlib.sha256).hexdigest()
+    return 'email:' + _email_digest(email)
 
 
 def _login_email_and_ip_key():
@@ -127,6 +135,7 @@ def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
     if recorded is False:
         # Another request rotated this token between the blocklist check and
         # here; refuse it as the blocklist would have a moment later.
+        security_event('refresh_refused', user_id=user_id)
         return error_response(
             code='AUTH_TOKEN_REVOKED',
             message='Session revoked',
@@ -184,6 +193,7 @@ def register():
         db.session.rollback()
         return _already_registered()
 
+    security_event('registered', user_id=user.id)
     return jsonify({'message': 'User created'}), 201
 
 
@@ -207,12 +217,19 @@ def login():
         verify_password(_DUMMY_PASSWORD_HASH, payload.password)
 
     if user is None or not user.check_password(payload.password):
+        # The digest is the per-account limit's key, so a guessing run on one
+        # address, registered or not, can be followed across IPs
+        security_event('login_failed', user_id=user.id if user else None,
+                       account=_email_digest(payload.email))
         return error_response(
             code='INVALID_CREDENTIALS',
             message='Invalid email or password',
             status=401
         )
 
+    # The password was right, even if the token store then fails (logged
+    # as its own error): a takeover shows here either way
+    security_event('login_succeeded', user_id=user.id)
     return _issue_tokens(user.id, auth_time=int(datetime.now(timezone.utc).timestamp()))
 
 
@@ -240,6 +257,7 @@ def logout():
     redis_service = get_redis_service()
     if redis_service and jti:
         redis_service.revoke_token(user_id, jti)
+    security_event('logout', user_id=user_id)
 
     response = make_response(jsonify({'message': 'Logged out'}), 200)
     unset_jwt_cookies(response)
@@ -278,6 +296,7 @@ def logout_all():
             status=503
         )
 
+    security_event('logout_all', user_id=current_user.id, sessions=count)
     message = f'Logged out from {count} device(s)' if count > 0 else 'No active sessions found'
     response = make_response(jsonify({'message': message}), 200)
     unset_jwt_cookies(response)

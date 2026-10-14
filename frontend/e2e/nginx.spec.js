@@ -144,6 +144,30 @@ test.describe('nginx', () => {
     expect(await ico.text()).not.toContain('<div id="root">')
   })
 
+  test('each request is logged as one JSON line', async ({ request }) => {
+    // A query of its own finds this request's line among the others; the
+    // quotes in the user agent would break a line nginx did not escape
+    const uri = `/api/no-such-route?probe=${Date.now()}`
+    await request.get(uri, { headers: { 'User-Agent': 'probe "quoted"' } })
+
+    let line = ''
+    await expect.poll(() => {
+      line = testStack('logs', '--no-log-prefix', 'nginx').split('\n').find(l => l.includes(uri)) ?? ''
+      return line
+    }).toContain(uri)
+
+    expect(JSON.parse(line)).toMatchObject({
+      time: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/),
+      method: 'GET',
+      uri,
+      status: 404,
+      user_agent: 'probe "quoted"',
+      request_time: expect.any(Number),
+      // The backend answered, so nginx timed it
+      upstream_response_time: expect.stringMatching(/^\d+\.\d{3}$/),
+    })
+  })
+
   test('a page whose path only starts with "api" is the app', async ({ request }) => {
     const response = await request.get('/apidocs')
 

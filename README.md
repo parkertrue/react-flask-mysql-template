@@ -371,6 +371,18 @@ A one-shot `migrate` container applies migrations as the MySQL root user, restri
 
 ---
 
+## Logs
+
+Every container logs to stdout, which Docker keeps, rotated at three files of 10 MB each (`x-logging` in `docker-compose.yml`):
+
+```bash
+docker compose --env-file .env.prod logs -f nginx backend
+```
+
+nginx and the backend both write one JSON object per line. nginx's access log is the one record of each request: the client's address, the request, its status and how long it took. The backend logs errors, and security events on the `app.security` logger: `login_succeeded`, `login_failed`, `registered`, `refresh_refused` (an old refresh token used again, as a stolen cookie would be), `logout`, `logout_all` and `rate_limited`. Each names the user by id and the client by address. A failed login names the account by `account`, a keyed hash of its email, so one guessed-at address can be followed across IPs without the log holding it. No line holds a password, token or email. Shipping logs off the server, and how long to keep them, is up to the deployment.
+
+---
+
 ## Stop Production App
 
 ```bash
