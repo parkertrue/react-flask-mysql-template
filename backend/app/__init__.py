@@ -2,6 +2,7 @@ from flask import Flask, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
+from flask_jwt_extended.exceptions import CSRFError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
@@ -88,6 +89,8 @@ def create_app():
 
     @jwt.user_lookup_error_loader
     def user_not_found(jwt_header, jwt_payload):
+        security_event('token_invalid', reason='User not found',
+                       user_id=int(jwt_payload['sub']))
         # Same code as a bad token, so the frontend signs the user out
         return error_response(
             code='AUTH_INVALID_TOKEN',
@@ -129,13 +132,25 @@ def create_app():
             status=401
         )
 
+    # A forged or malformed token (a bad signature, alg none) or a refresh
+    # token sent as an access token: the client never had a token like it.
+    # The reason is PyJWT's or flask-jwt-extended's, and never holds the token.
     @jwt.invalid_token_loader
     def invalid_token(reason):
+        security_event('token_invalid', reason=reason)
         return error_response(
             code='AUTH_INVALID_TOKEN',
             message='Invalid authentication token',
             status=401
         )
+
+    # A refresh cookie without its CSRF value, or with the wrong one, is how a
+    # stolen cookie alone shows up. Answered as flask-jwt-extended's own
+    # handler would (a missing token), but logged first.
+    @app.errorhandler(CSRFError)
+    def csrf_refused(e):
+        security_event('token_invalid', reason=str(e))
+        return missing_token(str(e))
 
     @jwt.expired_token_loader
     def expired_token(jwt_header, jwt_payload):

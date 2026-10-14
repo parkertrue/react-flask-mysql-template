@@ -1,12 +1,17 @@
 import json
 import logging
+import logging.config
 import sys
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from app.utils import log
 from app.utils.log import JsonFormatter
 from tests.unit.test_app_factory import build_app
+
+BACKEND = Path(__file__).resolve().parents[3]
 
 
 def record(message='hello', exc_info=None, **fields):
@@ -58,3 +63,57 @@ def test_the_app_logs_json_lines_on_stdout(monkeypatch, capsys):
 
     line = json.loads(capsys.readouterr().out)
     assert (line['logger'], line['level'], line['message']) == ('app', 'INFO', 'started')
+
+
+@pytest.mark.parametrize('headers, expected', [
+    # nginx's $request_id (proxy_params.conf), which its access log holds too
+    ({'X-Request-ID': '4f1c0e9a7b2d4c6e8f0a1b3c5d7e9f20'}, '4f1c0e9a7b2d4c6e8f0a1b3c5d7e9f20'),
+    # Not behind nginx (dev): no field rather than an empty one
+    ({}, None),
+])
+def test_a_line_logged_during_a_request_names_it(monkeypatch, headers, expected):
+    app = build_app(monkeypatch)
+
+    with app.test_request_context(headers=headers):
+        line = json.loads(JsonFormatter().format(record()))
+
+    assert line.get('request_id') == expected
+
+
+def test_flask_limiters_warnings_are_json_lines(monkeypatch, capsys):
+    """It warns when Redis is unreachable or a count fails, which would
+    otherwise go nowhere"""
+    monkeypatch.setattr(log._handler, 'stream', log._handler.stream)
+    build_app(monkeypatch)
+
+    logging.getLogger('flask-limiter').warning('Rate limit storage unreachable')
+
+    line = json.loads(capsys.readouterr().out)
+    assert (line['logger'], line['message']) == ('flask-limiter', 'Rate limit storage unreachable')
+
+
+def test_gunicorns_own_lines_are_json_lines(monkeypatch, capsys):
+    """backend/Dockerfile passes gunicorn_logging.json, so a WORKER TIMEOUT or
+    a boot failure parses like every other line. Gunicorn applies the file
+    with dictConfig over defaults that put a plain-text handler on the root;
+    the file's root has none, or every app line would be written twice.
+    (gunicorn itself cannot be imported on Windows; CI's E2E job checks
+    the running container's lines.)"""
+    monkeypatch.setattr(log._handler, 'stream', log._handler.stream)
+    app = build_app(monkeypatch)
+    # dictConfig replaces these loggers' handlers: give them back afterwards
+    for logger in (logging.getLogger(), logging.getLogger('gunicorn.error')):
+        for name in ('handlers', 'level', 'propagate'):
+            monkeypatch.setattr(logger, name, getattr(logger, name))
+        logger.handlers = [logging.StreamHandler(sys.stdout)]  # as gunicorn's defaults
+    config = json.loads((BACKEND / 'gunicorn_logging.json').read_text())
+
+    logging.config.dictConfig(config)
+    logging.getLogger('gunicorn.error').critical('WORKER TIMEOUT (pid:%s)', 9)
+    app.logger.warning('Database unavailable')
+
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(line['logger'], line['level'], line['message']) for line in lines] == [
+        ('gunicorn.error', 'CRITICAL', 'WORKER TIMEOUT (pid:9)'),
+        ('app', 'WARNING', 'Database unavailable'),
+    ]

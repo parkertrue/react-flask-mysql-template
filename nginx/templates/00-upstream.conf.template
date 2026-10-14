@@ -1,0 +1,14 @@
+# Rendered into /etc/nginx/conf.d/ at container start, like the other
+# templates. NGINX_BACKEND_ADDRESS is the backend's fixed address on the edge
+# network, which the compose files set. An address, not the service's name:
+# a recreated backend container takes the same address and is reached the
+# moment it listens. A name would be looked up in Docker's DNS, which mid-swap
+# can answer "server failure" and leave nginx with no address for about 30s
+# after the new backend is healthy.
+upstream backend {
+    server ${NGINX_BACKEND_ADDRESS}:5000;
+    keepalive 32;
+    # Below gunicorn's --keep-alive 5, so nginx never reuses a connection
+    # gunicorn is closing (a POST on one would fail with a 502)
+    keepalive_timeout 4s;
+}

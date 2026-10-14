@@ -5,3 +5,4 @@
 # address.
 limit_req_zone $binary_remote_addr zone=auth:10m rate=${NGINX_AUTH_RATE};
 limit_req_zone $binary_remote_addr zone=api:10m rate=${NGINX_API_RATE};
+limit_req_zone $binary_remote_addr zone=page:10m rate=${NGINX_PAGE_RATE};

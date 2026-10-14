@@ -278,9 +278,22 @@ service (CloudWatch, Cloud Logging) ships each line off the host as it is
 written and keeps it for a set period. The template builds no log shipping of
 its own, which would tie it to the self-hosted Docker path. On the bundled
 Compose deployment, Docker's 3 × 10 MB per container is all there is: it caps
-by size, not age, and enough traffic can push older lines out. *Revisit
-when:* the bundled Compose deployment runs on a real server (then ship its
-logs off the host, or raise the cap with a stated retention).
+by size, not age, and enough traffic can push older lines out. nginx cuts the
+client's text in each access line short and rate-limits the page as well as
+the API per address, which makes that slow for one client (about ten minutes
+for 30 MB, where an 8 KB User-Agent did it in seconds) but not impossible for
+many. *Revisit when:* the bundled Compose deployment runs on a real server
+(then ship its logs off the host, or raise the cap with a stated retention).
+
+**One backend container, at a fixed address.** nginx connects to the
+backend's fixed address on the edge network, not to its name, so a recreated
+backend is reached the moment it listens: looked up by name, Docker's DNS
+could answer "server failure" mid-swap, and nginx then left a healthy backend
+unreachable for about 30s. Two containers cannot share the address, so
+`--scale backend=N` is out; scale one container with `WEB_CONCURRENCY` and
+its CPU limit instead. A managed platform's load balancer does this job there.
+*Revisit when:* one backend container is no longer enough (then several
+fixed addresses in the upstream, or a reload of nginx after every deploy).
 
 ## Deferred until the app grows
 

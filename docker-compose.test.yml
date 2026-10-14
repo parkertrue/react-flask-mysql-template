@@ -2,6 +2,10 @@
 # never share containers or volumes. Rename it for a new app.
 name: app_test
 
+# As in docker-compose.yml, on a subnet of its own so the stacks can run side
+# by side: nginx reaches the backend at this fixed address
+x-backend-address: &backend-address "${EDGE_SUBNET_PREFIX:-10.217.1}.10"
+
 services:
   db:
     image: mysql:8.4.11
@@ -149,6 +153,9 @@ services:
       # Only Playwright uses this service, and a browser sends the refresh
       # cookie's CSRF header, so keep CSRF protection on (IntegrationConfig).
       E2E_MODE: "true"
+    networks:
+      default:
+        ipv4_address: *backend-address
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -189,6 +196,7 @@ services:
     environment:
       # The E2E suite logs in and registers many times from one address
       NGINX_AUTH_RATE: 600r/m
+      NGINX_BACKEND_ADDRESS: *backend-address
     ports:
       - "127.0.0.1:8443:443"
       - "127.0.0.1:8080:80"
@@ -203,3 +211,12 @@ services:
     pids_limit: 64
     profiles:
       - e2e
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: "${EDGE_SUBNET_PREFIX:-10.217.1}.0/24"
+          # Addresses Docker hands out come from the top half, so no other
+          # container can take the backend's
+          ip_range: "${EDGE_SUBNET_PREFIX:-10.217.1}.128/25"

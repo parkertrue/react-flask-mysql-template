@@ -55,8 +55,10 @@ this app and record what each one turns up:
   clients, unbounded queries or lists, Redis memory growth.
 - **What is missing:** ASVS 5.0 L2 requirements the app neither meets nor has
   recorded in DECISIONS.md. Report each one as a gap with its ASVS 5.0 number.
-  Group gaps that one feature would close (password reset, MFA, security
-  event logging) into one finding each.
+  Group gaps that one feature would close (password reset, MFA, email
+  verification) into one finding each. Check the security events
+  `utils/log.py` logs against ASVS 5.0 chapter 16 (Security Logging) rather
+  than reporting logging as missing.
 
 ## 2. deps: dependencies
 

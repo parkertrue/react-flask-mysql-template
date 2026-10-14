@@ -214,14 +214,16 @@ jobs:
 
       # Renders the templates the way the container does at start, in the
       # image nginx/Dockerfile pins, then nginx -T checks the result and dumps
-      # it as one file. The NGINX_* values are nginx/Dockerfile's defaults.
+      # it as one file. The NGINX_* values are nginx/Dockerfile's defaults,
+      # and the backend address docker-compose.yml gives it.
       - name: Validate
         run: |
           image=$(sed -n 's/^FROM \(nginx:[^ ]*\).*/\1/p' nginx/Dockerfile)
           docker run --rm \
             -e NGINX_ENTRYPOINT_QUIET_LOGS=1 -e NGINX_ENVSUBST_FILTER='^NGINX_' \
             -e NGINX_SERVER_NAME=example.com \
-            -e NGINX_AUTH_RATE=20r/m -e NGINX_API_RATE=30r/s \
+            -e NGINX_AUTH_RATE=20r/m -e NGINX_API_RATE=30r/s -e NGINX_PAGE_RATE=10r/s \
+            -e NGINX_BACKEND_ADDRESS=10.217.0.10 \
             -v "$PWD/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             -v "$PWD/nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro" \
             -v "$PWD/nginx/security_headers.conf:/etc/nginx/security_headers.conf:ro" \

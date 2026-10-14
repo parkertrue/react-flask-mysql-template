@@ -2,14 +2,22 @@
 
 Run by entrypoint.sh before the container's command (gunicorn, or the
 migrate service's `flask db upgrade`) and by run_dev.sh (local dev). Reads
-the same environment variables as app/config.py.
+the same environment variables as app/config.py. Logs as the app does, one
+JSON object per line on stdout, so every line the backend container writes
+parses alike.
 """
+import logging
 import os
 import sys
 import time
 
 import pymysql
 import redis
+
+from app.utils.log import JsonFormatter
+
+log = logging.getLogger('wait_for_services')
+log.setLevel(logging.INFO)
 
 # Matches the backend healthcheck's start_period (docker-compose.yml and
 # docker-compose.test.yml), which covers this wait: change them together.
@@ -60,9 +68,14 @@ def redis_error():
 
 
 def main():
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter())
+    log.handlers = [handler]
+
     missing = [name for name in REQUIRED if not os.getenv(name)]
     if missing:
-        sys.exit(f"Missing required environment variables: {', '.join(missing)}")
+        log.error(f"Missing required environment variables: {', '.join(missing)}")
+        sys.exit(1)
 
     deadline = time.monotonic() + TIMEOUT_SECONDS
     shown = None
@@ -70,18 +83,17 @@ def main():
         errors = [(name, error) for name, error in
                   (('MySQL', mysql_error()), ('Redis', redis_error())) if error]
         if not errors:
-            print('Database and Redis are up')
+            log.info('Database and Redis are up')
             return
         # Each error names its cause, which tells a service still booting
         # from one that never will (a wrong password, a missing database).
         waiting = ', '.join(f'{name} ({error})' for name, error in errors)
         if time.monotonic() > deadline:
-            print(f'Gave up after {TIMEOUT_SECONDS}s waiting for: {waiting}',
-                  file=sys.stderr)
+            log.error(f'Gave up after {TIMEOUT_SECONDS}s waiting for: {waiting}')
             sys.exit(1)
         # Only when it changes, so a long wait doesn't repeat it every second
         if waiting != shown:
-            print(f'Waiting for: {waiting}')
+            log.info(f'Waiting for: {waiting}')
             shown = waiting
         time.sleep(1)
 

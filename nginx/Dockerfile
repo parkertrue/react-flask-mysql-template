@@ -23,7 +23,8 @@ COPY nginx/templates /etc/nginx/templates
 # Production rate limits, per client IP; see templates/
 # The auth rate covers login and register together. Flask's own limits are
 # tighter per account; this one only has to stop a single address flooding.
-ENV NGINX_AUTH_RATE=20r/m NGINX_API_RATE=30r/s
+# The page rate is far above what a person loading pages needs.
+ENV NGINX_AUTH_RATE=20r/m NGINX_API_RATE=30r/s NGINX_PAGE_RATE=10r/s
 # docker-compose.yml sets the real domain; localhost serves the test stack.
 ENV NGINX_SERVER_NAME=localhost
 # Only NGINX_* variables are substituted into templates/, so no other
