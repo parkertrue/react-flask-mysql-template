@@ -18,7 +18,6 @@ from flask_jwt_extended import (
 )
 from jwt.exceptions import PyJWTError
 from flask_jwt_extended.exceptions import JWTExtendedException
-from werkzeug.security import generate_password_hash
 
 from flask_limiter.util import get_remote_address
 
@@ -27,14 +26,11 @@ from app.auth.models import User
 from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
 from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
 from app.utils.log import security_event
-from app.utils.passwords import verify_password
+from app.utils.passwords import DUMMY_PASSWORD_HASH, verify_password
 from app.utils.redis_service import get_redis_service
 
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
-
-# Same algorithm as User.set_password, so checking it costs the same.
-_DUMMY_PASSWORD_HASH = generate_password_hash('not-a-real-password')
 
 
 def _email_digest(email: str) -> str:
@@ -213,8 +209,7 @@ def login():
 
     if user is None:
         # Hash anyway, so an unknown email takes as long as a wrong password
-        # and response timing doesn't reveal which emails are registered.
-        verify_password(_DUMMY_PASSWORD_HASH, payload.password)
+        verify_password(DUMMY_PASSWORD_HASH, payload.password)
 
     if user is None or not user.check_password(payload.password):
         # The digest is the per-account limit's key, so a guessing run on one
@@ -292,7 +287,7 @@ def logout_all():
     if count is None:
         return error_response(
             code='SERVICE_UNAVAILABLE',
-            message='Could not sign out other devices, please try again shortly',
+            message='Could not log out other devices, please try again shortly',
             status=503
         )
 

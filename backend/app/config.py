@@ -122,6 +122,11 @@ class Config:
         # If Redis is unreachable, count in each worker's memory until it is
         # back, rather than failing every rate-limited request with a 500.
         self.RATELIMIT_IN_MEMORY_FALLBACK_ENABLED = True
+        # A failed login is counted after the response is built, where the
+        # fallback doesn't reach: a Redis that refuses the write (full) would
+        # turn the 401 into a 500. Log it and answer anyway. Limit checks
+        # still try the fallback first, so it changes nothing there.
+        self.RATELIMIT_SWALLOW_ERRORS = True
 
         # Number of reverse proxies in front of Flask whose X-Forwarded-*
         # headers are trusted. 0 means REMOTE_ADDR is the client.

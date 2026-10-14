@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, screen, waitFor } from '@testing-library/react'
 import AccountPage from '../AccountPage'
+import ProtectedRoute from '@/auth/ProtectedRoute'
 import { storage } from '@/auth/storage'
 import { getAccount, logoutAllDevices, clearAuthCookies } from '@/auth/authService'
 import { account, errorBody } from '@/test/fixtures'
@@ -9,11 +10,14 @@ import { APP_NAME } from '@/appName'
 
 vi.mock('@/auth/authService')
 
+// Behind ProtectedRoute, as in the app, where ending the session before home
+// has rendered would send it to /login instead
 function renderPage() {
   signIn('user@example.com')
   return renderRoutes([
-    { path: '/account', element: <AccountPage /> },
+    { element: <ProtectedRoute />, children: [{ path: '/account', element: <AccountPage /> }] },
     { path: '/', element: <p>Home page</p> },
+    { path: '/login', element: <p>Login page</p> },
   ], '/account')
 }
 
@@ -56,11 +60,12 @@ describe('AccountPage', () => {
   })
 
   it('signs every device out, ends this session and goes home', async () => {
-    const { user } = renderPage()
+    const { user, router } = renderPage()
 
     await user.click(logoutAll())
 
     expect(await screen.findByText('Home page')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
     expect(logoutAllDevices).toHaveBeenCalledTimes(1)
     expect(storage.getAccessToken()).toBeNull()
   })
@@ -68,8 +73,8 @@ describe('AccountPage', () => {
   // Other devices stay signed in unless the server revoked them, so a
   // failure must say so and leave this session for a retry
   it.each([
-    ['the server fails', httpError(503, 'SERVICE_UNAVAILABLE', 'Could not sign out other devices'),
-      'Could not sign out other devices'],
+    ['the server fails', httpError(503, 'SERVICE_UNAVAILABLE', 'Could not log out other devices'),
+      'Could not log out other devices'],
     ['the network fails', new Error('Network Error'), 'Network error'],
   ])('keeps the session and says so when %s', async (_, error, message) => {
     logoutAllDevices.mockRejectedValue(error)
@@ -83,17 +88,14 @@ describe('AccountPage', () => {
     expect(logoutAll()).toHaveAttribute('aria-disabled', 'false')
   })
 
-  it.each([
-    ['', () => {}],
-    [', even if clearing the cookie fails', () => clearAuthCookies.mockRejectedValue(new Error('Network Error'))],
-  ])('ends the session when the server says it is already over (401)%s', async (_, arrange) => {
-    arrange()
+  it('ends the session when the server says it is already over (401)', async () => {
     logoutAllDevices.mockRejectedValue(httpError(401))
-    const { user } = renderPage()
+    const { user, router } = renderPage()
 
     await user.click(logoutAll())
 
     expect(await screen.findByText('Home page')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
     expect(storage.getAccessToken()).toBeNull()
     expect(clearAuthCookies).toHaveBeenCalledTimes(1)
   })

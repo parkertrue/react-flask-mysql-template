@@ -448,9 +448,16 @@ class TestPasswordNormalization:
     def test_normalizes_to_nfkc(self, schema, typed, hashed):
         assert schema(email='test@example.com', password=typed).password == hashed
 
-    def test_counts_the_length_after_normalizing(self):
+    @pytest.mark.parametrize('schema', [RegisterRequest, LoginRequest])
+    def test_counts_the_length_after_normalizing(self, schema):
         """\ufdfa is one character that NFKC expands to eighteen"""
-        assert len('\ufdfa' * 8) == 8
+        assert len('Aa1' + '\ufdfa' * 8) == 11
 
         with pytest.raises(ValidationError, match=f'at most {PASSWORD_MAX_LENGTH}'):
-            LoginRequest(email='test@example.com', password='\ufdfa' * 8)
+            schema(email='test@example.com', password='Aa1' + '\ufdfa' * 8)
+
+    def test_counts_the_minimum_length_after_normalizing(self):
+        """4 characters as typed, but NFKC expands \u3315 to the five of \u30ad\u30ed\u30b0\u30e9\u30e0"""
+        password = RegisterRequest(email='test@example.com', password='Aa1\u3315').password
+
+        assert password == 'Aa1\u30ad\u30ed\u30b0\u30e9\u30e0'

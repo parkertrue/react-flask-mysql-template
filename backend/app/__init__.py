@@ -177,7 +177,7 @@ def create_app():
     def password_hashing_busy(e):
         return error_response(
             code='SERVICE_UNAVAILABLE',
-            message='Sign-in is busy, please try again shortly',
+            message='The server is busy, please try again shortly',
             status=503
         )
 

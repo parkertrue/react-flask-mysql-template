@@ -112,6 +112,26 @@ operator's own server. The frontend's notices do ship
 *Revisit when:* images are pushed to a public registry or shipped to anyone
 else to run.
 
+**Images are run, not distributed.** The MySQL image, and the Debian and
+Alpine userlands under the backend and nginx images, contain GPL and LGPL
+code. Running them on the operator's own servers creates no duty; only
+handing the built images to someone else would bring source-offer duties.
+Pushing them to a private registry for one's own deploys is not
+distribution. *Revisit when:* images are pushed to a public registry or
+shipped to anyone else to run.
+
+**Redis 8 is used unmodified under its tri-license.** Redis 8 is licensed
+under RSALv2, SSPLv1 or AGPLv3, at the user's choice. The stack runs the
+`redis:8` image unmodified as a private store that users never reach, which
+none of the three restricts. *Revisit when:* Redis is modified or offered to
+customers as a service, or a lawyer prefers Valkey (BSD-3-Clause).
+
+**The template's copyright is its owner's.** The first commit came from a
+university email address, but the template has always been the owner's
+personal project, made outside any university employment, grant or course,
+so `LICENSE` names the owner alone. *Revisit when:* the university raises a
+claim.
+
 **Password composition rules and no spaces.** Registration requires upper
 and lower case and a digit, and both register and login refuse spaces. That
 gives up ASVS 6.2.5 ("passwords of any composition") and NIST's advice to
@@ -236,6 +256,32 @@ replace it, but that saves one small dev package in exchange for rewriting
 `run_tests.sh`'s `--cov`/`--cov-append`/`--cov-fail-under` flags. *Revisit
 when:* pytest-cov lags a pytest major release.
 
+**The JSON log formatter stays hand-written.** `app/utils/log.py`'s
+`JsonFormatter` is a few lines. `python-json-logger`, the usual library for
+this, would replace it with a dependency and its configuration and save
+nothing the app needs today. *Revisit when:* a log service needs a specific
+schema (Elastic ECS, Datadog's reserved fields), every line needs tracing ids
+(OpenTelemetry), or the formatter grows past about 40 lines.
+
+**The color guard stays a Vitest test, not stylelint.**
+`styles/__tests__/stylesheets.test.js` refuses a color written outside
+`tokens.css`, and a token that is unused or never defined. stylelint covers
+only the first half (`color-named`, `color-no-hex`,
+`function-disallowed-list`), and would add a CLI, a config and a CI step.
+*Revisit when:* the CSS needs rules a stylelint preset already has
+(ordering, specificity, property bans), or the hand-written check misses a
+case.
+
+**Keeping and shipping logs belongs to the platform.** The app and nginx log
+to stdout, so any platform can take the lines: a managed platform's log
+service (CloudWatch, Cloud Logging) ships each line off the host as it is
+written and keeps it for a set period. The template builds no log shipping of
+its own, which would tie it to the self-hosted Docker path. On the bundled
+Compose deployment, Docker's 3 × 10 MB per container is all there is: it caps
+by size, not age, and enough traffic can push older lines out. *Revisit
+when:* the bundled Compose deployment runs on a real server (then ship its
+logs off the host, or raise the cap with a stated retention).
+
 ## Deferred until the app grows
 
 **TanStack Query.** It would replace the hand-written loading, error and
@@ -269,9 +315,10 @@ recovery check is blocked by the missing backups). They are not new findings.
   Encrypt steps still edit the tracked `docker-compose.yml` and the shared
   nginx template (which breaks CI and the test stack if followed), README
   doesn't list what production lacks, and there is no operator runbook
-  (detached start, status, logs, rollback, TLS key rotation, a failed
-  `up -d`). All three get written and tried on a real server rather than on
-  paper. Until then the docs and recovery checks don't report them.
+  (detached start, status, rollback, TLS key rotation, a failed `up -d`;
+  README's Logs section covers reading logs). All three get written and
+  tried on a real server rather than on paper. Until then the docs and
+  recovery checks don't report them.
 - **TLS between containers** is not needed while every service shares one
   host: MySQL and Redis traffic stays on the `internal` network, and anyone
   who can sniff that bridge already has root on the host. It becomes required

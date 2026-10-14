@@ -23,7 +23,10 @@ export async function logoutAllDevices() {
   await api.post('/auth/logout-all')
 }
 
-// The JSON body is required: it stops other sites calling this without CORS
+// For when logging out failed: the refresh cookie is HttpOnly, so only the
+// server can expire it. If this fails too, there is nothing more the client
+// can do, so it never throws. The JSON body is required: it stops other sites
+// calling this without CORS.
 export async function clearAuthCookies() {
-  await api.post('/auth/clear-cookies', {})
+  await api.post('/auth/clear-cookies', {}).catch(() => {})
 }
