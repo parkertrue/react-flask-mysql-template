@@ -18,6 +18,8 @@ describe('validatePassword', () => {
     ['letters, punctuation and symbols of any language', 'Password123€£éß日本×÷'],
     // NFKC turns full-width letters and digits into plain ones
     ['full-width letters', 'Ｐassword１２３'],
+    // 4 characters as typed, but NFKC expands ㌕ to the five of キログラム
+    ['one that is long enough once normalized', 'Aa1㌕'],
   ])('accepts %s', (_, password) => {
     expect(validatePassword(password)).toEqual([])
   })

@@ -4,7 +4,8 @@ from unittest.mock import patch
 import pytest
 
 from app.auth.models import User
-from app.utils.passwords import PasswordHashingBusy, hash_password, verify_password
+from app.utils.passwords import (
+    DUMMY_PASSWORD_HASH, PasswordHashingBusy, hash_password, verify_password)
 
 
 @pytest.fixture
@@ -21,6 +22,14 @@ def test_hash_round_trips(app):
 
     assert verify_password(password_hash, 'TestPassword123') is True
     assert verify_password(password_hash, 'WrongPassword123') is False
+
+
+def test_the_login_dummy_hash_costs_what_a_real_one_does(app):
+    """An unknown email must take as long as a wrong password, even after
+    the hashing cost is raised"""
+    method_and_cost = DUMMY_PASSWORD_HASH.split('$')[0]
+
+    assert method_and_cost == hash_password('TestPassword123').split('$')[0]
 
 
 def test_every_worker_gets_the_configured_slots(app):

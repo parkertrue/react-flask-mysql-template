@@ -3,12 +3,14 @@ import time
 
 import pytest
 import redis
+from limits.storage import MemoryStorage
 from flask_jwt_extended import (
     create_access_token, create_refresh_token, decode_token, get_csrf_token)
 
 from app import db, limiter
 from app.auth.models import User
 from app.auth.routes import _login_email_key
+from app.utils.passwords import PasswordHashingBusy
 from tests.conftest import FakeRedisService
 from tests.unit.test_app_factory import build_app
 
@@ -105,6 +107,31 @@ def test_successful_logins_do_not_count_toward_the_account_limits(owner_app):
                 for _ in range(6)]
 
     assert statuses == [200] * 6
+
+
+def refuse_hashing(monkeypatch):
+    def busy(*args):
+        raise PasswordHashingBusy()
+    monkeypatch.setattr('app.auth.models.verify_password', busy)
+
+
+@pytest.mark.parametrize('password, arrange, status', [
+    ('Test Password123', lambda monkeypatch: None, 422),  # login refuses spaces
+    ('TestPassword123', refuse_hashing, 503),
+])
+def test_only_wrong_passwords_count_toward_the_account_limits(
+        owner_app, monkeypatch, password, arrange, status):
+    """An owner retrying through an outage must not lock themselves out"""
+    client = owner_app.test_client()
+    with monkeypatch.context() as patched:
+        arrange(patched)
+        statuses = [login(client, '203.0.113.7', 'owner@example.com', password).status_code
+                    for _ in range(6)]
+
+    response = login(client, '203.0.113.7', 'owner@example.com', 'TestPassword123')
+
+    assert statuses == [status] * 6
+    assert response.status_code == 200
 
 
 def test_failures_spread_over_many_addresses_hit_the_hourly_account_limit(limited_app, monkeypatch):
@@ -299,6 +326,22 @@ def test_limits_fall_back_to_memory_when_redis_is_down(make_limited_app, monkeyp
     statuses = [login(client, '203.0.113.7').status_code for _ in range(6)]
 
     assert statuses == [401] * 5 + [429]  # the account-and-address limit, now in memory
+
+
+def test_a_failed_login_that_cannot_be_counted_still_answers_401(limited_app, monkeypatch):
+    """A full Redis still answers reads, so the limit check passes; only
+    counting the failure, after the response is built, is refused"""
+    incr = MemoryStorage.incr
+
+    def refuse_account_counts(self, key, *args, **kwargs):
+        if 'email:' in key:
+            raise redis.OutOfMemoryError("command not allowed when used memory > 'maxmemory'")
+        return incr(self, key, *args, **kwargs)
+    monkeypatch.setattr(MemoryStorage, 'incr', refuse_account_counts)
+
+    response = login(limited_app.test_client(), '203.0.113.7')
+
+    assert response.status_code == 401
 
 
 def test_limiter_state_is_restored(app, client):

@@ -54,11 +54,8 @@ class TestUserModel:
 
         after = datetime.now(timezone.utc).replace(microsecond=0)
 
-        assert user.created_at is not None
-        if user.created_at.tzinfo is None:
-            created_at_aware = user.created_at.replace(tzinfo=timezone.utc)
-        else:
-            created_at_aware = user.created_at
+        # SQLite, like MySQL's DATETIME, gives it back naive
+        created_at_aware = user.created_at.replace(tzinfo=timezone.utc)
         assert before <= created_at_aware <= after
 
 

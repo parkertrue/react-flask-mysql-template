@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { createHmac, randomUUID } from 'crypto'
 import { readFileSync } from 'fs'
 import path from 'path'
+import { APP_NAME } from '../src/appName.js'
 
 export const TEST_PASSWORD = 'SecurePass123'
 
@@ -53,7 +54,7 @@ export async function registerAndLogin(page, prefix) {
 export async function logout(page) {
   // Exact: the account page also has "Log out all devices"
   await page.getByRole('button', { name: 'Log out', exact: true }).click()
-  await page.waitForURL(/\/$/)
+  await expectHomeReached(page)
 }
 
 /** Open the account page from the navbar's email link, once it has loaded */
@@ -69,7 +70,15 @@ export const memberSince = page => page.getByText(/^Member since /)
 export async function logoutAllDevices(page) {
   await page.getByRole('link', { name: /\(account\)$/ }).click()
   await page.getByRole('button', { name: 'Log out all devices' }).click()
+  await expectHomeReached(page)
+}
+
+// The URL alone can pass on a home page that is replaced at once (by /login,
+// if the session ended before home rendered); its focused h1 cannot
+async function expectHomeReached(page) {
   await page.waitForURL(/\/$/)
+  await expect(page.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` }))
+    .toBeFocused()
 }
 
 // The E2E backend signs tokens with SECRET_KEY from .env.test, so a test can

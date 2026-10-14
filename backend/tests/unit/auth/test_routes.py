@@ -275,7 +275,7 @@ class TestLoginEndpoint:
 
         assert response.status_code == 401
         check.assert_called_once_with(
-            auth_routes._DUMMY_PASSWORD_HASH, 'SomePassword123')
+            auth_routes.DUMMY_PASSWORD_HASH, 'SomePassword123')
 
     def test_login_invalid_email_format(self, client):
         """Invalid email format should return 422."""

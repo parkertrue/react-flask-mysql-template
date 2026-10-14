@@ -16,11 +16,12 @@ export default function LogoutButton() {
     try {
       await logoutUser()
     } catch {
-      // The refresh cookie is HttpOnly, so only the server can expire it.
-      // If this fails too, there is nothing more the client can do.
-      await clearAuthCookies().catch(() => {})
+      await clearAuthCookies()
     }
-    navigate('/')
+    // Render home before the session ends, or a protected page still on screen
+    // sends its ProtectedRoute to /login. A plain navigate is a transition,
+    // which logout()'s re-render would overtake; flushSync renders it now.
+    await navigate('/', { flushSync: true })
     logout()
   }
 

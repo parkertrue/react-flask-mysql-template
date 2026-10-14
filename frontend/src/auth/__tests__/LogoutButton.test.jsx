@@ -1,23 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import LogoutButton from '../LogoutButton'
+import ProtectedRoute from '../ProtectedRoute'
 import { storage } from '../storage'
 import { logoutUser, clearAuthCookies } from '../authService'
 import { renderRoutes, signIn } from '@/test/router'
 
 vi.mock('../authService')
 
+// On a protected page, as in the app, where ending the session before home
+// has rendered would send ProtectedRoute to /login instead
 function renderButton() {
   signIn()
   return renderRoutes([
-    { path: '/account', element: <LogoutButton /> },
+    { element: <ProtectedRoute />, children: [{ path: '/account', element: <LogoutButton /> }] },
     { path: '/', element: <p>Home page</p> },
+    { path: '/login', element: <p>Login page</p> },
   ], '/account')
 }
 
-async function logOut(user) {
+async function logOut(user, router) {
   await user.click(screen.getByRole('button', { name: 'Log out' }))
   await screen.findByText('Home page')
+  expect(router.state.location.pathname).toBe('/')
 }
 
 describe('LogoutButton', () => {
@@ -27,9 +32,9 @@ describe('LogoutButton', () => {
   })
 
   it('logs out on the server, ends the session and goes home', async () => {
-    const { user } = renderButton()
+    const { user, router } = renderButton()
 
-    await logOut(user)
+    await logOut(user, router)
 
     expect(logoutUser).toHaveBeenCalledTimes(1)
     expect(storage.getAccessToken()).toBeNull()
@@ -39,9 +44,9 @@ describe('LogoutButton', () => {
 
   it('still ends the session if the server call fails, and clears the cookie', async () => {
     logoutUser.mockRejectedValue(new Error('Network Error'))
-    const { user } = renderButton()
+    const { user, router } = renderButton()
 
-    await logOut(user)
+    await logOut(user, router)
 
     expect(storage.getAccessToken()).toBeNull()
     // HttpOnly: only the server can expire it
@@ -61,15 +66,5 @@ describe('LogoutButton', () => {
     await screen.findByText('Home page')
 
     expect(logoutUser).toHaveBeenCalledTimes(1)
-  })
-
-  it('still ends the session if clearing the cookie fails too', async () => {
-    logoutUser.mockRejectedValue(new Error('Network Error'))
-    clearAuthCookies.mockRejectedValue(new Error('Network Error'))
-    const { user } = renderButton()
-
-    await logOut(user)
-
-    expect(storage.getAccessToken()).toBeNull()
   })
 })

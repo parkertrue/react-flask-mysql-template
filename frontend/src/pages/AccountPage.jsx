@@ -34,10 +34,11 @@ export default function AccountPage() {
         setSubmitting(false)
         return
       }
-      // HttpOnly, so only the server can expire the refresh cookie
-      await clearAuthCookies().catch(() => {})
+      await clearAuthCookies()
     }
-    navigate('/')
+    // Home first, rendered at once, or ProtectedRoute sends this page to
+    // /login (LogoutButton explains)
+    await navigate('/', { flushSync: true })
     logout()
   }
 

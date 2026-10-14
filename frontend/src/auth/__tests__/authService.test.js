@@ -42,7 +42,7 @@ describe('authService', () => {
   })
 
   it.each(Object.entries({
-    registerUser, loginUser, logoutUser, logoutAllDevices, clearAuthCookies,
+    registerUser, loginUser, logoutUser, logoutAllDevices,
   }))(
     '%s passes failures on to the caller untouched',
     async (_, fn) => {
@@ -52,4 +52,11 @@ describe('authService', () => {
       await expect(fn('a@example.com', 'Password123')).rejects.toBe(error)
     }
   )
+
+  // Its callers are already ending the session, with nothing left to try
+  it('clearAuthCookies swallows a failure', async () => {
+    api.post.mockRejectedValue(new Error('Request failed'))
+
+    await expect(clearAuthCookies()).resolves.toBeUndefined()
+  })
 })

@@ -98,6 +98,18 @@ def _hedges(node, guarded=False):
             yield from _hedges(child, guarded or _may_skip_body(child))
 
 
+def _branches(node):
+    """The if and match statements in a test, outside its nested helpers.
+
+    A run checks one branch only, even when the assert comes after them.
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.If, ast.Match)):
+            yield child
+        if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            yield from _branches(child)
+
+
 def _violations(path, root=TESTS):
     tree = ast.parse(path.read_text(encoding='utf-8'))
     name = path.relative_to(root)
@@ -108,6 +120,8 @@ def _violations(path, root=TESTS):
             yield f'{name}:{test.lineno}: {test.name} never asserts'
         if _only_weak_asserts(test):
             yield f'{name}:{test.lineno}: {test.name} has only weak asserts'
+        for branch in _branches(test):
+            yield f'{name}:{branch.lineno}: {test.name} branches, so a path goes unchecked'
 
 
 def test_no_test_hedges_its_assertions():
@@ -130,6 +144,10 @@ def test_no_test_hedges_its_assertions():
     ('def test_x(r):\n    assert r.status in [400, 422]\n', 'accepts several answers'),
     ('def test_x(r):\n    assert r.status in {400, 422}\n', 'accepts several answers'),
     ('def test_x(r):\n    assert r.data == 1 if r.ok else True\n', 'accepts several answers'),
+    # The assert runs either way, but checks one branch's value only
+    ('def test_x(r):\n    if r.naive:\n        r = r.aware\n    assert r.data == 1\n', 'branches'),
+    ('def test_x(r):\n    match r.kind:\n        case 1:\n            r = r.aware\n    assert r.data == 1\n',
+     'branches'),
     ('def test_x(r):\n    r.get()\n', 'test_x never asserts'),
     ('def test_x(r):\n    assert r is not None\n    assert isinstance(r, str)\n    assert r\n',
      'test_x has only weak asserts'),
