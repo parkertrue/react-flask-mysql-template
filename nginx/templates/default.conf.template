@@ -73,7 +73,14 @@ server {
         access_log off;
     }
 
+    # The page and the files in public/. A load fetches the page and the icon,
+    # and the app's own navigation fetches nothing more, so the rate is for a
+    # client looping on it: each request is a line in the access log, and
+    # enough of them would roll the log over (nginx.conf, the log's fields).
     location / {
+        limit_req zone=page burst=20 nodelay;
+        limit_req_status 429;
+
         try_files $uri $uri/ /index.html;
 
         # Revalidate HTML on every load: a cached index.html would point at
@@ -142,13 +149,25 @@ server {
     # own 503 already carries a JSON message worth showing the user.
     proxy_intercept_errors on;
 
-    error_page 500 502 504 /error.json;
+    error_page 500 /error.json;
 
     location = /error.json {
         internal;
         default_type application/json;
         include /etc/nginx/resource_headers.conf;
         return 200 '{"error":{"code":"INTERNAL_ERROR","message":"Something went wrong"}}';
+    }
+
+    # A backend that is stopped or restarting (every deploy) is an outage, not
+    # a bug: the same code and words as the backend's own 503s
+    # (SERVICE_UNAVAILABLE_MESSAGE in backend/app/utils/errors.py)
+    error_page 502 504 /unavailable.json;
+
+    location = /unavailable.json {
+        internal;
+        default_type application/json;
+        include /etc/nginx/resource_headers.conf;
+        return 200 '{"error":{"code":"SERVICE_UNAVAILABLE","message":"The service is temporarily unavailable, please try again shortly"}}';
     }
 
     # limit_req and limit_conn rejections, in the same JSON shape as the

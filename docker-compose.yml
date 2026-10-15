@@ -24,6 +24,12 @@ x-backend-hardening: &backend-hardening
   tmpfs:
     - /tmp
 
+# The backend's address on the edge network, fixed so that nginx reaches a
+# recreated backend container the moment it listens, with no DNS lookup
+# (nginx/templates/00-upstream.conf.template). Set EDGE_SUBNET_PREFIX in
+# .env.prod if 10.217.0.0/24 is already in use on the host.
+x-backend-address: &backend-address "${EDGE_SUBNET_PREFIX:-10.217.0}.10"
+
 # What the app reads, interpolated from --env-file .env.prod, so
 # DB_ROOT_PASSWORD stays out. Hosts and APP_ENV are fixed by this file.
 x-backend-env: &backend-env
@@ -196,8 +202,9 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - edge
-      - internal
+      edge:
+        ipv4_address: *backend-address
+      internal:
     restart: unless-stopped
     # Longer than gunicorn's --graceful-timeout, so in-flight requests finish
     # before Docker's SIGKILL
@@ -233,6 +240,7 @@ services:
       # The domain this deployment serves; requests for any other host are
       # dropped (see nginx/templates/default.conf.template)
       NGINX_SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env.prod}
+      NGINX_BACKEND_ADDRESS: *backend-address
     # The master process binds 80/443, owns its cache directories, reads the
     # TLS key (mode 600, whoever owns it on the host) and switches workers to
     # the nginx user; nothing else is needed.
@@ -271,6 +279,12 @@ services:
 # route out of the host, reachable only from the backend.
 networks:
   edge:
+    ipam:
+      config:
+        - subnet: "${EDGE_SUBNET_PREFIX:-10.217.0}.0/24"
+          # Addresses Docker hands out (nginx's) come from the top half, so
+          # none can take the backend's
+          ip_range: "${EDGE_SUBNET_PREFIX:-10.217.0}.128/25"
   internal:
     internal: true
 

@@ -71,6 +71,8 @@ It holds only the seven values that differ per deployment (including `SERVER_NAM
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
+nginx reaches the backend at a fixed address, `10.217.0.10`, on a network of its own (`10.217.0.0/24`), so a redeployed backend is reached the moment it starts. If that range is already in use on the server, add `EDGE_SUBNET_PREFIX=10.x.y` (three numbers) to `.env.prod`.
+
 **Changing a value later.** The database keeps its own copy of its users and passwords; `.env.prod` only tells the app what they are. Editing one in `.env.prod` alone therefore breaks the app or its next deploy. Change it in the database first, then in `.env.prod`, then run `docker compose --env-file .env.prod up -d`. With the bundled MySQL, which reads the `DB_*` values only when its volume is first created:
 
 ```bash
@@ -379,7 +381,15 @@ Every container logs to stdout, which Docker keeps, rotated at three files of 10
 docker compose --env-file .env.prod logs -f nginx backend
 ```
 
-nginx and the backend both write one JSON object per line. nginx's access log is the one record of each request: the client's address, the request, its status and how long it took. The backend logs errors, and security events on the `app.security` logger: `login_succeeded`, `login_failed`, `registered`, `refresh_refused` (an old refresh token used again, as a stolen cookie would be), `logout`, `logout_all` and `rate_limited`. Each names the user by id and the client by address. A failed login names the account by `account`, a keyed hash of its email, so one guessed-at address can be followed across IPs without the log holding it. No line holds a password, token or email. Shipping logs off the server, and how long to keep them, is up to the deployment.
+The backend's lines (the app's, gunicorn's and the start-up wait's) and nginx's access log are one JSON object per line. nginx's error log (rate-limit refusals, an unreachable backend) and the one-shot `migrate` service's output are plain text.
+
+nginx's access log is the one record of each request: the client's address, the request's path, its status and how long it took. The path is logged without its query string, where a link's token would sit, and cut at 512 characters; the User-Agent and Referer are cut at 256. Each line has a `request_id`, which nginx also hands the backend: every backend line written during that request carries the same one, which joins the two.
+
+The backend logs errors, and security events on the `app.security` logger: `login_succeeded`, `login_failed`, `registered`, `refresh_refused` (an old refresh token used again, as a stolen cookie would be), `token_invalid` (a token the app never issued, a refresh token sent as an access token, a refresh cookie without its CSRF value, or a deleted account's token), `logout`, `logout_all` and `rate_limited`. Each names the client by address, and the user by id where there is one (`rate_limited` gives the path and the limit instead). A failed login names the account by `account`, a keyed hash of its email, so one guessed-at address can be followed across IPs without the log holding it. No line holds a password, token or email.
+
+Two of these events have innocent causes too. `refresh_refused` is a lead, not proof: a refresh whose answer never reached the client (a 504 on `/api/auth/refresh` from the same address just before) has already rotated its token, so the client's next refresh is refused the same way. And after a `SECRET_KEY` rotation, every token signed with the old key logs `token_invalid` once.
+
+Shipping logs off the server, and how long to keep them, is up to the deployment. Until they are shipped, Docker's three files per container are all there is. nginx caps each line and how fast one address can add them, pages and API alike, which makes pushing older lines out slow for one client but not impossible for many.
 
 ---
 

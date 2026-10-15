@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "json": {"()": "app.utils.log.JsonFormatter"}
+  },
+  "handlers": {
+    "stdout": {
+      "class": "logging.StreamHandler",
+      "formatter": "json",
+      "stream": "ext://sys.stdout"
+    }
+  },
+  "root": {"level": "WARNING", "handlers": []},
+  "loggers": {
+    "gunicorn.error": {"level": "INFO", "handlers": ["stdout"], "propagate": false}
+  }
+}

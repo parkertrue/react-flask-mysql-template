@@ -88,8 +88,9 @@ Audits are **read-only** with respect to the repository:
   blocked; to wait out a rate-limit window, poll in an until-loop with a
   deadline, and allow about 65s, since Flask's windows start at the first
   request, not on the minute. nginx limits `/api` to about
-  30 requests per second per IP (`NGINX_API_RATE`), so pace timing runs, or
-  expect 429s.
+  30 requests per second per IP (`NGINX_API_RATE`) and the page (`/` and the
+  files beside it) to 10 (`NGINX_PAGE_RATE`), so pace timing runs, or expect
+  429s.
 - **Verify privileges and limits live**, not from a script's output or its
   test: for example, `SHOW GRANTS` and an actual `CREATE TABLE` as the app's
   MySQL user, or an actual forbidden command as the app's Redis user.

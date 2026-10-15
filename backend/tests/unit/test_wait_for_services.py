@@ -4,6 +4,8 @@ The checks themselves are faked: what matters here is the loop around them,
 which must give up on a typo at once and on a dead service after the timeout,
 saying why each service is not ready.
 """
+import json
+
 import pymysql
 import pytest
 import redis
@@ -31,6 +33,12 @@ def clock(monkeypatch):
     return now
 
 
+def logged(capsys):
+    """What the script wrote, as (level, message) pairs: every line is JSON"""
+    return [(line['level'], line['message']) for line in
+            map(json.loads, capsys.readouterr().out.splitlines())]
+
+
 def services(monkeypatch, mysql, redis_):
     """Fake the two checks: each answers from its list, repeating the last.
     None means ready; anything else is the error."""
@@ -40,7 +48,7 @@ def services(monkeypatch, mysql, redis_):
     monkeypatch.setattr(wait, 'redis_error', check(redis_))
 
 
-def test_missing_settings_fail_at_once_naming_them(monkeypatch):
+def test_missing_settings_fail_at_once_naming_them(monkeypatch, capsys):
     for name in ENV:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv('DB_HOST', 'db')
@@ -49,8 +57,9 @@ def test_missing_settings_fail_at_once_naming_them(monkeypatch):
     with pytest.raises(SystemExit) as exit_info:
         wait.main()
 
-    assert 'DB_NAME' in str(exit_info.value) and 'REDIS_PASSWORD' in str(exit_info.value)
-    assert 'DB_HOST' not in str(exit_info.value)
+    assert exit_info.value.code == 1
+    assert logged(capsys) == [('ERROR', 'Missing required environment variables: DB_NAME, '
+                               'DB_USER, DB_PASSWORD, REDIS_HOST, REDIS_USERNAME, REDIS_PASSWORD')]
 
 
 def test_returns_once_both_services_answer(env, clock, monkeypatch, capsys):
@@ -58,10 +67,10 @@ def test_returns_once_both_services_answer(env, clock, monkeypatch, capsys):
 
     wait.main()
 
-    assert capsys.readouterr().out.splitlines() == [
-        'Waiting for: MySQL (refused), Redis (refused)',
-        'Waiting for: Redis (refused)',
-        'Database and Redis are up',
+    assert logged(capsys) == [
+        ('INFO', 'Waiting for: MySQL (refused), Redis (refused)'),
+        ('INFO', 'Waiting for: Redis (refused)'),
+        ('INFO', 'Database and Redis are up'),
     ]
     assert clock[0] == 2
 
@@ -71,9 +80,9 @@ def test_an_unchanged_wait_is_printed_once(env, clock, monkeypatch, capsys):
 
     wait.main()
 
-    assert capsys.readouterr().out.splitlines() == [
-        'Waiting for: MySQL (booting)',
-        'Database and Redis are up',
+    assert logged(capsys) == [
+        ('INFO', 'Waiting for: MySQL (booting)'),
+        ('INFO', 'Database and Redis are up'),
     ]
 
 
@@ -85,8 +94,10 @@ def test_gives_up_after_the_timeout_naming_what_is_down(env, clock, monkeypatch,
 
     assert exit_info.value.code == 1
     assert clock[0] > wait.TIMEOUT_SECONDS
-    assert capsys.readouterr().err.splitlines() == [
-        f'Gave up after {wait.TIMEOUT_SECONDS}s waiting for: Redis (refused)']
+    assert logged(capsys) == [
+        ('INFO', 'Waiting for: Redis (refused)'),
+        ('ERROR', f'Gave up after {wait.TIMEOUT_SECONDS}s waiting for: Redis (refused)'),
+    ]
 
 
 def test_a_check_that_raises_reports_why(env, monkeypatch):

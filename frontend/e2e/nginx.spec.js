@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { test, expect } from '@playwright/test'
 
@@ -17,6 +18,34 @@ function testStack(...args) {
     'compose', '--env-file', '.env.test', '-f', 'docker-compose.test.yml', '--profile', 'e2e', ...args,
   ], { cwd: REPO_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
 }
+
+// The lines a service has logged, newest last
+function logLines(service) {
+  return testStack('logs', '--no-log-prefix', service).split('\n')
+}
+
+// Polls a service's log for the line `matches` picks, and returns it parsed
+async function loggedLine(service, matches) {
+  let line
+  await expect.poll(() => {
+    line = logLines(service).find(matches)
+    return line !== undefined
+  }).toBe(true)
+  return JSON.parse(line)
+}
+
+// The backend container's address on the test stack's network
+function backendAddress() {
+  const id = testStack('ps', '--quiet', 'backend').trim()
+  return execFileSync('docker', [
+    'inspect', '--format', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', id,
+  ], { encoding: 'utf8' }).trim()
+}
+
+// What every outage answers with, nginx's 502/504 as much as the backend's 503
+const SERVICE_UNAVAILABLE_MESSAGE = readFileSync(
+  path.join(REPO_ROOT, 'backend/app/utils/errors.py'), 'utf8',
+).match(/^SERVICE_UNAVAILABLE_MESSAGE = '(.+)'$/m)[1]
 
 // Whether the backend answers its health check from inside its own container,
 // bypassing nginx
@@ -144,28 +173,74 @@ test.describe('nginx', () => {
     expect(await ico.text()).not.toContain('<div id="root">')
   })
 
-  test('each request is logged as one JSON line', async ({ request }) => {
-    // A query of its own finds this request's line among the others; the
+  test('each request is logged as one JSON line, without its query string', async ({ request }) => {
+    // A path of its own finds this request's line among the others; the
     // quotes in the user agent would break a line nginx did not escape
-    const uri = `/api/no-such-route?probe=${Date.now()}`
-    await request.get(uri, { headers: { 'User-Agent': 'probe "quoted"' } })
+    const route = `/api/no-such-route-${Date.now()}`
+    await request.get(`${route}?token=secret-in-a-link`, { headers: { 'User-Agent': 'probe "quoted"' } })
 
-    let line = ''
-    await expect.poll(() => {
-      line = testStack('logs', '--no-log-prefix', 'nginx').split('\n').find(l => l.includes(uri)) ?? ''
-      return line
-    }).toContain(uri)
+    const line = await loggedLine('nginx', l => l.includes(route))
 
-    expect(JSON.parse(line)).toMatchObject({
+    expect(line).toMatchObject({
       time: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/),
+      request_id: expect.stringMatching(/^[0-9a-f]{32}$/),
       method: 'GET',
-      uri,
+      // A reset or verification link's token must not stay in the log
+      path: route,
       status: 404,
       user_agent: 'probe "quoted"',
       request_time: expect.any(Number),
       // The backend answered, so nginx timed it
       upstream_response_time: expect.stringMatching(/^\d+\.\d{3}$/),
     })
+    expect(JSON.stringify(line)).not.toContain('secret-in-a-link')
+  })
+
+  test('the client\'s own text is cut short in the log', async ({ request }) => {
+    // Headers of 8 KB, as much as nginx accepts, would make lines that roll
+    // the log over in seconds. (A path that long gunicorn refuses: 4 KB.)
+    const route = `/api/no-such-route-${Date.now()}`
+    const long = 'x'.repeat(8000)
+    await request.get(route + long.slice(0, 2000), { headers: { 'User-Agent': long, 'Referer': long } })
+
+    const line = await loggedLine('nginx', l => l.includes(route))
+
+    expect(line.path).toBe((route + long).slice(0, 512))
+    expect(line.user_agent).toBe(long.slice(0, 256))
+    expect(line.referer).toBe(long.slice(0, 256))
+  })
+
+  test('a backend line names the request it was logged during', async ({ request }) => {
+    // A wrong password is logged by both: nginx's access line and the
+    // backend's login_failed event. The user agent finds nginx's.
+    const userAgent = `probe-${Date.now()}`
+    await request.post('/api/auth/login', {
+      data: { email: `${userAgent}@example.com`, password: 'WrongPass123' },
+      headers: { 'User-Agent': userAgent },
+    })
+
+    const access = await loggedLine('nginx', l => l.includes(userAgent))
+    const event = await loggedLine('backend', l => l.includes(access.request_id))
+
+    expect(access.status).toBe(401)
+    expect(event).toMatchObject({ logger: 'app.security', message: 'login_failed' })
+  })
+
+  test('a client loading pages in a loop is refused in the API\'s error shape', async ({ request }) => {
+    // 10 r/s with a burst of 20 (nginx/Dockerfile): 60 at once overflows it
+    const responses = await Promise.all(
+      Array.from({ length: 60 }, () => request.get('/account')))
+    const limited = responses.filter(response => response.status() === 429)
+
+    expect(new Set(responses.map(response => response.status()))).toEqual(new Set([200, 429]))
+    for (const response of limited) {
+      expect(await response.json()).toEqual({
+        error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later' },
+      })
+    }
+
+    // Let the bucket refill, so the tests after this one are not limited
+    await expect.poll(async () => (await request.get('/account')).status()).toBe(200)
   })
 
   test('a page whose path only starts with "api" is the app', async ({ request }) => {
@@ -185,9 +260,8 @@ test.describe('nginx while the backend is away', () => {
   test('a stopped backend answers at once, in the API\'s error shape', async ({ request }) => {
     testStack('stop', 'backend')
 
-    // nginx keeps the stopped container's address (Docker's DNS answers a
-    // stopped name with a server failure, not "not found"), so each request
-    // waits out proxy_connect_timeout and gets a 504. Now and then one fails
+    // Nothing answers at the backend's fixed address, so each request waits
+    // out proxy_connect_timeout and gets a 504. Now and then one fails
     // sooner as unreachable, a 502 from the same error page: poll for the 504.
     const durations = []
     let last
@@ -201,8 +275,9 @@ test.describe('nginx while the backend is away', () => {
     // The 2s connect timeout (proxy_params.conf), not a long hang
     expect(Math.max(...durations)).toBeLessThan(3000)
     expect(last.headers()['content-type']).toBe('application/json')
+    // An outage, in the backend's own words: not "Something went wrong"
     expect(await last.json()).toEqual(
-      { error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' } })
+      { error: { code: 'SERVICE_UNAVAILABLE', message: SERVICE_UNAVAILABLE_MESSAGE } })
   })
 
   test('a replaced backend is reached as soon as it serves', async ({ request }) => {
@@ -211,23 +286,25 @@ test.describe('nginx while the backend is away', () => {
     await expect.poll(async () => (await request.get('/api/health')).status(),
       { intervals: [200], timeout: 30_000 }).toBe(200)
 
-    // A deploy's swap. While no backend container exists, nginx's lookups of
-    // its name fail: Docker Desktop answers "not found", which nginx keeps
-    // for the resolver's valid= time, and Linux a server failure, after which
-    // nginx keeps the old address. Give it a few lookups' time.
+    // A deploy's swap, with a gap in which no backend container exists. Had
+    // nginx looked the backend up by name, Docker's DNS could answer it with
+    // "not found" or a server failure, either of which leaves a healthy new
+    // backend unreachable for up to about 30s.
+    const before = backendAddress()
     testStack('rm', '--stop', '--force', 'backend')
     await new Promise(resolve => setTimeout(resolve, 5000))
     testStack('up', '-d', '--no-deps', 'backend')
-    await expect.poll(backendServes, { intervals: [200], timeout: 60_000 }).toBe(true)
+    await expect.poll(backendServes, { intervals: [100], timeout: 60_000 }).toBe(true)
 
-    // valid=2s (nginx.conf): within moments, not the seconds a longer cache
-    // of that "not found" would keep a healthy backend unreachable. This
-    // guards valid= only in part: Desktop's lookup lands in the wait about
-    // half the time, and on Linux the new container got the old address, so
-    // there is no gap to catch. It still fails if a swap breaks otherwise.
+    // The address nginx connects to (templates/00-upstream.conf.template),
+    // not a name: whether a lookup fails mid-swap is up to Docker's DNS, so
+    // a swap alone would catch a lookup by name only now and then
+    expect(backendAddress()).toBe(before)
+    const upstream = testStack('exec', '-T', 'nginx', 'nginx', '-T').match(/upstream backend \{[^}]*\}/)[0]
+    expect(upstream).toContain(`server ${before}:5000;`)
     const started = Date.now()
     await expect.poll(async () => (await request.get('/api/health')).status(),
-      { intervals: [200], timeout: 30_000 }).toBe(200)
-    expect(Date.now() - started).toBeLessThan(3000)
+      { intervals: [100], timeout: 30_000 }).toBe(200)
+    expect(Date.now() - started).toBeLessThan(1000)
   })
 })

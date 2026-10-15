@@ -934,3 +934,70 @@ class TestSecurityEvents:
         assert security_events()[2:] == [
             {'message': 'logout_all', 'ip': '127.0.0.1', 'user_id': sample_user.id,
              'sessions': 2}]
+
+    @staticmethod
+    def forged(app, user, kind):
+        """An access token for `user` that the app never issued"""
+        now = int(time.time())
+        claims = {'sub': str(user.id), 'type': 'access', 'fresh': False, 'jti': 'j',
+                  'iat': now, 'nbf': now, 'exp': now + 600}
+        if kind == 'wrong key':
+            return jwt.encode(claims, 'k' * 32 + '-not-the-apps', algorithm='HS256')
+        if kind == 'alg none':
+            return jwt.encode(claims, None, algorithm='none')
+        # A refresh token, valid in every way but its type
+        with app.app_context():
+            return create_refresh_token(identity=str(user.id))
+
+    @pytest.mark.parametrize('kind, reason', [
+        ('wrong key', 'Signature verification failed'),
+        ('alg none', 'The specified alg value is not allowed'),
+        ('refresh as access', 'Only non-refresh tokens are allowed'),
+    ])
+    def test_a_token_the_app_never_issued(
+            self, app, client, sample_user, security_events, logged, kind, reason):
+        token = self.forged(app, sample_user, kind)
+
+        response = client.get('/api/account', headers={'Authorization': f'Bearer {token}'})
+
+        assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
+        assert security_events() == [
+            {'message': 'token_invalid', 'ip': '127.0.0.1', 'reason': reason}]
+        self.assert_absent(logged, token)
+
+    def test_a_deleted_accounts_token(
+            self, client, db, sample_user, auth_headers, security_events, logged):
+        user_id = sample_user.id
+        db.session.delete(sample_user)
+        db.session.commit()
+
+        response = client.get('/api/account', headers=auth_headers)
+
+        assert response.get_json()['error']['code'] == 'AUTH_INVALID_TOKEN'
+        assert security_events() == [{'message': 'token_invalid', 'ip': '127.0.0.1',
+                                      'reason': 'User not found', 'user_id': user_id}]
+        self.assert_absent(logged, auth_headers['Authorization'].removeprefix('Bearer '))
+
+    @pytest.mark.parametrize('headers, reason', [
+        ({}, 'Missing CSRF token'),
+        ({'X-CSRF-REFRESH-TOKEN': 'guessed'}, 'CSRF double submit tokens do not match'),
+    ])
+    def test_a_refresh_cookie_without_its_csrf_value(
+            self, client, sample_user, fake_redis, security_events, logged, headers, reason):
+        csrf = login(client)
+        cookie = client.get_cookie('__Secure-refresh_token', path='/api/auth').value
+
+        response = client.post('/api/auth/refresh', headers=headers)
+
+        assert response.status_code == 401
+        assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
+        assert security_events()[1:] == [
+            {'message': 'token_invalid', 'ip': '127.0.0.1', 'reason': reason}]
+        self.assert_absent(logged, cookie, csrf['X-CSRF-REFRESH-TOKEN'])
+
+    def test_a_request_with_no_token_is_not_an_event(self, client, security_events):
+        """A missing Authorization header is a client bug, not an attack"""
+        response = client.get('/api/account')
+
+        assert response.get_json()['error']['code'] == 'AUTH_MISSING_TOKEN'
+        assert security_events() == []
