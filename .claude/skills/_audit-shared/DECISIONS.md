@@ -132,6 +132,12 @@ personal project, made outside any university employment, grant or course,
 so `LICENSE` names the owner alone. *Revisit when:* the university raises a
 claim.
 
+**The template is MIT-0.** An app built from the template keeps much of its
+code, so under MIT every derived app would have to carry the template's
+notice. MIT-0 drops that condition, so README's step 6 can tell a new app to
+replace `LICENSE` outright (LEGAL-19). *Revisit when:* the owner wants
+attribution from derived apps.
+
 **Password composition rules and no spaces.** Registration requires upper
 and lower case and a digit, and both register and login refuse spaces. That
 gives up ASVS 6.2.5 ("passwords of any composition") and NIST's advice to

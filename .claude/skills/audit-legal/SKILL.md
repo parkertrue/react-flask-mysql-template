@@ -56,8 +56,8 @@ as RULES.md.
 ## 1. license
 
 - **The template's own license.** Is a `LICENSE` file tracked, does README
-  name it, and does `package.json` (`license`) agree? Without one, nobody
-  may reuse the code. Recommend a license with its trade-offs, don't pick one.
+  name it, and does `package.json` (`license`) agree with the license
+  DECISIONS.md records? Without one, nobody may reuse the code.
 - **Dependency licenses.** Inventory every runtime and dev dependency with
   its SPDX license:
   - Python: install `pip-licenses` into a throwaway venv in your scratch

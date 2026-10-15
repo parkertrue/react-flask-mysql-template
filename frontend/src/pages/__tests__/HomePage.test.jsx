@@ -1,17 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import HomePage from '../HomePage'
 import { renderRoutes, signIn } from '@/test/router'
-import { handlers, setupMswServer } from '@/test/server'
 import { APP_NAME } from '@/appName'
 
-setupMswServer(...handlers)
+vi.mock('@/features/health/ApiStatus', () => ({ default: () => null }))
 
-async function renderPage() {
+function renderPage() {
   renderRoutes([{ path: '/', element: <HomePage /> }])
-  // The API status demo checks the API on mount: wait for its answer, so no
-  // request outlives the test
-  expect(await screen.findByText('API status: ok')).toBeInTheDocument()
 }
 
 const links = () => Object.fromEntries(
@@ -19,22 +15,22 @@ const links = () => Object.fromEntries(
 )
 
 describe('HomePage', () => {
-  it('welcomes the visitor', async () => {
-    await renderPage()
+  it('welcomes the visitor', () => {
+    renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: `Welcome to ${APP_NAME}` })).toBeInTheDocument()
     expect(document.title).toBe(APP_NAME)
   })
 
-  it('offers a visitor registration and login', async () => {
-    await renderPage()
+  it('offers a visitor registration and login', () => {
+    renderPage()
 
     expect(links()).toEqual({ 'Get started': '/register', 'Log in': '/login' })
   })
 
-  it('offers a signed-in user their notes instead', async () => {
+  it('offers a signed-in user their notes instead', () => {
     signIn()
-    await renderPage()
+    renderPage()
 
     expect(links()).toEqual({ 'View my notes': '/notes' })
   })

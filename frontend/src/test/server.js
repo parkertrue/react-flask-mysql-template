@@ -7,7 +7,6 @@ import { account, tokens } from './fixtures'
 // beside its tests. A test overrides the ones it cares about with
 // server.use(); resetHandlers() drops the overrides.
 export const handlers = [
-  http.get('/api/health', () => HttpResponse.json({ status: 'ok' })),
   http.get('/api/account', () => HttpResponse.json(account())),
   http.post('/api/auth/register', () =>
     HttpResponse.json({ message: 'User created' }, { status: 201 })),

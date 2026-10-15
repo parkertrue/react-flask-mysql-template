@@ -64,7 +64,7 @@ class TestErrorResponse:
         with pytest.raises(TypeError):
             error_response('TEST_ERROR', 'Test error message')
 
-    # Tested here as well as through notes, which a new app deletes
+    # Tested here too: a new app deletes the example feature that uses it
     def test_quota_exceeded_is_a_409_with_its_message(self):
         response, status = quota_exceeded('You can keep at most 3 things.')
 
