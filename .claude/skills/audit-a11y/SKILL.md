@@ -33,11 +33,11 @@ Read every page, layout and form component in `frontend/src/` (`pages/`,
   back and forward work.
 - Dynamic content: "Load more" moves or keeps focus sensibly and announces new
   items; the API status demo announces changes without being noisy.
-- Contrast: every pairing in `tokens.css` meets AA (4.5:1 text, 3:1 large text
-  and UI components, including focus rings, borders of inputs, and disabled-
-  looking states). Compute the ratios.
-- Motion: grep the CSS for `transition` and `animation`; if any exist, they
-  respect `prefers-reduced-motion`.
+- Contrast: `styles/__tests__/tokens.test.js` computes every ratio (4.5:1
+  text, 3:1 large text and UI components, including focus rings, borders of
+  inputs, and disabled-looking states). Check that it lists every pairing the
+  CSS actually uses. Motion needs no check: `stylesheets.test.js` refuses a
+  transition or animation outside `prefers-reduced-motion: no-preference`.
 - Also: `lang` on `<html>`; forced-colors mode (Windows High Contrast) keeps
   focus rings, borders and states visible; `autoComplete` on every field
   where a purpose applies; input limits (such as the note length) tell the

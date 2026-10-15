@@ -39,24 +39,24 @@ class Config:
         self.PASSWORD_HASH_CONCURRENCY = 2
         self.PASSWORD_HASH_WAIT_SECONDS = 5
 
-        # Database configuration
-        self.DB_USER = os.getenv('DB_USER')
-        self.DB_PASSWORD = os.getenv('DB_PASSWORD')
-        self.DB_HOST = os.getenv('DB_HOST')
-        self.DB_PORT = int(os.getenv('DB_PORT', '3306'))
-        self.DB_NAME = os.getenv('DB_NAME')
+        # Database configuration. Locals, not settings: the URL is the one
+        # place they live, so the password never sits in app.config unmasked
+        db_user = os.getenv('DB_USER')
+        db_password = os.getenv('DB_PASSWORD')
+        db_host = os.getenv('DB_HOST')
+        db_name = os.getenv('DB_NAME')
 
         self.SQLALCHEMY_DATABASE_URI = None
-        if all([self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_NAME]):
+        if all([db_user, db_password, db_host, db_name]):
             # A URL object, not a string: it escapes a password containing
             # @ / : or #, and prints it as *** wherever the URL is logged
             self.SQLALCHEMY_DATABASE_URI = URL.create(
                 'mysql+pymysql',
-                username=self.DB_USER,
-                password=self.DB_PASSWORD,
-                host=self.DB_HOST,
-                port=self.DB_PORT,
-                database=self.DB_NAME,
+                username=db_user,
+                password=db_password,
+                host=db_host,
+                port=int(os.getenv('DB_PORT', '3306')),
+                database=db_name,
             )
         elif self.USES_SERVICES:
             raise ValueError(
@@ -168,7 +168,6 @@ class DevelopmentConfig(Config):
 
 class UnitTestConfig(Config):
     """Unit tests: in-memory SQLite, no Redis, no rate limiting"""
-    __test__ = False
     USES_SERVICES = False
 
     def __init__(self):

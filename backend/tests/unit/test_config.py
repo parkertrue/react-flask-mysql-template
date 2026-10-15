@@ -54,10 +54,10 @@ class TestConfigClasses:
 
         config = Config()
 
-        assert config.DB_USER == 'test'
-        assert config.DB_PASSWORD == 'test'
-        assert config.DB_HOST == 'localhost'
-        assert config.DB_NAME == 'test'
+        url = config.SQLALCHEMY_DATABASE_URI
+        assert (url.username, url.password, url.host, url.database) == ('test', 'test', 'localhost', 'test')
+        # Only inside the URL, which masks it when printed
+        assert 'DB_PASSWORD' not in vars(config)
         assert config.REDIS_HOST == 'localhost'
         assert config.REDIS_DB == 0
         assert config.REDIS_PASSWORD == 'redispass'
@@ -418,7 +418,7 @@ class TestConfigValues:
 
         config = get_config()
 
-        assert config.DB_PORT == 3306
+        assert config.SQLALCHEMY_DATABASE_URI.port == 3306
 
     def test_rate_limiter_uses_redis_uri(self, monkeypatch):
         """Rate limiter should use Redis URI"""
@@ -546,7 +546,7 @@ class TestConnectionUris:
         from sqlalchemy.engine import make_url
         from redis.connection import parse_url
         assert make_url(config.SQLALCHEMY_DATABASE_URI).password == 'p@ss/w:rd#1'
-        assert make_url(config.SQLALCHEMY_DATABASE_URI).host == config.DB_HOST
+        assert make_url(config.SQLALCHEMY_DATABASE_URI).host == SERVICE_ENV['DB_HOST']
         assert parse_url(config.REDIS_URI)['password'] == 'r@dis/pw'
         assert parse_url(config.REDIS_URI)['username'] == 'app:1'
 

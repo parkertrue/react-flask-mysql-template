@@ -153,12 +153,15 @@ test.describe('Notes accessibility', () => {
     await expectNoViolations(page)
   })
 
-  test('a note open for editing has no violations', async ({ page }) => {
+  test('a note open for editing has no violations, reflows, shows focus and has large enough targets', async ({ page }) => {
     await addNote(page, 'A note to edit')
     await page.getByRole('button', { name: /^Edit note #/ }).click()
 
     await expect(page.getByRole('textbox', { name: /^Edit note #/ })).toBeFocused()
     await expectNoViolations(page)
+    await expectReflow(page)
+    await expectVisibleFocus(page)
+    await expectTargetSize(page)
   })
 
   test('the delete confirmation has no violations, and an edge in forced-colors mode', async ({ page }) => {
@@ -168,6 +171,8 @@ test.describe('Notes accessibility', () => {
     const dialog = page.getByRole('dialog', { name: 'Delete this note?' })
     await expect(dialog).toBeVisible()
     await expectNoViolations(page)
+    await expectReflow(page)
+    await expectTargetSize(page)
 
     // Its border is transparent until forced colors drop the background
     await page.emulateMedia({ forcedColors: 'active' })
@@ -276,5 +281,7 @@ test.describe('Notes accessibility, with the list answered by the test', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Something went wrong' }))
       .toBeFocused()
     await expectNoViolations(page)
+    await expectReflow(page)
+    await expectTargetSize(page)
   })
 })

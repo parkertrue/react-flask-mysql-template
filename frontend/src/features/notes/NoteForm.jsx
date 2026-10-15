@@ -19,7 +19,7 @@ export default function NoteForm({
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (submitting) return
-    if (!validate(e.currentTarget, { content: validateNoteContent(values.content)[0] })) return
+    if (!validate(e.currentTarget, { content: validateNoteContent(values.content) })) return
 
     try {
       await onSubmit(values.content.trim())

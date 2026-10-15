@@ -32,17 +32,42 @@ async function fill(user, values = {}) {
 }
 
 describe('RegisterPage', () => {
-  it('shows the form, with the password rules and a way to log in', () => {
+  it('shows the form, without the password rules yet, and a way to log in', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: 'Register' })).toBeInTheDocument()
     expect(field.email()).toHaveAttribute('autocomplete', 'email')
     expect(field.password()).toHaveAttribute('autocomplete', 'new-password')
     expect(field.confirmPassword()).toHaveAttribute('autocomplete', 'new-password')
-    // Up front, not one at a time after each failed attempt
-    expect(field.password()).toHaveAccessibleDescription(/at least 8 characters.*uppercase.*lowercase.*number/i)
+    expect(field.password()).toHaveAccessibleDescription('')
     expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login')
     expect(document.title).toBe(`Register | ${APP_NAME}`)
+  })
+
+  describe('the password rules', () => {
+    const RULES = 'At least 8 characters, with an uppercase letter, a lowercase letter and a number.'
+
+    it('show with the first password message, and stay once it is fixed', async () => {
+      const { user } = renderPage()
+      await fill(user, { password: 'password' })
+      await user.click(submitButton())
+
+      expect(field.password())
+        .toHaveAccessibleDescription(`Password must contain at least one uppercase letter ${RULES}`)
+
+      await user.type(field.password(), 'A')
+
+      expect(field.password()).toHaveAccessibleDescription(RULES)
+    })
+
+    it('stay hidden when only another field is wrong', async () => {
+      const { user } = renderPage()
+      await fill(user, { email: 'not-an-email' })
+      await user.click(submitButton())
+
+      expect(field.email()).toHaveAttribute('aria-invalid', 'true')
+      expect(field.password()).toHaveAccessibleDescription('')
+    })
   })
 
   describe('validation', () => {

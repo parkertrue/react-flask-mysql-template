@@ -38,11 +38,11 @@ export default function LoginPage() {
     if (submitting) return
 
     const valid = validate(e.currentTarget, {
-      email: validateEmail(values.email)[0],
+      email: validateEmail(values.email),
       // The allowed characters apply here too, but only registration enforces
       // the strength rules, so changing them never locks out existing users
       password: values.password
-        ? validatePasswordCharacters(values.password)[0]
+        ? validatePasswordCharacters(values.password)
         : 'Password is required',
     })
     if (!valid) return

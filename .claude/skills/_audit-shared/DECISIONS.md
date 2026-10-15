@@ -22,6 +22,15 @@ limited per IP, and login timing no longer leaks it (dummy hash).
 *Revisit when:* email verification exists. Then register can answer the same
 way for both and send a "you already have an account" email instead.
 
+**The register page hides the password rules until a password breaks one.**
+The user chose a shorter first view of the form (2026-10-15). WCAG 3.3.2 is
+still met: the field is labelled, the first failed submit names the broken
+rule, and from then on the full rule list shows beside it as the field's
+hint (`RegisterPage.jsx`). The cost is one failed submit for a user who
+guesses wrong. Spaces and emoji are left out of the list; their own messages
+explain them when they come up. *Revisit when:* email verification is added,
+which reworks registration anyway.
+
 **No refresh-token reuse detection.** A replayed, already rotated refresh token
 gets 401 `AUTH_TOKEN_REVOKED`, but does not revoke the rest of that user's
 sessions. Revoking on reuse would also log out a second tab that lost the

@@ -49,8 +49,9 @@ router, fixtures), `frontend/playwright.config.js`, `frontend/e2e/helpers.js`.
   the coverage of each security-critical module (`backend/app/auth/routes.py`,
   `utils/redis_service.py`, `frontend/src/api/api.js`, `src/auth/`). If any is
   well below the global figure, the guard is a per-path threshold.
-- Flakiness: E2E `waitForTimeout`, fixed sleeps, polling without a deadline,
-  selectors tied to markup instead of roles and labels.
+- Flakiness: fixed sleeps, polling without a deadline, selectors tied to
+  markup instead of roles and labels (lint already refuses E2E
+  `waitForTimeout`).
 
 ## 3. Assertion quality
 

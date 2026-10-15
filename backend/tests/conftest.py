@@ -20,19 +20,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret-key-0123456789abcdef')
 
 @pytest.fixture(scope='session')
 def app():
-    """Unit test app - fast SQLite in-memory, no real services needed
-
-    Uses UnitTestConfig which:
-    - Sets APP_ENV=unit
-    - Uses SQLite in-memory (no MySQL needed)
-    - Disables Redis
-    - Disables rate limiting
-
-    Note: Config reads from environment, but UnitTestConfig overrides with
-    in-memory SQLite regardless of DB_* env vars.
-    """
-    # Only set APP_ENV to trigger UnitTestConfig; everything else comes from
-    # UnitTestConfig defaults or the ambient environment.
+    """The unit app: UnitTestConfig, so in-memory SQLite whatever DB_* says, no Redis and no rate limiting."""
     os.environ['APP_ENV'] = 'unit'
 
     app = create_app()
@@ -144,8 +132,8 @@ def integration_app():
             ) from e
 
         # IntegrationConfig enables Redis, so a missing service means it failed
-        # to connect in create_app(). Fail here rather than let every
-        # Redis-backed test skip and the suite report green.
+        # to connect in create_app(): fail once, here, rather than in every
+        # Redis-backed test.
         if app.extensions['redis_service'] is None:
             raise RuntimeError(
                 'Redis failed to initialize; see the log above. Make sure '

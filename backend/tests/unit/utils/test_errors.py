@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from app.utils.errors import error_response, quota_exceeded
+from app.utils.errors import (
+    SERVICE_UNAVAILABLE_MESSAGE, error_response, quota_exceeded, service_unavailable)
 
 
 # jsonify needs an app context, which the app fixture holds open
@@ -37,28 +38,26 @@ class TestErrorResponse:
         assert isinstance(data['error']['code'], str)
         assert isinstance(data['error']['message'], str)
 
-    def test_error_response_different_status_codes(self):
+    @pytest.mark.parametrize(('status_code', 'message'), [
+        (400, 'Bad Request'),
+        (401, 'Unauthorized'),
+        (403, 'Forbidden'),
+        (404, 'Not Found'),
+        (409, 'Conflict'),
+        (422, 'Unprocessable Entity'),
+        (500, 'Internal Server Error'),
+    ])
+    def test_error_response_different_status_codes(self, status_code, message):
         """error_response should work with various status codes."""
-        test_cases = [
-            (400, 'Bad Request'),
-            (401, 'Unauthorized'),
-            (403, 'Forbidden'),
-            (404, 'Not Found'),
-            (409, 'Conflict'),
-            (422, 'Unprocessable Entity'),
-            (500, 'Internal Server Error'),
-        ]
+        response, status = error_response(
+            code=f'ERROR_{status_code}',
+            message=message,
+            status=status_code
+        )
 
-        for status_code, message in test_cases:
-            response, status = error_response(
-                code=f'ERROR_{status_code}',
-                message=message,
-                status=status_code
-            )
-
-            assert status == status_code
-            data = json.loads(response.data)
-            assert data['error']['message'] == message
+        assert status == status_code
+        data = json.loads(response.data)
+        assert data['error']['message'] == message
 
     def test_error_response_takes_keywords_only(self):
         with pytest.raises(TypeError):
@@ -71,6 +70,16 @@ class TestErrorResponse:
         assert status == 409
         assert response.get_json()['error'] == {
             'code': 'QUOTA_EXCEEDED', 'message': 'You can keep at most 3 things.'}
+
+    @pytest.mark.parametrize(('args', 'message'), [
+        ((), SERVICE_UNAVAILABLE_MESSAGE),
+        (('The server is busy',), 'The server is busy'),
+    ])
+    def test_service_unavailable_is_a_503(self, args, message):
+        response, status = service_unavailable(*args)
+
+        assert status == 503
+        assert response.get_json()['error'] == {'code': 'SERVICE_UNAVAILABLE', 'message': message}
 
 
 class TestGlobalErrorHandlers:

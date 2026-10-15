@@ -86,10 +86,8 @@ test('two tabs refreshing at once both stay signed in', async ({ page, context }
 
   // Force the order that signs a tab out: the first refresh reaches the
   // server, but its tab hears back only after the second tab has sent its
-  // own, with the token the first just revoked. (Two refreshes that reach
-  // the server at the same instant can both succeed, so without this the
-  // test would pass by luck.) With the lock, the second tab waits, finds
-  // the first tab's token, and never sends a refresh at all.
+  // own, with the token the first just revoked. With the lock, the second
+  // tab waits, finds the first tab's token, and never sends a refresh at all.
   let refreshes = 0
   let firstRefreshed
   const firstAtServer = new Promise(resolve => { firstRefreshed = resolve })

@@ -21,15 +21,21 @@ export default function RegisterPage() {
   })
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  // The password rules stay hidden, to keep the form short, until a password
+  // breaks one; from then on they show beside its message
+  const [showPasswordRules, setShowPasswordRules] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (submitting) return
 
+    const passwordError = validatePassword(values.password)
+    // Rendered by validate's flush, before it focuses the field
+    if (passwordError) setShowPasswordRules(true)
     const valid = validate(e.currentTarget, {
-      email: validateEmail(values.email)[0],
-      password: validatePassword(values.password)[0],
-      confirmPassword: validatePasswordMatch(values.password, values.confirmPassword)[0],
+      email: validateEmail(values.email),
+      password: passwordError,
+      confirmPassword: validatePasswordMatch(values.password, values.confirmPassword),
     })
     if (!valid) return
 
@@ -77,7 +83,9 @@ export default function RegisterPage() {
               value={values.password}
               onChange={handleChange}
               error={errors.password}
-              hint={`At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number. No spaces or emoji.`}
+              hint={showPasswordRules
+                ? `At least ${PASSWORD_MIN_LENGTH} characters, with an uppercase letter, a lowercase letter and a number.`
+                : undefined}
               readOnly={submitting}
               required
               maxLength={PASSWORD_MAX_LENGTH}

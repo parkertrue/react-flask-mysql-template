@@ -10,8 +10,9 @@ from sqlalchemy.exc import InterfaceError, OperationalError
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app.auth.errors import token_invalid, token_revoked
 from app.config import get_config
-from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
+from app.utils.errors import error_response, service_unavailable
 from app.utils.log import configure_logging, security_event
 from app.utils.passwords import PasswordHashingBusy, init_password_hashing
 from app.utils.redis_service import (
@@ -91,12 +92,8 @@ def create_app():
     def user_not_found(jwt_header, jwt_payload):
         security_event('token_invalid', reason='User not found',
                        user_id=int(jwt_payload['sub']))
-        # Same code as a bad token, so the frontend signs the user out
-        return error_response(
-            code='AUTH_INVALID_TOKEN',
-            message='Invalid authentication token',
-            status=401
-        )
+        # Answered as a bad token, so the frontend signs the user out
+        return token_invalid()
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
@@ -138,11 +135,7 @@ def create_app():
     @jwt.invalid_token_loader
     def invalid_token(reason):
         security_event('token_invalid', reason=reason)
-        return error_response(
-            code='AUTH_INVALID_TOKEN',
-            message='Invalid authentication token',
-            status=401
-        )
+        return token_invalid()
 
     # A refresh cookie without its CSRF value, or with the wrong one, is how a
     # stolen cookie alone shows up. Answered as flask-jwt-extended's own
@@ -166,11 +159,7 @@ def create_app():
         # of an old one is how a stolen cookie shows up
         sub = jwt_payload['sub']
         security_event('refresh_refused', user_id=int(sub) if sub.isdigit() else sub)
-        return error_response(
-            code='AUTH_TOKEN_REVOKED',
-            message='Session revoked',
-            status=401
-        )
+        return token_revoked()
 
     @app.errorhandler(ValidationError)
     def handle_pydantic_error(e):
@@ -182,19 +171,11 @@ def create_app():
 
     @app.errorhandler(TokenStoreUnavailable)
     def token_store_unavailable(e):
-        return error_response(
-            code='SERVICE_UNAVAILABLE',
-            message=SERVICE_UNAVAILABLE_MESSAGE,
-            status=503
-        )
+        return service_unavailable()
 
     @app.errorhandler(PasswordHashingBusy)
     def password_hashing_busy(e):
-        return error_response(
-            code='SERVICE_UNAVAILABLE',
-            message='The server is busy, please try again shortly',
-            status=503
-        )
+        return service_unavailable('The server is busy, please try again shortly')
 
     # MySQL stopped, hung (the 15s query timeout), or the connection dropped
     # mid-query: an outage, not a bug, so answer 503 as Redis outages do and
@@ -204,11 +185,7 @@ def create_app():
     @app.errorhandler(InterfaceError)
     def database_unavailable(e):
         app.logger.exception('Database unavailable')
-        return error_response(
-            code='SERVICE_UNAVAILABLE',
-            message=SERVICE_UNAVAILABLE_MESSAGE,
-            status=503
-        )
+        return service_unavailable()
 
     # Werkzeug's own error pages are HTML, which the frontend cannot show;
     # every error leaves the API in the same JSON shape. Flask logs an

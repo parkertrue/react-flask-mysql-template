@@ -2,7 +2,6 @@ import time
 import redis
 from redis.backoff import NoBackoff
 from redis.retry import Retry
-from typing import cast
 from flask import Flask, current_app
 
 # How long to wait after a failed connection before trying again. Each attempt
@@ -236,7 +235,7 @@ class RedisService:
             pipe.zcount(key, time.time(), '+inf')
             pipe.delete(key)
             live, _ = pipe.execute()
-            return cast(int, live)
+            return live
         except redis.RedisError as error:
             self._failed(error, 'Could not revoke the sessions of user %s', user_id)
             return None

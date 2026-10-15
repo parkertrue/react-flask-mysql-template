@@ -11,26 +11,26 @@ describe('validateNoteContent', () => {
     // The backend trims too, so surrounding space never counts
     ['surrounding whitespace', '  Valid note  '],
   ])('accepts %s', (_, content) => {
-    expect(validateNoteContent(content)).toEqual([])
+    expect(validateNoteContent(content)).toBeUndefined()
   })
 
   it.each(['', undefined, null, '   ', '\t\t', '\n\n', '  \n\t  '])(
     'requires some content (%o)',
     (content) => {
-      expect(validateNoteContent(content)).toEqual(['Note content is required'])
+      expect(validateNoteContent(content)).toBe('Note content is required')
     }
   )
 
   it('rejects a note longer than the notes.content column', () => {
     expect(validateNoteContent('a'.repeat(NOTE_MAX_LENGTH + 1)))
-      .toEqual([`Note must be at most ${NOTE_MAX_LENGTH} characters`])
+      .toBe(`Note must be at most ${NOTE_MAX_LENGTH} characters`)
   })
 
   it.each(['🚀', '❤', '1⃣', '️', '‍', '©', '°', '𠀀', 'a\nb'])(
     'rejects a note with %o, as the backend does',
     (symbol) => {
       expect(validateNoteContent(`Note ${symbol}`))
-        .toEqual(['Note must not contain emoji or other symbols like © or °'])
+        .toBe('Note must not contain emoji or other symbols like © or °')
     }
   )
 })

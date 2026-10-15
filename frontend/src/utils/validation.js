@@ -17,21 +17,19 @@ export const UNSUPPORTED_CHARACTERS_MESSAGE = 'must not contain emoji or other s
 
 /**
  * The characters any password may use, checked at login as well as at
- * registration: no spaces, and no emoji or other pictographic symbols
+ * registration: no spaces, and no emoji or other pictographic symbols.
+ * Like every validator here, returns the first rule broken, or undefined.
  */
 export function validatePasswordCharacters(password) {
-  const errors = []
   const normalized = password.normalize('NFKC')
 
   if (/\s/u.test(normalized)) {
-    errors.push('Password must not contain spaces')
+    return 'Password must not contain spaces'
   }
 
-  if (hasUnsupportedCharacters(normalized.replace(/\s/gu, ''))) {
-    errors.push(`Password ${UNSUPPORTED_CHARACTERS_MESSAGE}`)
+  if (hasUnsupportedCharacters(normalized)) {
+    return `Password ${UNSUPPORTED_CHARACTERS_MESSAGE}`
   }
-
-  return errors
 }
 
 /**
@@ -40,38 +38,36 @@ export function validatePasswordCharacters(password) {
  * Checked as the backend checks it, after NFKC normalization.
  */
 export function validatePassword(password) {
-  const errors = []
-
   if (!password) {
-    errors.push('Password is required')
-    return errors
+    return 'Password is required'
   }
 
   const normalized = password.normalize('NFKC')
 
   if (normalized.length < PASSWORD_MIN_LENGTH) {
-    errors.push(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters`
   }
 
   if (normalized.length > PASSWORD_MAX_LENGTH) {
-    errors.push(`Password must be at most ${PASSWORD_MAX_LENGTH} characters`)
+    return `Password must be at most ${PASSWORD_MAX_LENGTH} characters`
   }
 
-  errors.push(...validatePasswordCharacters(password))
+  const characters = validatePasswordCharacters(password)
+  if (characters) {
+    return characters
+  }
 
   if (!/[A-Z]/.test(normalized)) {
-    errors.push('Password must contain at least one uppercase letter')
+    return 'Password must contain at least one uppercase letter'
   }
 
   if (!/[a-z]/.test(normalized)) {
-    errors.push('Password must contain at least one lowercase letter')
+    return 'Password must contain at least one lowercase letter'
   }
 
   if (!/[0-9]/.test(normalized)) {
-    errors.push('Password must contain at least one number')
+    return 'Password must contain at least one number'
   }
-
-  return errors
 }
 
 // RFC 5322's unquoted local part, in ASCII only: anything else before the @
@@ -97,11 +93,8 @@ function asciiEmail(local, domain) {
  * spares the user a round trip.
  */
 export function validateEmail(email) {
-  const errors = []
-
   if (!email) {
-    errors.push('Email is required')
-    return errors
+    return 'Email is required'
   }
 
   const parts = email.split('@')
@@ -110,22 +103,21 @@ export function validateEmail(email) {
   const stored = parts.length === 2 ? asciiEmail(local, domain) : null
 
   if ((stored ?? email).length > EMAIL_MAX_LENGTH) {
-    errors.push(`Email must be at most ${EMAIL_MAX_LENGTH} characters`)
+    return `Email must be at most ${EMAIL_MAX_LENGTH} characters`
   }
 
   if (parts.length === 2 && /\P{ASCII}/u.test(local)) {
-    errors.push('Before the @, an email can use only English letters, numbers and symbols like . _ + -')
-  } else if (parts.length !== 2 || !EMAIL_LOCAL.test(local) || labels.length < 2 ||
-             !labels.every(label => DOMAIN_LABEL.test(label)) || stored === null) {
-    errors.push('Please enter a valid email address')
+    return 'Before the @, an email can use only English letters, numbers and symbols like . _ + -'
   }
 
-  return errors
+  if (parts.length !== 2 || !EMAIL_LOCAL.test(local) || labels.length < 2 ||
+      !labels.every(label => DOMAIN_LABEL.test(label)) || stored === null) {
+    return 'Please enter a valid email address'
+  }
 }
 
 export function validatePasswordMatch(password, confirmPassword) {
   if (password !== confirmPassword) {
-    return ['Passwords do not match']
+    return 'Passwords do not match'
   }
-  return []
 }

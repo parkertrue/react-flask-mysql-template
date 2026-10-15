@@ -2,11 +2,10 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  // One worker: every test hits the same stack, and nginx rate-limits it
-  // all as one client IP
-  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // One worker: every test hits the same stack, and nginx rate-limits it
+  // all as one client IP
   workers: 1,
   // In CI, failures are annotated on the run and listed in its log; the HTML
   // report (with traces) is uploaded as an artifact

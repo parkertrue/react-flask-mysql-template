@@ -51,6 +51,8 @@ test.describe('Accessibility', () => {
 
       await expect(page.getByLabel('Email')).toBeFocused()
       await expectNoViolations(page)
+      await expectReflow(page)
+      await expectTargetSize(page)
     })
 
     // Layout moves focus on every change of path, the browser's own back
@@ -77,6 +79,12 @@ test.describe('Accessibility', () => {
       await expect(page.getByRole('button', { name: 'Log in' })).toHaveCSS('border-top-style', 'solid')
       await expect(page.getByLabel('Email')).toHaveCSS('border-top-style', 'solid')
       await expect(page.getByLabel('Email')).toHaveCSS('border-top-width', '1px')
+
+      // And the keyboard's focus ring with them
+      await page.getByLabel('Email').focus()
+      await page.keyboard.press('Tab')
+      await expect(page.getByLabel('Password')).toBeFocused()
+      await expect(page.getByLabel('Password')).toHaveCSS('outline-style', 'solid')
     })
 
     test('logging in, busy and then failed, has no violations', async ({ page }) => {
@@ -90,6 +98,8 @@ test.describe('Accessibility', () => {
       release()
       await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
       await expectNoViolations(page)
+      await expectReflow(page)
+      await expectTargetSize(page)
     })
 
     test('registering, busy, has no violations', async ({ page }) => {
