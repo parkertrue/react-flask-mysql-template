@@ -73,7 +73,7 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 nginx reaches the backend at a fixed address, `10.217.0.10`, on a network of its own (`10.217.0.0/24`), so a redeployed backend is reached the moment it starts. If that range is already in use on the server, add `EDGE_SUBNET_PREFIX=10.x.y` (three numbers) to `.env.prod`.
 
-**Changing a value later.** The database keeps its own copy of its users and passwords; `.env.prod` only tells the app what they are. Editing one in `.env.prod` alone therefore breaks the app or its next deploy. Change it in the database first, then in `.env.prod`, then run `docker compose --env-file .env.prod up -d`. With the bundled MySQL, which reads the `DB_*` values only when its volume is first created:
+**Changing a value later.** The database keeps its own copy of its users and passwords; `.env.prod` only tells the app what they are. Editing one in `.env.prod` alone therefore breaks something: a new `DB_PASSWORD` locks the app out (every request gets a 502), and a new `DB_ROOT_PASSWORD` makes the next deploy fail at `migrate` while the running app keeps serving. Renaming `DB_USER` or `DB_NAME` on an existing database needs more than this and is not covered here. Change it in the database first, then in `.env.prod`, then run `docker compose --env-file .env.prod up -d`. With the bundled MySQL, which reads the `DB_*` values only when its volume is first created:
 
 ```bash
 docker compose --env-file .env.prod exec db mysql -uroot -p -e "ALTER USER '<DB_USER>'@'%' IDENTIFIED BY '<new password>'"
@@ -443,8 +443,8 @@ CI's Scaffold job deletes the examples and edits exactly these files (`.github/s
    - **Rename it** into your feature, the quickest start when that feature is also a list of things a user owns: `backend/app/notes/`, `frontend/src/features/notes/` and their tests (`backend/tests/unit/notes/`, `backend/tests/integration/notes/`, `frontend/e2e/notes-crud.spec.js`).
    - **Delete it**, and build your feature in the same shape: delete those folders and files.
 
-   Either way, delete `backend/migrations/versions/0002_notes.py` (step 4 generates yours) and update the wiring points above.
-3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, the `ApiStatus` import and element in `frontend/src/pages/HomePage.jsx`, and the line in `renderPage` of `frontend/src/pages/__tests__/HomePage.test.jsx` that waits for the API status.
+   Either way, delete `backend/migrations/versions/0002_notes.py` (step 4 generates yours) and update the wiring points above. Then delete `.github/scripts/remove_examples.py` and the Scaffold job in `.github/workflows/ci.yml`, and drop Scaffold from the status checks required on `main` ([CI](#continuous-integration)): they only prove that the template's examples can be removed, and the import rules keep shared code off your features.
+3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, the `ApiStatus` import and element in `frontend/src/pages/HomePage.jsx`, and the `vi.mock` of `ApiStatus` in `frontend/src/pages/__tests__/HomePage.test.jsx`, with `vi` in its import.
 4. Generate a migration for your tables. From `backend/`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev). If the dev backend ran after step 1 while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
 
    ```bash
@@ -454,8 +454,8 @@ CI's Scaffold job deletes the examples and edits exactly these files (`.github/s
 
    Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly.
 5. Name the app: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match). Replace the placeholder icon, `frontend/public/favicon.svg`.
-6. Rewrite this README and `CLAUDE.md` for your app, and choose its license: replace `LICENSE` and the `license` field in `frontend/package.json` (keeping MIT still means putting your own name on the copyright line).
+6. Rewrite this README and `CLAUDE.md` for your app, and choose its license: replace `LICENSE` and the `license` field in `frontend/package.json` (the template is MIT-0, so your app owes it no notice). Delete `.claude/skills/audit-scaffold/`, which acts out these steps on the template; keep the other audits in `.claude/skills/` and update their references to notes, or delete them.
 
 # License
 
-MIT, see [`LICENSE`](LICENSE). The production build also writes the bundled libraries' own notices to `third-party-licenses.txt`, which nginx serves beside the app.
+MIT-0 (MIT No Attribution), see [`LICENSE`](LICENSE): reuse the template without keeping any notice. The production build also writes the bundled libraries' own notices to `third-party-licenses.txt`, which nginx serves beside the app.

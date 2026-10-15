@@ -2,7 +2,7 @@
   "name": "frontend",
   "version": "0.0.1",
   "private": true,
-  "license": "MIT",
+  "license": "MIT-0",
   "type": "module",
   "scripts": {
     "lint": "eslint . --max-warnings 0",

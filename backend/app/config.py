@@ -88,7 +88,7 @@ class Config:
             'connect_args': connect_args,
             # A failed statement's exception text, which the error handlers
             # log, would otherwise carry its values: password hashes, emails
-            # and note text.
+            # and user text.
             'hide_parameters': True,
         }
 

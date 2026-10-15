@@ -67,7 +67,9 @@ EDITS = {
          '<Link to="/account" className="btn btn-primary">Your account</Link>'),
     ],
     'frontend/src/pages/__tests__/HomePage.test.jsx': [
-        ("  expect(await screen.findByText('API status: ok')).toBeInTheDocument()\n", ''),
+        ("import { describe, it, expect, vi } from 'vitest'",
+         "import { describe, it, expect } from 'vitest'"),
+        ("vi.mock('@/features/health/ApiStatus', () => ({ default: () => null }))\n", ''),
         ("expect(links()).toEqual({ 'View my notes': '/notes' })",
          "expect(links()).toEqual({ 'Your account': '/account' })"),
     ],
