@@ -22,6 +22,7 @@ export const ERROR_CODES = [
   'TERMS_OUTDATED',
   'UNSUPPORTED_MEDIA_TYPE',
   'VALIDATION_ERROR',
+  'WRONG_PASSWORD',
 ]
 
 /** The body of an error response: { error: { code, message } } */

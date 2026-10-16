@@ -6,6 +6,7 @@ import redis
 from limits.storage import MemoryStorage
 from flask_jwt_extended import (
     create_access_token, create_refresh_token, decode_token, get_csrf_token)
+from sqlalchemy import select
 
 from app import db, limiter
 from app.auth.models import TERMS_VERSION, User
@@ -296,6 +297,60 @@ class TestRefreshLimit:
 
         statuses = {self.refresh(client, access, '203.0.113.7').status_code
                     for _ in range(15)}
+
+        assert statuses == {401}
+
+
+class TestDeleteAccountLimit:
+    """Deleting an account asks for the password, so it is limited like a
+    login: per user, counting wrong passwords only"""
+
+    def headers(self, app, email, ip='203.0.113.7'):
+        with app.app_context():
+            user_id = db.session.scalar(select(User.id).where(User.email == email))
+            token = create_access_token(identity=str(user_id))
+        return {'Authorization': f'Bearer {token}', 'X-Forwarded-For': ip}
+
+    def delete(self, client, headers, password='WrongPassword123'):
+        return client.post('/api/account/delete', headers=headers, json={'password': password})
+
+    def test_sixth_wrong_password_in_a_minute_is_rate_limited(self, owner_app):
+        client = owner_app.test_client()
+        headers = self.headers(owner_app, 'owner@example.com')
+
+        statuses = [self.delete(client, headers).status_code for _ in range(6)]
+
+        assert statuses == [403] * 5 + [429]
+
+    def test_the_limit_follows_the_user_across_addresses(self, owner_app):
+        client = owner_app.test_client()
+        statuses = [
+            self.delete(client, self.headers(owner_app, 'owner@example.com', f'203.0.113.{i}'))
+            .status_code for i in range(6)]
+
+        assert statuses == [403] * 5 + [429]
+
+    def test_users_sharing_an_address_have_their_own_buckets(self, owner_app):
+        with owner_app.app_context():
+            other = User(email='other@example.com')
+            other.set_password('OtherPassword123')
+            db.session.add(other)
+            db.session.commit()
+        client = owner_app.test_client()
+        for _ in range(6):
+            self.delete(client, self.headers(owner_app, 'owner@example.com'))
+
+        response = self.delete(
+            client, self.headers(owner_app, 'other@example.com'), 'OtherPassword123')
+
+        assert response.status_code == 200
+
+    def test_requests_without_a_valid_token_are_not_limited(self, owner_app):
+        """@jwt_required turns them away cheaply"""
+        client = owner_app.test_client()
+
+        statuses = {self.delete(client, {'Authorization': 'Bearer not-a-jwt'}).status_code
+                    for _ in range(10)}
 
         assert statuses == {401}
 

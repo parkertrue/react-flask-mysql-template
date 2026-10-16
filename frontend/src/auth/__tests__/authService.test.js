@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  registerUser, loginUser, logoutUser, logoutAllDevices, clearAuthCookies,
+  registerUser, loginUser, logoutUser, logoutAllDevices, clearAuthCookies, deleteAccount,
 } from '../authService'
 import { api } from '@/api/api'
 import { tokens } from '@/test/fixtures'
@@ -18,6 +18,7 @@ describe('authService', () => {
       '/auth/login', { email: 'a@example.com', password: 'Password123' }],
     ['logoutUser', () => logoutUser(), '/auth/logout', undefined],
     ['logoutAllDevices', () => logoutAllDevices(), '/auth/logout-all', undefined],
+    ['deleteAccount', () => deleteAccount('Password123'), '/account/delete', { password: 'Password123' }],
     // A JSON body, so another site cannot send it without a CORS preflight
     ['clearAuthCookies', () => clearAuthCookies(), '/auth/clear-cookies', {}],
   ])('%s posts to the right endpoint', async (_, call, path, body) => {
@@ -42,7 +43,7 @@ describe('authService', () => {
   })
 
   it.each(Object.entries({
-    registerUser, loginUser, logoutUser, logoutAllDevices,
+    registerUser, loginUser, logoutUser, logoutAllDevices, deleteAccount,
   }))(
     '%s passes failures on to the caller untouched',
     async (_, fn) => {

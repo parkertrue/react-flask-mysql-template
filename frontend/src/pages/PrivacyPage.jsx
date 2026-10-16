@@ -39,7 +39,7 @@ export default function PrivacyPage() {
 
       <h2>How long we keep it</h2>
       <p>
-        We keep your account and content until you ask us to delete them.
+        We keep your account and content until you delete them.
         Security records are kept for [period, for example 6 months]. [State
         how long backups keep deleted data.]
       </p>
@@ -53,8 +53,9 @@ export default function PrivacyPage() {
 
       <h2>Your rights</h2>
       <p>
-        You can ask us for a copy of your data, to correct it, to delete it,
-        or to restrict or object to how we use it. Write to us
+        You can delete your account, and everything in it, on your Account
+        page. You can also ask us for a copy of your data, to correct it, or
+        to restrict or object to how we use it. Write to us
         at <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a> from the
         email address of your account. We answer within one month.
       </p>

@@ -329,7 +329,8 @@ when:* the app adopts a server-rendering framework.
 A check mentions these only when its findings bear on one (for example, the
 recovery check is blocked by the missing backups). They are not new findings.
 
-- **Account deletion** on `AccountPage`; **email verification**.
+- **Email verification**; **data export** (GDPR Art. 15, 20) and **email
+  change** (Art. 16), which the privacy notice handles by email meanwhile.
 - **Account security beyond the basics:** no password change, password
   reset, multi-factor login, or common/breached-password check (ASVS 5.0
   chapter 6, Authentication). Reset and change wait on email verification.

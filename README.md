@@ -386,7 +386,7 @@ The backend's lines (the app's, gunicorn's and the start-up wait's) and nginx's 
 
 nginx's access log is the one record of each request: the client's address, the request's path, its status and how long it took. The path is logged without its query string, where a link's token would sit, and cut at 512 characters; the User-Agent and Referer are cut at 256. Each line has a `request_id`, which nginx also hands the backend: every backend line written during that request carries the same one, which joins the two.
 
-The backend logs errors, and security events on the `app.security` logger: `login_succeeded`, `login_failed`, `registered`, `refresh_refused` (an old refresh token used again, as a stolen cookie would be), `token_invalid` (a token the app never issued, a refresh token sent as an access token, a refresh cookie without its CSRF value, or a deleted account's token), `logout`, `logout_all` and `rate_limited`. Each names the client by address, and the user by id where there is one (`rate_limited` gives the path and the limit instead). A failed login names the account by `account`, a keyed hash of its email, so one guessed-at address can be followed across IPs without the log holding it. No line holds a password, token or email.
+The backend logs errors, and security events on the `app.security` logger: `login_succeeded`, `login_failed`, `registered`, `refresh_refused` (an old refresh token used again, as a stolen cookie would be), `token_invalid` (a token the app never issued, a refresh token sent as an access token, a refresh cookie without its CSRF value, or a deleted account's token), `logout`, `logout_all`, `account_deleted` and `rate_limited`. Each names the client by address, and the user by id where there is one (`rate_limited` gives the path and the limit instead). A failed login names the account by `account`, a keyed hash of its email, so one guessed-at address can be followed across IPs without the log holding it. No line holds a password, token or email.
 
 Two of these events have innocent causes too. `refresh_refused` is a lead, not proof: a refresh whose answer never reached the client (a 504 on `/api/auth/refresh` from the same address just before) has already rotated its token, so the client's next refresh is refused the same way. And after a `SECRET_KEY` rotation, every token signed with the old key logs `token_invalid` once.
 
@@ -439,15 +439,17 @@ Every app built from the template collects personal data from its first sign-up,
 
 | Data | Where | How long |
 |---|---|---|
-| Email, password hash, when registered, terms version and when accepted | MySQL `users` | Until the account is deleted (there is no deletion yet) |
-| Users' content (the notes example) | The feature's tables | Until the user deletes it |
+| Email, password hash, when registered, terms version and when accepted | MySQL `users` | Until the user deletes the account (Account page) |
+| Users' content (the notes example) | The feature's tables | Until the user deletes it or the account |
 | Every write, deleted rows included | MySQL's binary log | 30 days (MySQL's default) |
-| Refresh-token ids, at most 10 per user | Redis | Until the session expires (7 days idle, 30 at most) or logs out |
+| Refresh-token ids, at most 10 per user | Redis | Until the session expires (7 days idle, 30 at most), logs out or deletes the account |
 | Rate-limit counters: per IP, per keyed hash of an email, per user | Redis | A minute to an hour |
 | Access log: IP, path (no query string), status, timings, User-Agent, Referer | nginx's stdout, kept by Docker | Until Docker's 3 × 10 MB rotate out |
 | Security events: IP, user id; a keyed hash of the typed email on a failed login | The backend's stdout, kept by Docker | The same |
 | Access token, refresh CSRF value, email | The browser's `localStorage` | Until logout or the session ends |
 | Refresh token | Cookie `__Secure-refresh_token` (HttpOnly) | Up to 30 days |
+
+Deleting an account (the Account page asks for the password) deletes its `users` row, every feature's rows that reference it, and its sessions in Redis, at once. What the logs and MySQL's binary log hold about it goes as they age out, and so would its copies in backups, by their own retention: state that in the privacy notice.
 
 No analytics, no third-party requests, no email and no processors. The cookie and `localStorage` are strictly necessary for the login the user asked for, so no consent banner is needed.
 
@@ -464,7 +466,6 @@ No analytics, no third-party requests, no email and no processors. The cookie an
 - **Content other users can see** (sharing, profiles, comments, uploads): a way to report illegal content (EU Digital Services Act, Art. 16), and in the US a DMCA agent and a repeat-infringer policy.
 - **Children:** an audience under 13, or knowing that a user is, brings COPPA, and consent-based processing the GDPR's age of consent.
 - **Email** (verification, password reset, newsletters): CAN-SPAM, PECR and CASL.
-- **Deleting an account** must also reach Redis, the logs and backups, by their retention.
 
 ---
 

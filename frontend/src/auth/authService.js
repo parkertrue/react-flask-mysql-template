@@ -16,6 +16,12 @@ export async function getAccount() {
   return response.data
 }
 
+// The password is asked for again, so an open session alone cannot delete
+// the account
+export async function deleteAccount(password) {
+  await api.post('/account/delete', { password })
+}
+
 export async function logoutUser() {
   await api.post('/auth/logout')
 }

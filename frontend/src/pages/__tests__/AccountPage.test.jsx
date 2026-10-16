@@ -1,14 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import { useLocation } from 'react-router-dom'
 import AccountPage from '../AccountPage'
 import ProtectedRoute from '@/auth/ProtectedRoute'
 import { storage } from '@/auth/storage'
-import { getAccount, logoutAllDevices, clearAuthCookies } from '@/auth/authService'
+import { getAccount, logoutAllDevices, clearAuthCookies, deleteAccount } from '@/auth/authService'
 import { account, errorBody } from '@/test/fixtures'
 import { renderRoutes, signIn } from '@/test/router'
 import { APP_NAME } from '@/appName'
 
 vi.mock('@/auth/authService')
+
+// Says whether it was reached from a deleted account, as LoginPage does
+function LoginStand() {
+  const { state } = useLocation()
+  return <p>Login page{state?.accountDeleted && ': account deleted'}</p>
+}
 
 // Behind ProtectedRoute, as in the app, where ending the session before home
 // has rendered would send it to /login instead
@@ -17,7 +24,7 @@ function renderPage() {
   return renderRoutes([
     { element: <ProtectedRoute />, children: [{ path: '/account', element: <AccountPage /> }] },
     { path: '/', element: <p>Home page</p> },
-    { path: '/login', element: <p>Login page</p> },
+    { path: '/login', element: <LoginStand /> },
   ], '/account')
 }
 
@@ -33,6 +40,7 @@ describe('AccountPage', () => {
     getAccount.mockResolvedValue(account('user@example.com', '2026-01-15T10:30:00+00:00'))
     logoutAllDevices.mockResolvedValue()
     clearAuthCookies.mockResolvedValue()
+    deleteAccount.mockResolvedValue()
   })
 
   it('shows who is signed in, then loads when they joined', async () => {
@@ -125,5 +133,122 @@ describe('AccountPage', () => {
     expect(logoutAll()).toHaveFocus()
     expect(logoutAllDevices).toHaveBeenCalledTimes(1)
     await act(async () => finish())
+  })
+
+  describe('deleting the account', () => {
+    const passwordField = () => screen.getByLabelText('Password')
+    const deleteButton = () =>
+      screen.getByRole('button', { name: /^(delete account|deleting\.\.\.)$/i })
+    const dialog = () => screen.getByRole('dialog', { name: 'Delete your account?' })
+
+    async function askToDelete(user, password = 'MyPassword123') {
+      await user.type(passwordField(), password)
+      await user.click(deleteButton())
+    }
+
+    it('asks for confirmation before deleting anything', async () => {
+      const { user } = renderPage()
+
+      await askToDelete(user)
+
+      expect(within(dialog()).getByText(/cannot be undone/)).toBeInTheDocument()
+      expect(within(dialog()).getByRole('button', { name: 'Cancel' })).toHaveFocus()
+      expect(deleteAccount).not.toHaveBeenCalled()
+    })
+
+    it('deletes nothing when the user cancels', async () => {
+      const { user } = renderPage()
+      await askToDelete(user)
+
+      await user.click(within(dialog()).getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(deleteAccount).not.toHaveBeenCalled()
+      expect(storage.getAccessToken()).toBe('access-token')
+    })
+
+    it('deletes the account with the password, ends the session and says so', async () => {
+      const { user, router } = renderPage()
+      await askToDelete(user)
+
+      await user.click(within(dialog()).getByRole('button', { name: 'Delete account' }))
+
+      expect(await screen.findByText('Login page: account deleted')).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/login')
+      expect(deleteAccount).toHaveBeenCalledExactlyOnceWith('MyPassword123')
+      expect(storage.getAccessToken()).toBeNull()
+      expect(storage.getSessionEnded()).toBe(false)
+    })
+
+    it.each([
+      ['an empty password', '', 'Password is required'],
+      ['a password with a space', 'My Password123', 'Password must not contain spaces'],
+    ])('refuses %s before asking', async (_, password, message) => {
+      const { user } = renderPage()
+
+      if (password) await user.type(passwordField(), password)
+      await user.click(deleteButton())
+
+      expect(passwordField()).toHaveAccessibleDescription(expect.stringContaining(message))
+      expect(passwordField()).toHaveFocus()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    // Nothing was deleted, so the session stays for another try
+    it.each([
+      ['the password is wrong', httpError(403, 'WRONG_PASSWORD', 'The password is incorrect'),
+        'The password is incorrect'],
+      ['the server fails', httpError(503, 'SERVICE_UNAVAILABLE', 'Could not delete the account'),
+        'Could not delete the account'],
+      ['the network fails', new Error('Network Error'), 'Network error'],
+    ])('keeps the session and says so when %s', async (_, error, message) => {
+      deleteAccount.mockRejectedValue(error)
+      const { user, router } = renderPage()
+      await askToDelete(user)
+
+      await user.click(within(dialog()).getByRole('button', { name: 'Delete account' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+      expect(router.state.location.pathname).toBe('/account')
+      expect(storage.getAccessToken()).toBe('access-token')
+      expect(deleteButton()).toHaveAttribute('aria-disabled', 'false')
+      expect(passwordField()).not.toHaveAttribute('readonly')
+    })
+
+    it('clears an earlier error when trying again', async () => {
+      let finish
+      deleteAccount
+        .mockRejectedValueOnce(httpError(403, 'WRONG_PASSWORD', 'The password is incorrect'))
+        .mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+      const { user } = renderPage()
+      await askToDelete(user)
+      await user.click(within(dialog()).getByRole('button', { name: 'Delete account' }))
+      await screen.findByRole('alert')
+
+      await user.click(deleteButton())
+      await user.click(within(dialog()).getByRole('button', { name: 'Delete account' }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      await act(async () => finish())
+      expect(await screen.findByText('Login page: account deleted')).toBeInTheDocument()
+      expect(deleteAccount).toHaveBeenCalledTimes(2)
+    })
+
+    it('marks the form busy and ignores repeat submits while deleting', async () => {
+      let finish
+      deleteAccount.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+      const { user } = renderPage()
+      await askToDelete(user)
+      await user.click(within(dialog()).getByRole('button', { name: 'Delete account' }))
+
+      await user.click(deleteButton())
+
+      expect(deleteButton()).toHaveTextContent('Deleting...')
+      expect(deleteButton()).toHaveAttribute('aria-disabled', 'true')
+      expect(passwordField()).toHaveAttribute('readonly')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(deleteAccount).toHaveBeenCalledTimes(1)
+      await act(async () => finish())
+    })
   })
 })
