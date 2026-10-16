@@ -4,8 +4,13 @@ import { createHmac, randomUUID } from 'crypto'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { APP_NAME } from '../src/appName.js'
+import { TERMS_VERSION } from '../src/legal.js'
 
 export const TEST_PASSWORD = 'SecurePass123'
+
+/** The body of a registration through the API, with the terms accepted */
+export const registration = (email, password = TEST_PASSWORD) =>
+  ({ email, password, terms_version: TERMS_VERSION })
 
 // Every run registers fresh accounts, so emails must never repeat
 export const uniqueEmail = (prefix) => `${prefix}-${randomUUID()}@example.com`
@@ -15,6 +20,7 @@ export async function fillRegistration(page, email, password = TEST_PASSWORD) {
   await page.getByLabel(/email/i).fill(email)
   await page.getByLabel(/^password$/i).fill(password)
   await page.getByLabel(/confirm password/i).fill(password)
+  await page.getByRole('checkbox', { name: /^I accept the Terms/ }).check()
   await page.getByRole('button', { name: /register|creating account/i }).click()
 }
 
@@ -213,7 +219,9 @@ export async function expectTargetSize(page) {
   const small = await page.evaluate(() => [
     ...document.querySelectorAll('a[href], button, input, textarea, select'),
   ]
-    .filter(el => el.checkVisibility() && !el.closest('p'))
+    // A link in running text (a paragraph, an address, or a label such as
+    // the terms checkbox's) is exempt (SC 2.5.8's inline exception)
+    .filter(el => el.checkVisibility() && !el.closest('p, address, label'))
     .map(el => ({ el, box: el.getBoundingClientRect() }))
     .filter(({ box }) => box.width < 24 || box.height < 24)
     .map(({ el, box }) => `${el.outerHTML.slice(0, 80)} is ${box.width}x${box.height}`))

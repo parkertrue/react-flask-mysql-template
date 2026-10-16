@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError, InterfaceError, OperationalError
 
 import app as app_module
 from app import create_app
+from app.auth.models import TERMS_VERSION
 from app.config import UnitTestConfig
 from app.utils import redis_service
 from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE
@@ -252,7 +253,8 @@ class TestDatabaseOutage:
         event.listen(engine, 'before_cursor_execute', database_down)
         try:
             response = client.post('/api/auth/register', json={
-                'email': 'stalled@example.com', 'password': 'TestPassword123'})
+                'email': 'stalled@example.com', 'password': 'TestPassword123',
+                'terms_version': TERMS_VERSION})
         finally:
             event.remove(engine, 'before_cursor_execute', database_down)
 

@@ -1,0 +1,6 @@
+# Where to report a security problem (RFC 9116). Placeholders: set Contact
+# to the email in src/legal.js (a test checks they match), and renew Expires,
+# which must be less than a year away, every year.
+Contact: mailto:contact@example.com
+Expires: 2027-10-15T00:00:00Z
+Preferred-Languages: en

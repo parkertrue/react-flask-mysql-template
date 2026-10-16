@@ -1,7 +1,8 @@
 import { api } from '@/api/api'
 
-export async function registerUser(email, password) {
-  const response = await api.post('/auth/register', { email, password })
+// termsVersion: the version of the terms the user was shown and accepted
+export async function registerUser(email, password, termsVersion) {
+  const response = await api.post('/auth/register', { email, password, terms_version: termsVersion })
   return response.data
 }
 

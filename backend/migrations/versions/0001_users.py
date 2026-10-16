@@ -24,6 +24,8 @@ def upgrade():
         sa.Column('email', sa.String(length=128), nullable=False),
         sa.Column('password_hash', sa.String(length=255), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+        sa.Column('terms_version', sa.Integer(), nullable=False),
+        sa.Column('terms_accepted_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)

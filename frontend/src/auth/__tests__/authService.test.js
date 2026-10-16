@@ -12,8 +12,8 @@ vi.mock('@/api/api')
 // CSRF headers are api.test.js's job.
 describe('authService', () => {
   it.each([
-    ['registerUser', () => registerUser('a@example.com', 'Password123'),
-      '/auth/register', { email: 'a@example.com', password: 'Password123' }],
+    ['registerUser', () => registerUser('a@example.com', 'Password123', 1),
+      '/auth/register', { email: 'a@example.com', password: 'Password123', terms_version: 1 }],
     ['loginUser', () => loginUser('a@example.com', 'Password123'),
       '/auth/login', { email: 'a@example.com', password: 'Password123' }],
     ['logoutUser', () => logoutUser(), '/auth/logout', undefined],

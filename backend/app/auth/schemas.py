@@ -56,6 +56,8 @@ def _check_password_characters(value: str) -> str:
 class RegisterRequest(BaseModel):
     email: str
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    # The version of the terms the user saw and accepted
+    terms_version: int = Field(strict=True)
 
     model_config = ConfigDict(extra='forbid')
 

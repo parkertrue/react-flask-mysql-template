@@ -103,6 +103,17 @@ test.describe('nginx', () => {
     expect(await response.text()).toContain('## react - ')
   })
 
+  test('security.txt is served as text, with a contact and an expiry', async ({ request }) => {
+    // From public/; without it the SPA fallback would answer with index.html
+    const response = await request.get('/.well-known/security.txt')
+
+    expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toBe('text/plain')
+    const text = await response.text()
+    expect(text).toMatch(/^Contact: mailto:/m)
+    expect(text).toMatch(/^Expires: /m)
+  })
+
   test('API responses are never stored', async ({ request }) => {
     // Set by Flask; nginx must pass it through untouched
     for (const path of ['/api/health', '/api/account']) {

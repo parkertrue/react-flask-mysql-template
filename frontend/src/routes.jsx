@@ -5,6 +5,9 @@ import HomePage from '@/pages/HomePage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import AccountPage from '@/pages/AccountPage'
+import PrivacyPage from '@/pages/PrivacyPage'
+import TermsPage from '@/pages/TermsPage'
+import ContactPage from '@/pages/ContactPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import ErrorPage from '@/pages/ErrorPage'
 import NotesPage from '@/features/notes/NotesPage'
@@ -22,6 +25,10 @@ export const routes = [
         errorElement: <ErrorPage />,
         children: [
           { index: true, element: <HomePage /> },
+          // Public whether signed in or not
+          { path: 'privacy', element: <PrivacyPage /> },
+          { path: 'terms', element: <TermsPage /> },
+          { path: 'contact', element: <ContactPage /> },
           {
             element: <GuestRoute />,
             children: [

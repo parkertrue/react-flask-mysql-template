@@ -28,6 +28,20 @@
   font-size: 1rem;
 }
 
+/* A checkbox, then its label, on one line; a long label wraps beside it */
+.form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.form-checkbox {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  accent-color: var(--color-primary);
+}
+
 .form-input:focus {
   border-color: var(--color-primary);
 }

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { APP_NAME } from '../src/appName.js'
-import { TEST_PASSWORD, uniqueEmail } from './helpers'
+import { registration, uniqueEmail } from './helpers'
 
 test.describe('System Health Check', () => {
   test('API health endpoint is accessible', async ({ page }) => {
@@ -28,10 +28,7 @@ test.describe('System Health Check', () => {
 
   test('registration API returns JSON through nginx', async ({ request }) => {
     const response = await request.post('/api/auth/register', {
-      data: {
-        email: uniqueEmail('api-test'),
-        password: TEST_PASSWORD
-      },
+      data: registration(uniqueEmail('api-test')),
     })
 
     expect(response.status()).toBe(201)

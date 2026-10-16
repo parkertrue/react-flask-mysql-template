@@ -10,6 +10,9 @@ const VISITOR_PAGES = [
   ['/', APP_NAME, `Welcome to ${APP_NAME}`],
   ['/login', `Log in | ${APP_NAME}`, 'Log in'],
   ['/register', `Register | ${APP_NAME}`, 'Register'],
+  ['/privacy', `Privacy notice | ${APP_NAME}`, 'Privacy notice'],
+  ['/terms', `Terms of service | ${APP_NAME}`, 'Terms of service'],
+  ['/contact', `Contact | ${APP_NAME}`, 'Contact'],
   ['/no-such-page', `Page not found | ${APP_NAME}`, 'Page not found'],
 ]
 

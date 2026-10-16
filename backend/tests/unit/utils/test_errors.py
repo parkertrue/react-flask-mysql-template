@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from app.auth.models import TERMS_VERSION
 from app.utils.errors import (
     SERVICE_UNAVAILABLE_MESSAGE, error_response, quota_exceeded, service_unavailable)
 
@@ -119,7 +120,7 @@ class TestGlobalErrorHandlers:
         """Pydantic validation errors return 422 VALIDATION_ERROR."""
         response = client.post(
             '/api/auth/register',
-            json={'email': 'not-an-email', 'password': 'TestPassword123'})
+            json={'email': 'not-an-email', 'password': 'TestPassword123', 'terms_version': TERMS_VERSION})
 
         assert response.status_code == 422
         assert response.get_json()['error']['code'] == 'VALIDATION_ERROR'

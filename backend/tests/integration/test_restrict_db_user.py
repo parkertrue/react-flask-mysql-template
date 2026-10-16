@@ -64,7 +64,8 @@ def test_app_user_keeps_data_access(probe_user):
     restrict_db_user.main()
 
     with _probe(probe_user) as conn, conn.cursor() as cursor:
-        cursor.execute("INSERT INTO users (email, password_hash) VALUES ('p@x.com', 'h')")
+        cursor.execute(
+            "INSERT INTO users (email, password_hash, terms_version) VALUES ('p@x.com', 'h', 1)")
         cursor.execute("UPDATE users SET password_hash = 'h2' WHERE email = 'p@x.com'")
         cursor.execute("SELECT password_hash FROM users WHERE email = 'p@x.com'")
         assert cursor.fetchone() == ('h2',)

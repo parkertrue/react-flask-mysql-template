@@ -7,14 +7,18 @@ import Navbar from '@/components/layout/Navbar'
 import { renderRoutes, signIn } from '@/test/router'
 
 // Each page has its own tests; here they only need to say which they are
-vi.mock('@/components/layout/Navbar', () => ({ default: vi.fn(() => <nav>Navbar</nav>) }))
+vi.mock('@/components/layout/Navbar', () => ({ default: vi.fn(() => <nav aria-label="Main">Navbar</nav>) }))
 vi.mock('@/pages/HomePage', () => ({ default: vi.fn(() => <p>Home page</p>) }))
 vi.mock('@/pages/LoginPage', () => ({ default: () => <p>Login page</p> }))
 vi.mock('@/pages/RegisterPage', () => ({ default: () => <p>Register page</p> }))
 vi.mock('@/pages/AccountPage', () => ({ default: () => <p>Account page</p> }))
+vi.mock('@/pages/PrivacyPage', () => ({ default: () => <p>Privacy page</p> }))
+vi.mock('@/pages/TermsPage', () => ({ default: () => <p>Terms page</p> }))
+vi.mock('@/pages/ContactPage', () => ({ default: () => <p>Contact page</p> }))
 vi.mock('@/features/notes/NotesPage', () => ({ default: () => <p>Notes page</p> }))
 
 const page = () => screen.getByRole('main')
+const navbar = () => screen.queryByRole('navigation', { name: 'Main' })
 
 // A page that works until the user does something, then crashes
 function BreaksOnClick() {
@@ -28,6 +32,9 @@ describe('routes', () => {
     ['/', 'Home page'],
     ['/login', 'Login page'],
     ['/register', 'Register page'],
+    ['/privacy', 'Privacy page'],
+    ['/terms', 'Terms page'],
+    ['/contact', 'Contact page'],
     // Guarded: a visitor is sent to log in
     ['/notes', 'Login page'],
     ['/account', 'Login page'],
@@ -41,6 +48,9 @@ describe('routes', () => {
     ['/', 'Home page'],
     ['/notes', 'Notes page'],
     ['/account', 'Account page'],
+    ['/privacy', 'Privacy page'],
+    ['/terms', 'Terms page'],
+    ['/contact', 'Contact page'],
     // A signed-in user has no use for these
     ['/login', 'Notes page'],
     ['/register', 'Notes page'],
@@ -55,7 +65,7 @@ describe('routes', () => {
     renderRoutes(routes, '/no-such-page')
 
     expect(within(page()).getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
-    expect(screen.getByRole('navigation')).toBeInTheDocument()
+    expect(navbar()).toBeInTheDocument()
   })
 
   it('show an error page in place of a page that crashes, keeping the navbar', () => {
@@ -67,7 +77,7 @@ describe('routes', () => {
     renderRoutes(routes, '/')
 
     expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
-    expect(screen.getByRole('navigation')).toBeInTheDocument()
+    expect(navbar()).toBeInTheDocument()
   })
 
   // The focused control goes with the page, and the path is unchanged, so
@@ -91,6 +101,6 @@ describe('routes', () => {
     renderRoutes(routes, '/')
 
     expect(within(page()).getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument()
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(navbar()).not.toBeInTheDocument()
   })
 })

@@ -1,8 +1,28 @@
 import pytest
 from pydantic import ValidationError
 
-from app.auth.models import EMAIL_MAX_LENGTH, User
-from app.auth.schemas import PASSWORD_MAX_LENGTH, LoginRequest, RegisterRequest
+from app.auth import schemas
+from app.auth.models import EMAIL_MAX_LENGTH, TERMS_VERSION, User
+from app.auth.schemas import PASSWORD_MAX_LENGTH, LoginRequest
+
+
+# Named like the class it stands in for
+def RegisterRequest(**fields):
+    """The register schema with the current terms accepted, which every test
+    here takes as given but TestTermsVersion's"""
+    return schemas.RegisterRequest(terms_version=TERMS_VERSION, **fields)
+
+
+class TestTermsVersion:
+    def test_is_required(self):
+        with pytest.raises(ValidationError):
+            schemas.RegisterRequest(email='test@example.com', password='ValidPass123')
+
+    @pytest.mark.parametrize('version', [str(TERMS_VERSION), float(TERMS_VERSION), True])
+    def test_must_be_an_integer(self, version):
+        with pytest.raises(ValidationError):
+            schemas.RegisterRequest(
+                email='test@example.com', password='ValidPass123', terms_version=version)
 
 
 class TestRegisterRequest:

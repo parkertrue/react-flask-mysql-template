@@ -8,7 +8,7 @@ from flask_jwt_extended import (
     create_access_token, create_refresh_token, decode_token, get_csrf_token)
 
 from app import db, limiter
-from app.auth.models import User
+from app.auth.models import TERMS_VERSION, User
 from app.auth.routes import _login_email_key
 from app.utils.passwords import PasswordHashingBusy
 from tests.conftest import FakeRedisService
@@ -206,7 +206,7 @@ def register(client, ip):
     # One email throughout: after the first, each is a fast 409 that still counts
     return client.post(
         '/api/auth/register',
-        json={'email': 'new@example.com', 'password': 'TestPassword123'},
+        json={'email': 'new@example.com', 'password': 'TestPassword123', 'terms_version': TERMS_VERSION},
         headers={'X-Forwarded-For': ip})
 
 

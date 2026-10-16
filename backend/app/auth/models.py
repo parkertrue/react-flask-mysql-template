@@ -8,6 +8,12 @@ from app.utils.passwords import hash_password, verify_password
 # database error. frontend/src/utils/validation.js mirrors it.
 EMAIL_MAX_LENGTH = 128
 
+# The version of the terms of service a new user accepts. Raise it by one
+# whenever the terms change: registering with an older one is refused, and
+# each user's row records the version accepted and when.
+# frontend/src/legal.js mirrors it.
+TERMS_VERSION = 1
+
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -28,9 +34,16 @@ class User(db.Model):
         server_default=db.func.now(),
         nullable=False
     )
+    terms_version: Mapped[int] = mapped_column(nullable=False)
+    terms_accepted_at: Mapped[datetime] = mapped_column(
+        db.DateTime,
+        server_default=db.func.now(),
+        nullable=False
+    )
 
-    def __init__(self, *, email: str) -> None:
+    def __init__(self, *, email: str, terms_version: int = TERMS_VERSION) -> None:
         self.email = email
+        self.terms_version = terms_version
 
     def set_password(self, password: str) -> None:
         self.password_hash = hash_password(password)
