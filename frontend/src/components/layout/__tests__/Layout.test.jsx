@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { Link } from 'react-router-dom'
 import Layout from '../Layout'
 import { renderRoutes } from '@/test/router'
@@ -23,8 +23,18 @@ describe('Layout', () => {
   it('puts the page in the main area, under the navbar', () => {
     renderLayout('/about')
 
-    expect(screen.getByRole('banner')).toContainElement(screen.getByRole('navigation'))
+    expect(screen.getByRole('banner'))
+      .toContainElement(screen.getByRole('navigation', { name: 'Main' }))
     expect(screen.getByRole('main')).toHaveTextContent('About content')
+  })
+
+  it('links the legal pages from the footer', () => {
+    renderLayout('/about')
+
+    const footer = within(screen.getByRole('contentinfo'))
+    const links = footer.getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])
+    expect(links).toEqual([['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact']])
+    expect(footer.getByRole('navigation', { name: 'Legal' })).toBeInTheDocument()
   })
 
   it('leaves focus alone on the first page', () => {

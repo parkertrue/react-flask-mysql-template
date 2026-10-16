@@ -9,7 +9,7 @@ from flask_jwt_extended import create_refresh_token, decode_token
 from sqlalchemy import select, func
 
 from app.auth import routes as auth_routes
-from app.auth.models import User
+from app.auth.models import TERMS_VERSION, User
 from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE
 from app.utils.passwords import verify_password
 
@@ -21,7 +21,8 @@ class TestRegisterEndpoint:
         """Valid registration should create user and return 201."""
         payload = {
             'email': 'newuser@example.com',
-            'password': 'ValidPass123'
+            'password': 'ValidPass123',
+            'terms_version': TERMS_VERSION
         }
 
         response = client.post(
@@ -42,7 +43,8 @@ class TestRegisterEndpoint:
 
         payload = {
             'email': 'dbuser@example.com',
-            'password': 'ValidPass123'
+            'password': 'ValidPass123',
+            'terms_version': TERMS_VERSION
         }
 
         response = client.post(
@@ -69,7 +71,8 @@ class TestRegisterEndpoint:
         """Registration should hash the password."""
         payload = {
             'email': 'hashtest@example.com',
-            'password': 'PlainTextPass123'
+            'password': 'PlainTextPass123',
+            'terms_version': TERMS_VERSION
         }
 
         response = client.post(
@@ -87,11 +90,34 @@ class TestRegisterEndpoint:
         assert user.password_hash != 'PlainTextPass123'
         assert user.check_password('PlainTextPass123')
 
+    def test_register_records_the_terms_accepted_and_when(self, client, db):
+        response = client.post('/api/auth/register', json={
+            'email': 'terms@example.com', 'password': 'ValidPass123',
+            'terms_version': TERMS_VERSION})
+
+        assert response.status_code == 201
+        user = db.session.execute(
+            select(User).where(User.email == 'terms@example.com')).scalar_one()
+        assert user.terms_version == TERMS_VERSION
+        assert user.terms_accepted_at == user.created_at
+
+    @pytest.mark.parametrize('version', [TERMS_VERSION - 1, TERMS_VERSION + 1])
+    def test_register_refuses_terms_other_than_the_current_ones(self, client, db, version):
+        """A page loaded before the terms changed offered the old ones"""
+        response = client.post('/api/auth/register', json={
+            'email': 'terms@example.com', 'password': 'ValidPass123',
+            'terms_version': version})
+
+        assert response.status_code == 409
+        assert response.get_json()['error']['code'] == 'TERMS_OUTDATED'
+        assert db.session.scalar(select(func.count()).select_from(User)) == 0
+
     def test_register_duplicate_email(self, client, sample_user):
         """Registering with existing email should return 409."""
         payload = {
             'email': 'test@example.com',  # sample_user email
-            'password': 'DifferentPass123'
+            'password': 'DifferentPass123',
+            'terms_version': TERMS_VERSION
         }
 
         response = client.post(
@@ -106,9 +132,11 @@ class TestRegisterEndpoint:
         assert 'already registered' in data['error']['message'].lower()
 
     @pytest.mark.parametrize('payload', [
-        {'email': 'not-an-email', 'password': 'ValidPass123'},
-        {'password': 'ValidPass123'},
-        {'email': 'test@example.com'},
+        {'email': 'not-an-email', 'password': 'ValidPass123', 'terms_version': TERMS_VERSION},
+        {'password': 'ValidPass123', 'terms_version': TERMS_VERSION},
+        {'email': 'test@example.com', 'terms_version': TERMS_VERSION},
+        {'email': 'test@example.com', 'password': 'ValidPass123'},
+        {'email': 'test@example.com', 'password': 'ValidPass123', 'terms_version': str(TERMS_VERSION)},
     ])
     def test_invalid_body_is_validation_error_and_stores_nothing(self, client, db, payload):
         response = client.post('/api/auth/register', json=payload)
@@ -133,7 +161,7 @@ class TestRegisterEndpoint:
         monkeypatch.setattr(User, 'set_password', register_concurrently)
 
         response = client.post('/api/auth/register', json={
-            'email': 'race@example.com', 'password': 'ValidPass123'})
+            'email': 'race@example.com', 'password': 'ValidPass123', 'terms_version': TERMS_VERSION})
 
         assert response.status_code == 409
         assert response.get_json()['error']['code'] == 'EMAIL_ALREADY_REGISTERED'
@@ -158,7 +186,8 @@ class TestRegisterEndpoint:
         payload = {
             'email': 'test@example.com',
             'password': 'ValidPass123',
-            'extra_field': 'should fail'
+            'extra_field': 'should fail',
+            'terms_version': TERMS_VERSION
         }
 
         response = client.post(
@@ -665,7 +694,8 @@ class TestAuthenticationFlow:
         # Register
         register_payload = {
             'email': 'flowtest@example.com',
-            'password': 'FlowTest123'
+            'password': 'FlowTest123',
+            'terms_version': TERMS_VERSION
         }
 
         register_response = client.post(
@@ -703,7 +733,7 @@ class TestAuthenticationFlow:
     def test_password_typed_either_way_logs_in(self, client, db):
         """é as one character at sign-up, as e plus an accent at login"""
         register = client.post('/api/auth/register', json={
-            'email': 'cafe@example.com', 'password': 'CaféPass123'})
+            'email': 'cafe@example.com', 'password': 'CaféPass123', 'terms_version': TERMS_VERSION})
         login = client.post('/api/auth/login', json={
             'email': 'cafe@example.com', 'password': 'CaféPass123'})
 
@@ -712,9 +742,9 @@ class TestAuthenticationFlow:
 
     def test_international_domain_is_one_account_however_spelled(self, client, db):
         first = client.post('/api/auth/register', json={
-            'email': 'a@bücher.de', 'password': 'ValidPass123'})
+            'email': 'a@bücher.de', 'password': 'ValidPass123', 'terms_version': TERMS_VERSION})
         second = client.post('/api/auth/register', json={
-            'email': 'a@xn--bcher-kva.de', 'password': 'ValidPass123'})
+            'email': 'a@xn--bcher-kva.de', 'password': 'ValidPass123', 'terms_version': TERMS_VERSION})
 
         assert first.status_code == 201
         assert second.status_code == 409
@@ -723,7 +753,8 @@ class TestAuthenticationFlow:
         """Attempting to register same email twice should fail."""
         payload = {
             'email': 'duplicate@example.com',
-            'password': 'ValidPass123'
+            'password': 'ValidPass123',
+            'terms_version': TERMS_VERSION
         }
 
         # First registration
@@ -848,7 +879,7 @@ class TestSecurityEvents:
 
     def test_register(self, client, db, security_events, logged):
         client.post('/api/auth/register', json={
-            'email': 'new@example.com', 'password': 'ValidPass123'})
+            'email': 'new@example.com', 'password': 'ValidPass123', 'terms_version': TERMS_VERSION})
         user_id = db.session.scalar(select(User.id).where(User.email == 'new@example.com'))
 
         assert security_events() == [

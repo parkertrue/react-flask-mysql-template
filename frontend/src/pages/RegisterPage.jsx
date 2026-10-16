@@ -5,6 +5,7 @@ import { getErrorMessage } from '@/api/errors'
 import FormField from '@/components/forms/FormField'
 import { useFormFields } from '@/components/forms/useFormFields'
 import PageTitle from '@/components/layout/PageTitle'
+import { TERMS_VERSION } from '@/legal'
 import {
   validateEmail,
   validatePassword,
@@ -17,13 +18,18 @@ import {
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { values, errors, handleChange, validate } = useFormFields({
-    email: '', password: '', confirmPassword: ''
+    email: '', password: '', confirmPassword: '', acceptTerms: false
   })
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   // The password rules stay hidden, to keep the form short, until a password
   // breaks one; from then on they show beside its message
   const [showPasswordRules, setShowPasswordRules] = useState(false)
+
+  // readOnly doesn't stop a checkbox being ticked, so ignore it while busy
+  const handleTermsChange = (e) => {
+    if (!submitting) handleChange(e)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -36,13 +42,14 @@ export default function RegisterPage() {
       email: validateEmail(values.email),
       password: passwordError,
       confirmPassword: validatePasswordMatch(values.password, values.confirmPassword),
+      acceptTerms: values.acceptTerms ? undefined : 'Accept the Terms and the Privacy notice to register',
     })
     if (!valid) return
 
     setFormError(null)
     setSubmitting(true)
     try {
-      await registerUser(values.email, values.password)
+      await registerUser(values.email, values.password, TERMS_VERSION)
       navigate('/login', { state: { registered: true } })
     } catch (err) {
       setFormError(getErrorMessage(err))
@@ -101,6 +108,19 @@ export default function RegisterPage() {
               readOnly={submitting}
               required
               maxLength={PASSWORD_MAX_LENGTH}
+            />
+            <FormField
+              id="acceptTerms"
+              type="checkbox"
+              label={<>
+                I accept the <Link to="/terms" target="_blank" className="auth-link">Terms</Link> and
+                the <Link to="/privacy" target="_blank" className="auth-link">Privacy notice</Link>
+              </>}
+              hint="Both open in a new tab."
+              checked={values.acceptTerms}
+              onChange={handleTermsChange}
+              error={errors.acceptTerms}
+              aria-readonly={submitting}
             />
 
             {formError && <div className="error-message" role="alert">{formError}</div>}

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.auth.models import User
+from app.auth.models import TERMS_VERSION, User
 from app.utils.passwords import (
     DUMMY_PASSWORD_HASH, PasswordHashingBusy, hash_password, verify_password)
 
@@ -75,7 +75,7 @@ def test_register_answers_503_without_creating_the_user(client, db, slots):
 
     response = client.post(
         '/api/auth/register',
-        json={'email': 'new@example.com', 'password': 'TestPassword123'})
+        json={'email': 'new@example.com', 'password': 'TestPassword123', 'terms_version': TERMS_VERSION})
 
     assert response.status_code == 503
     assert db.session.query(User).filter_by(email='new@example.com').count() == 0

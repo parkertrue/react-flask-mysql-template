@@ -39,4 +39,14 @@ describe('FormField', () => {
     expect(input()).toHaveAttribute('name', 'content')
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })
+
+  it('puts a checkbox before its label, with its hint and message', () => {
+    render(<FormField id="accept" label="I agree" type="checkbox" hint="Opens a new tab." error="Required" />)
+
+    const checkbox = screen.getByRole('checkbox', { name: 'I agree' })
+    expect(checkbox.compareDocumentPosition(screen.getByText('I agree')))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(checkbox).toHaveAttribute('aria-invalid', 'true')
+    expect(checkbox).toHaveAccessibleDescription('Required Opens a new tab.')
+  })
 })

@@ -21,4 +21,16 @@ describe('useFormFields', () => {
     expect(result.current.values).toEqual(expected)
     expect(result.current.errors).toEqual({})
   })
+
+  it('takes whether a checkbox is ticked as its value, and clears its message', () => {
+    const { result } = renderHook(() => useFormFields({ accept: false }))
+    const form = { elements: { accept: { focus: () => {} } } }
+    act(() => { result.current.validate(form, { accept: 'Required' }) })
+
+    act(() => result.current.handleChange(
+      { target: { name: 'accept', type: 'checkbox', value: 'on', checked: true } }))
+
+    expect(result.current.values).toEqual({ accept: true })
+    expect(result.current.errors).toEqual({ accept: undefined })
+  })
 })

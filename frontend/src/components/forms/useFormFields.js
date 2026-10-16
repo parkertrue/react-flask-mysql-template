@@ -6,10 +6,11 @@ export function useFormFields(initialValues) {
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
 
-  // Editing a field clears its message
+  // Editing a field clears its message. A checkbox's value is whether it is
+  // ticked.
   const handleChange = (e) => {
-    const { name, value } = e.target
-    setValues(prev => ({ ...prev, [name]: value }))
+    const { name, type, value, checked } = e.target
+    setValues(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
     setErrors(prev => ({ ...prev, [name]: undefined }))
   }
 

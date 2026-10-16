@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import Navbar from './Navbar'
+import Footer from './Footer'
 
 export default function Layout() {
   const { pathname } = useLocation()
@@ -30,6 +31,7 @@ export default function Layout() {
       <main className="main-content" ref={mainRef} tabIndex={-1}>
         <Outlet />
       </main>
+      <Footer />
       <ScrollRestoration />
     </div>
   )

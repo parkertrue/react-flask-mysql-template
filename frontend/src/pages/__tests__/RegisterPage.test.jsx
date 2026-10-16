@@ -6,6 +6,7 @@ import { registerUser } from '@/auth/authService'
 import { errorBody } from '@/test/fixtures'
 import { renderRoutes } from '@/test/router'
 import { APP_NAME } from '@/appName'
+import { TERMS_VERSION } from '@/legal'
 
 vi.mock('@/auth/authService')
 
@@ -21,14 +22,16 @@ const field = {
   password: () => screen.getByLabelText('Password'),
   confirmPassword: () => screen.getByLabelText('Confirm password'),
 }
+const termsCheckbox = () => screen.getByRole('checkbox', { name: 'I accept the Terms and the Privacy notice' })
 const submitButton = () => screen.getByRole('button', { name: /register|creating account/i })
 
 async function fill(user, values = {}) {
-  const { email = 'user@example.com', password = 'Password123' } = values
+  const { email = 'user@example.com', password = 'Password123', acceptTerms = true } = values
   const { confirmPassword = password } = values
   for (const [name, value] of Object.entries({ email, password, confirmPassword })) {
     if (value) await user.type(field[name](), value)
   }
+  if (acceptTerms) await user.click(termsCheckbox())
 }
 
 describe('RegisterPage', () => {
@@ -42,6 +45,18 @@ describe('RegisterPage', () => {
     expect(field.password()).toHaveAccessibleDescription('')
     expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', '/login')
     expect(document.title).toBe(`Register | ${APP_NAME}`)
+  })
+
+  it('asks the user to accept the terms and privacy notice, linked in new tabs', () => {
+    renderPage()
+
+    expect(termsCheckbox()).not.toBeChecked()
+    expect(termsCheckbox()).toHaveAccessibleDescription('Both open in a new tab.')
+    for (const [name, href] of [['Terms', '/terms'], ['Privacy notice', '/privacy']]) {
+      const link = screen.getByRole('link', { name })
+      expect(link).toHaveAttribute('href', href)
+      expect(link).toHaveAttribute('target', '_blank')
+    }
   })
 
   describe('the password rules', () => {
@@ -77,15 +92,17 @@ describe('RegisterPage', () => {
       ['a malformed email', { email: 'not-an-email' }, 'email', 'Please enter a valid email address'],
       ['a weak password', { password: 'password' }, 'password', 'uppercase'],
       ['passwords that differ', { confirmPassword: 'Different123' }, 'confirmPassword', 'Passwords do not match'],
+      ['terms not accepted', { acceptTerms: false }, 'acceptTerms', 'Accept the Terms and the Privacy notice to register'],
     ])('stops %s, explains, and focuses the first bad field', async (_, values, name, message) => {
       const { user } = renderPage()
       await fill(user, values)
 
       await user.click(submitButton())
 
-      expect(field[name]()).toHaveAttribute('aria-invalid', 'true')
-      expect(field[name]()).toHaveAccessibleDescription(expect.stringContaining(message))
-      expect(field[name]()).toHaveFocus()
+      const input = name === 'acceptTerms' ? termsCheckbox() : field[name]()
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(input).toHaveAccessibleDescription(expect.stringContaining(message))
+      expect(input).toHaveFocus()
       expect(registerUser).not.toHaveBeenCalled()
     })
 
@@ -111,13 +128,16 @@ describe('RegisterPage', () => {
       expect(await screen.findByRole('heading', { name: 'Log in' })).toBeInTheDocument()
       // The login page fills its status line after its first render
       await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Registration successful'))
-      expect(registerUser).toHaveBeenCalledWith('user@example.com', 'Password123')
+      expect(registerUser).toHaveBeenCalledWith('user@example.com', 'Password123', TERMS_VERSION)
     })
 
     it.each([
       ['the server refuses', Object.assign(new Error('409'), {
         response: { status: 409, data: errorBody('EMAIL_ALREADY_REGISTERED', 'Email already registered') },
       }), 'Email already registered'],
+      ['the terms have changed', Object.assign(new Error('409'), {
+        response: { status: 409, data: errorBody('TERMS_OUTDATED', 'The terms have changed') },
+      }), 'The terms have changed'],
       ['the network fails', new Error('Network Error'), 'Network error'],
     ])('announces why when %s, and lets the user try again', async (_, error, message) => {
       registerUser.mockRejectedValue(error)
@@ -146,6 +166,9 @@ describe('RegisterPage', () => {
       for (const input of Object.values(field)) {
         expect(input()).toHaveAttribute('readonly')
       }
+      expect(termsCheckbox()).toHaveAttribute('aria-readonly', 'true')
+      await user.click(termsCheckbox())
+      expect(termsCheckbox()).toBeChecked()
       expect(registerUser).toHaveBeenCalledTimes(1)
       await act(async () => finish({}))
     })

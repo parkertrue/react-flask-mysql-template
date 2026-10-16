@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { routes } from '@/routes'
+import { TERMS_VERSION } from '@/legal'
 import { storage } from '@/auth/storage'
 import { account, errorBody } from '../fixtures'
 import { renderRoutes, signIn } from '../router'
@@ -15,6 +16,7 @@ async function fillRegistration(user, email) {
   await user.type(screen.getByLabelText('Email'), email)
   await user.type(screen.getByLabelText('Password'), 'Password123')
   await user.type(screen.getByLabelText('Confirm password'), 'Password123')
+  await user.click(screen.getByRole('checkbox', { name: /I accept the Terms/ }))
   await user.click(screen.getByRole('button', { name: 'Register' }))
 }
 
@@ -26,7 +28,12 @@ async function fillLogin(user, password = 'Password123') {
 
 describe('Authentication Flow Integration Tests', () => {
   describe('Registration Flow', () => {
-    it('registers and moves on to the login page, which confirms it', async () => {
+    it('registers, with the terms accepted, and moves on to the login page, which confirms it', async () => {
+      let body
+      server.use(http.post('/api/auth/register', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ message: 'User created' }, { status: 201 })
+      }))
       const { user } = renderRoutes(routes, '/register')
 
       await fillRegistration(user, 'test@example.com')
@@ -35,6 +42,8 @@ describe('Authentication Flow Integration Tests', () => {
       // Filled once the page is in place, so screen readers read it
       await waitFor(() =>
         expect(screen.getByRole('status')).toHaveTextContent('Registration successful'))
+      expect(body).toEqual(
+        { email: 'test@example.com', password: 'Password123', terms_version: TERMS_VERSION })
     })
 
     it('shows the server message when the email is taken', async () => {

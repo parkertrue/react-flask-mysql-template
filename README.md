@@ -10,6 +10,7 @@ This repository is a ready-to-use template for a React + Flask + MySQL web appli
 * MySQL database with Alembic migrations
 * JWT auth: short-lived access tokens plus rotating, revocable refresh tokens in HttpOnly cookies; a session ends after 7 days unused, and 30 days after login at most
 * Redis for refresh-token tracking and rate limiting
+* Placeholder privacy notice, terms (accepted at registration, with the version recorded), contact page and `security.txt`, to write for your app ([Personal Data and Legal Pages](#personal-data-and-legal-pages))
 * Unit, integration, and end-to-end tests, run in GitHub Actions
 
 **Full-stack template**:
@@ -389,7 +390,7 @@ The backend logs errors, and security events on the `app.security` logger: `logi
 
 Two of these events have innocent causes too. `refresh_refused` is a lead, not proof: a refresh whose answer never reached the client (a 504 on `/api/auth/refresh` from the same address just before) has already rotated its token, so the client's next refresh is refused the same way. And after a `SECRET_KEY` rotation, every token signed with the old key logs `token_invalid` once.
 
-Shipping logs off the server, and how long to keep them, is up to the deployment. Until they are shipped, Docker's three files per container are all there is. nginx caps each line and how fast one address can add them, pages and API alike, which makes pushing older lines out slow for one client but not impossible for many.
+Shipping logs off the server, and how long to keep them, is up to the deployment. Until they are shipped, Docker's three files per container are all there is. Their lines pair IP addresses with user ids, which is personal data: choose how long to keep them, say so in the privacy notice, and enforce it by age where the logs are shipped ([Personal Data and Legal Pages](#personal-data-and-legal-pages)). nginx caps each line and how fast one address can add them, pages and API alike, which makes pushing older lines out slow for one client but not impossible for many.
 
 ---
 
@@ -424,6 +425,49 @@ docker compose --env-file .env.prod down --volumes --remove-orphans
 
 ---
 
+# Personal Data and Legal Pages
+
+Every app built from the template collects personal data from its first sign-up, so it ships placeholder legal pages that each app must write for itself. None of this is legal advice: have a lawyer review the pages before launch.
+
+**What ships:**
+- `/privacy`, `/terms` and `/contact` (`frontend/src/pages/`), linked from the footer of every page. Each opens with a placeholder notice and gives one heading per topic, with what to write in brackets.
+- `frontend/src/legal.js`: the operator's name, address and contact email, which the pages show, and `TERMS_VERSION`.
+- A required checkbox on the register form, "I accept the Terms and the Privacy notice". The form sends the version it showed, the backend refuses any but the current `TERMS_VERSION` (`backend/app/auth/models.py`) with a 409 `TERMS_OUTDATED`, and `users` records `terms_version` and `terms_accepted_at`.
+- `frontend/public/.well-known/security.txt` (RFC 9116), where to report a security problem.
+
+**What the template keeps about people:**
+
+| Data | Where | How long |
+|---|---|---|
+| Email, password hash, when registered, terms version and when accepted | MySQL `users` | Until the account is deleted (there is no deletion yet) |
+| Users' content (the notes example) | The feature's tables | Until the user deletes it |
+| Every write, deleted rows included | MySQL's binary log | 30 days (MySQL's default) |
+| Refresh-token ids, at most 10 per user | Redis | Until the session expires (7 days idle, 30 at most) or logs out |
+| Rate-limit counters: per IP, per keyed hash of an email, per user | Redis | A minute to an hour |
+| Access log: IP, path (no query string), status, timings, User-Agent, Referer | nginx's stdout, kept by Docker | Until Docker's 3 × 10 MB rotate out |
+| Security events: IP, user id; a keyed hash of the typed email on a failed login | The backend's stdout, kept by Docker | The same |
+| Access token, refresh CSRF value, email | The browser's `localStorage` | Until logout or the session ends |
+| Refresh token | Cookie `__Secure-refresh_token` (HttpOnly) | Up to 30 days |
+
+No analytics, no third-party requests, no email and no processors. The cookie and `localStorage` are strictly necessary for the login the user asked for, so no consent banner is needed.
+
+**Before launch:**
+1. Fill in `legal.js`, then write the three pages for your app from the table above and your own features.
+2. Choose how long to keep logs (France's CNIL suggests 6 to 12 months for security logs), state it in the privacy notice, and enforce it by age once logs are shipped. Decide the MySQL binary log together with backups: keep it for point-in-time recovery, or turn it off.
+3. Name every provider that processes personal data for you (the host, a log service, a CDN, an email service) in the privacy notice, and sign each one's data processing agreement.
+4. Set `security.txt`'s `Contact` to the email in `legal.js` (a test checks they match) and `Expires` to under a year away, and renew `Expires` every year.
+5. Ask the lawyer whether your markets need a checkbox or whether a sentence beside the button would do, and whether a German audience needs the contact page labelled "Impressum" with more details on it.
+6. Check whether the European Accessibility Act covers your service (e-commerce, banking and a few other sectors; microenterprises are exempt).
+7. When the terms change, raise `TERMS_VERSION` in both `legal.js` and `backend/app/auth/models.py`. Asking existing users to accept the new terms is your app's job.
+
+**Duties that start with a feature:**
+- **Content other users can see** (sharing, profiles, comments, uploads): a way to report illegal content (EU Digital Services Act, Art. 16), and in the US a DMCA agent and a repeat-infringer policy.
+- **Children:** an audience under 13, or knowing that a user is, brings COPPA, and consent-based processing the GDPR's age of consent.
+- **Email** (verification, password reset, newsletters): CAN-SPAM, PECR and CASL.
+- **Deleting an account** must also reach Redis, the logs and backups, by their retention.
+
+---
+
 # Starting a New App From This Template
 
 **What is example code.** Notes, a small CRUD feature that shows how a feature is wired end to end, and the API-status demo on the home page. Everything else is what every app keeps: auth, the account page and `/api/account`, `/api/health` (the Docker healthchecks and Playwright wait on it), the layout, forms and dialogs.
@@ -453,8 +497,9 @@ CI's Scaffold job deletes the examples and edits exactly these files (`.github/s
    ```
 
    Upgrade first: Alembic only writes a migration against an up-to-date database. In the generated file, keep only the `op.drop_table(...)` lines in `downgrade()`: MySQL will not drop an index that a foreign key uses, and dropping the table drops its indexes anyway. Then run `./run_tests.sh integration`, whose `test_migrations.py` checks that the migrations match the models and undo cleanly.
-5. Name the app: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match). Replace the placeholder icon, `frontend/public/favicon.svg`.
+5. Name the app, without using anyone else's trademark: `APP_NAME` in `frontend/src/appName.js` and the `<title>` in `frontend/index.html` (a test checks they match). Replace the placeholder icon, `frontend/public/favicon.svg`.
 6. Rewrite this README and `CLAUDE.md` for your app, and choose its license: replace `LICENSE` and the `license` field in `frontend/package.json` (the template is MIT-0, so your app owes it no notice). Delete `.claude/skills/audit-scaffold/`, which acts out these steps on the template; keep the other audits in `.claude/skills/` and update their references to notes, or delete them.
+7. Write the legal pages and work through the list under [Personal Data and Legal Pages](#personal-data-and-legal-pages), "Before launch".
 
 # License
 

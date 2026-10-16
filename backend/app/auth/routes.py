@@ -23,7 +23,7 @@ from flask_limiter.util import get_remote_address
 
 from app import db, limiter
 from app.auth.errors import token_revoked
-from app.auth.models import User
+from app.auth.models import TERMS_VERSION, User
 from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
 from app.utils.errors import error_response, service_unavailable
 from app.utils.log import security_event
@@ -159,10 +159,23 @@ def _already_registered():
     )
 
 
+def _terms_outdated():
+    return error_response(
+        code='TERMS_OUTDATED',
+        message='The terms have changed since this page was loaded. Reload the page to read and accept them.',
+        status=409
+    )
+
+
 @auth_bp.route('/register', methods=['POST'])
 @limiter.limit('10 per hour')
 def register():
     payload = RegisterRequest.model_validate(request.get_json())
+
+    # A page loaded before the terms changed showed the old ones, which the
+    # user can no longer accept
+    if payload.terms_version != TERMS_VERSION:
+        return _terms_outdated()
 
     # A fast path that skips hashing a password for a taken email. The
     # unique index on users.email is the real check, below.
@@ -170,7 +183,7 @@ def register():
     if db.session.execute(stmt).scalar_one_or_none():
         return _already_registered()
 
-    user = User(email=payload.email)
+    user = User(email=payload.email, terms_version=payload.terms_version)
     user.set_password(payload.password)
 
     db.session.add(user)
