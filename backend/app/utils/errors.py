@@ -19,6 +19,11 @@ def error_response(*, code, message, status=400):
     return jsonify(payload), status
 
 
+# A service the request needs is down (MySQL, Redis) or too busy to answer
+def service_unavailable(message=SERVICE_UNAVAILABLE_MESSAGE):
+    return error_response(code='SERVICE_UNAVAILABLE', message=message, status=503)
+
+
 # A create refused because the user already stores as many rows of that kind
 # as a feature allows. Shared, so every feature answers a full quota alike.
 def quota_exceeded(message):

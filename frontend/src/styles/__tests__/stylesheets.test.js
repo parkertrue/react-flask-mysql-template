@@ -59,6 +59,41 @@ const unusedTokens = (tokensCss, sheets) => [...defined(tokensCss)].filter(name 
 /** Tokens a stylesheet uses that tokens.css does not define */
 const undefinedTokens = (tokensCss, sheets) => [...used(sheets)].filter(name => !defined(tokensCss).has(name))
 
+/**
+ * Media queries on the viewport's width: layouts adapt by wrapping
+ * (flex-wrap, clamp()) rather than at a breakpoint
+ */
+const widthMediaQueries = css =>
+  [...stripComments(css).matchAll(/@media([^{]*)\{/g)]
+    .map(([, query]) => query.trim())
+    .filter(query => /width/i.test(query))
+
+const MOTION_OPT_IN = '@media (prefers-reduced-motion: no-preference)'
+
+/** The css with each block that opens at `prelude` cut out, nested braces and all */
+function withoutBlocks(css, prelude) {
+  let rest = css
+  for (let start = rest.indexOf(prelude); start !== -1; start = rest.indexOf(prelude)) {
+    let depth = 0
+    let end = rest.indexOf('{', start)
+    do {
+      depth += rest[end] === '{' ? 1 : rest[end] === '}' ? -1 : 0
+      end++
+    } while (depth > 0 && end < rest.length)
+    rest = rest.slice(0, start) + rest.slice(end)
+  }
+  return rest
+}
+
+/**
+ * Transitions and animations that play whatever the user's motion setting:
+ * each must sit inside the opt-in query, so reduced motion means none
+ */
+const unguardedMotion = css =>
+  [...withoutBlocks(stripComments(css), MOTION_OPT_IN)
+    .matchAll(/(?:^|[{;\s])((?:transition|animation)(?:-[\w-]+)?)\s*:/g)]
+    .map(([, property]) => property)
+
 describe('stylesheets', () => {
   // Only shared stylesheets are named: CI's Scaffold job deletes the features
   it('finds every stylesheet under src/', () => {
@@ -75,6 +110,14 @@ describe('stylesheets', () => {
 
   it('uses only color tokens that tokens.css defines', () => {
     expect(undefinedTokens(read(TOKENS), stylesheets.map(read))).toEqual([])
+  })
+
+  it.each(stylesheets.map(label))('%s has no width media query', file => {
+    expect(widthMediaQueries(read(path.join(SRC, file)))).toEqual([])
+  })
+
+  it.each(stylesheets.map(label))('%s moves only for users who allow motion', file => {
+    expect(unguardedMotion(read(path.join(SRC, file)))).toEqual([])
   })
 })
 
@@ -107,5 +150,31 @@ describe('the checks themselves', () => {
 
     expect(unusedTokens(tokensCss, sheets)).toEqual(['--color-b'])
     expect(undefinedTokens(tokensCss, sheets)).toEqual(['--color-c'])
+  })
+
+  it('finds a width media query, however it is written, and nothing else', () => {
+    const css = `
+      /* @media (max-width: 1px) { } in a comment */
+      @media (max-width: 600px) { .a { gap: 0; } }
+      @media screen and (width >= 40em) { .b { gap: 0; } }
+      @media (forced-colors: active) { .c { border: 1px solid ButtonText; } }
+      .d { max-width: 40rem; }
+    `
+    expect(widthMediaQueries(css)).toEqual(['(max-width: 600px)', 'screen and (width >= 40em)'])
+  })
+
+  it('finds motion outside the opt-in query, and none inside it', () => {
+    const css = `
+      /* transition: color 1s in a comment */
+      .a { color: red; transition: color 0.2s; }
+      .b { animation-name: spin; }
+      @media (prefers-reduced-motion: no-preference) {
+        .c { transition: opacity 0.2s; }
+        @supports (display: grid) { .d { animation: spin 1s; } }
+      }
+      .e{animation:spin 1s}
+      .f { transition-duration: 0s; }
+    `
+    expect(unguardedMotion(css)).toEqual(['transition', 'animation-name', 'animation', 'transition-duration'])
   })
 })

@@ -34,7 +34,7 @@ def probe_user(integration_db, monkeypatch):
     """A user holding the grant the MySQL image gives the app's user: ALL on
     the escaped name (`appdb\\_test`)"""
     database = os.environ['DB_NAME']
-    # The bug this guards against only shows on a name with `_`
+    # The escaping under test only matters on a name with `_`
     assert '_' in database
     root = _connect('root', os.environ['DB_ROOT_PASSWORD'])
     with root.cursor() as cursor:

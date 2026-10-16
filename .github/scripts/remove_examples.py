@@ -24,6 +24,7 @@ DELETE = [
     'frontend/src/features/notes',
     'frontend/src/features/health',
     'frontend/e2e/notes-crud.spec.js',
+    'frontend/e2e/api-status.spec.js',
 ]
 
 EDITS = {

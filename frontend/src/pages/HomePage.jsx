@@ -12,7 +12,7 @@ export default function HomePage() {
       <PageTitle />
       <div className="home-content">
         <h1>Welcome to {APP_NAME}</h1>
-        <p>A full-stack starter with auth, and dev, test and production setups.</p>
+        <p>A full-stack starter with auth, plus dev, test and production setups.</p>
         <ApiStatus />
 
         <div className="home-actions">

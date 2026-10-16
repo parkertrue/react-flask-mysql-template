@@ -226,6 +226,16 @@ test.describe('nginx', () => {
     expect(event).toMatchObject({ logger: 'app.security', message: 'login_failed' })
   })
 
+  test('a page whose path only starts with "api" is the app', async ({ request }) => {
+    const response = await request.get('/apidocs')
+
+    expect(response.status()).toBe(200)
+    expect(await response.text()).toContain('<div id="root">')
+  })
+
+  // Last in this block: the refill below waits for one free slot, not an
+  // empty bucket, so a page request straight after it could still be refused.
+  // The next block asks for /api/health alone, which no limit covers.
   test('a client loading pages in a loop is refused in the API\'s error shape', async ({ request }) => {
     // 10 r/s with a burst of 20 (nginx/Dockerfile): 60 at once overflows it
     const responses = await Promise.all(
@@ -241,13 +251,6 @@ test.describe('nginx', () => {
 
     // Let the bucket refill, so the tests after this one are not limited
     await expect.poll(async () => (await request.get('/account')).status()).toBe(200)
-  })
-
-  test('a page whose path only starts with "api" is the app', async ({ request }) => {
-    const response = await request.get('/apidocs')
-
-    expect(response.status()).toBe(200)
-    expect(await response.text()).toContain('<div id="root">')
   })
 })
 

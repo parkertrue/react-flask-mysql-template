@@ -21,11 +21,11 @@ describe('validatePassword', () => {
     // 4 characters as typed, but NFKC expands ㌕ to the five of キログラム
     ['one that is long enough once normalized', 'Aa1㌕'],
   ])('accepts %s', (_, password) => {
-    expect(validatePassword(password)).toEqual([])
+    expect(validatePassword(password)).toBeUndefined()
   })
 
   it.each(['', undefined, null])('requires a password (%o)', (password) => {
-    expect(validatePassword(password)).toEqual(['Password is required'])
+    expect(validatePassword(password)).toBe('Password is required')
   })
 
   it.each([
@@ -46,15 +46,16 @@ describe('validatePassword', () => {
     ['that grows too long when normalized', 'Aa1' + 'x'.repeat(PASSWORD_MAX_LENGTH - 4) + '㌕',
       `Password must be at most ${PASSWORD_MAX_LENGTH} characters`],
   ])('rejects a password %s', (_, password, message) => {
-    expect(validatePassword(password)).toEqual([message])
+    expect(validatePassword(password)).toBe(message)
   })
 
-  it('reports every rule a password breaks', () => {
-    expect(validatePassword('pass')).toEqual([
-      `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
-      'Password must contain at least one uppercase letter',
-      'Password must contain at least one number',
-    ])
+  // The form shows one message at a time, so the order is what the user sees
+  it.each([
+    ['pass', `Password must be at least ${PASSWORD_MIN_LENGTH} characters`],
+    ['pass word😀', 'Password must not contain spaces'],
+    ['password', 'Password must contain at least one uppercase letter'],
+  ])('reports only the first rule %o breaks', (password, message) => {
+    expect(validatePassword(password)).toBe(message)
   })
 })
 
@@ -71,11 +72,11 @@ describe('validateEmail', () => {
     'user@bücher.de',
     'user@xn--bcher-kva.de',
   ])('accepts %s', (email) => {
-    expect(validateEmail(email)).toEqual([])
+    expect(validateEmail(email)).toBeUndefined()
   })
 
   it.each(['', undefined, null])('requires an email (%o)', (email) => {
-    expect(validateEmail(email)).toEqual(['Email is required'])
+    expect(validateEmail(email)).toBe('Email is required')
   })
 
   it.each([
@@ -97,17 +98,17 @@ describe('validateEmail', () => {
     'user@example..com',
     'user@😀.com',
   ])('rejects %s as malformed', (email) => {
-    expect(validateEmail(email)).toEqual(['Please enter a valid email address'])
+    expect(validateEmail(email)).toBe('Please enter a valid email address')
   })
 
   it('rejects an email longer than the users.email column', () => {
     expect(validateEmail('a'.repeat(EMAIL_MAX_LENGTH) + '@example.com'))
-      .toContain(`Email must be at most ${EMAIL_MAX_LENGTH} characters`)
+      .toBe(`Email must be at most ${EMAIL_MAX_LENGTH} characters`)
   })
 
   it.each(['josé@example.com', '😀@example.com'])('explains that %s needs an ASCII local part', (email) => {
-    expect(validateEmail(email)).toEqual(
-      ['Before the @, an email can use only English letters, numbers and symbols like . _ + -'])
+    expect(validateEmail(email)).toBe(
+      'Before the @, an email can use only English letters, numbers and symbols like . _ + -')
   })
 
   it('counts the length of the ASCII form the backend stores', () => {
@@ -115,7 +116,7 @@ describe('validateEmail', () => {
     const email = 'a'.repeat(EMAIL_MAX_LENGTH - domain.length - 1) + '@' + domain
     expect(email.length).toBe(EMAIL_MAX_LENGTH)
 
-    expect(validateEmail(email)).toEqual([`Email must be at most ${EMAIL_MAX_LENGTH} characters`])
+    expect(validateEmail(email)).toBe(`Email must be at most ${EMAIL_MAX_LENGTH} characters`)
   })
 })
 
@@ -125,7 +126,7 @@ describe('validatePasswordMatch', () => {
     ['', ''],
     ['Pass word 123', 'Pass word 123'],
   ])('accepts %o twice', (password, confirm) => {
-    expect(validatePasswordMatch(password, confirm)).toEqual([])
+    expect(validatePasswordMatch(password, confirm)).toBeUndefined()
   })
 
   it.each([
@@ -135,7 +136,7 @@ describe('validatePasswordMatch', () => {
     ['Password123', ''],
     ['', 'Password123'],
   ])('rejects %o and %o', (password, confirm) => {
-    expect(validatePasswordMatch(password, confirm)).toEqual(['Passwords do not match'])
+    expect(validatePasswordMatch(password, confirm)).toBe('Passwords do not match')
   })
 })
 

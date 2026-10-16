@@ -35,54 +35,48 @@ class TestRegisterRequest:
         errors = exc_info.value.errors()
         assert any(e['loc'] == ('password',) for e in errors)
 
-    def test_invalid_email_format(self):
+    @pytest.mark.parametrize('invalid_email', [
+        'notanemail',
+        '@example.com',
+        'user@',
+        'user @example.com',
+        'user@.com',
+        'user@domain',
+    ])
+    def test_invalid_email_format(self, invalid_email):
         """Schema should reject invalid email formats."""
-        invalid_emails = [
-            'notanemail',
-            '@example.com',
-            'user@',
-            'user @example.com',
-            'user@.com',
-            'user@domain',
-        ]
-
-        for invalid_email in invalid_emails:
-            with pytest.raises(ValidationError):
-                RegisterRequest(
-                    email=invalid_email,
-                    password='ValidPass123'
-                )
-
-    def test_valid_email_formats(self):
-        """Schema should accept various valid email formats."""
-        valid_emails = [
-            'user@example.com',
-            'user.name@example.com',
-            'user+tag@example.com',
-            'user123@sub.example.com',
-            'a@b.co',
-        ]
-
-        for valid_email in valid_emails:
-            request = RegisterRequest(
-                email=valid_email,
+        with pytest.raises(ValidationError):
+            RegisterRequest(
+                email=invalid_email,
                 password='ValidPass123'
             )
-            assert request.email == valid_email
 
-    def test_password_min_length(self):
+    @pytest.mark.parametrize('valid_email', [
+        'user@example.com',
+        'user.name@example.com',
+        'user+tag@example.com',
+        'user123@sub.example.com',
+        'a@b.co',
+    ])
+    def test_valid_email_formats(self, valid_email):
+        """Schema should accept various valid email formats."""
+        request = RegisterRequest(
+            email=valid_email,
+            password='ValidPass123'
+        )
+        assert request.email == valid_email
+
+    @pytest.mark.parametrize('password', ['Pass1', 'Ab1', 'Short7'])
+    def test_password_min_length(self, password):
         """Schema should reject passwords under 8 characters."""
-        short_passwords = ['Pass1', 'Ab1', 'Short7']
+        with pytest.raises(ValidationError) as exc_info:
+            RegisterRequest(
+                email='test@example.com',
+                password=password
+            )
 
-        for password in short_passwords:
-            with pytest.raises(ValidationError) as exc_info:
-                RegisterRequest(
-                    email='test@example.com',
-                    password=password
-                )
-
-            errors = exc_info.value.errors()
-            assert any('min_length' in str(e) for e in errors)
+        errors = exc_info.value.errors()
+        assert any('min_length' in str(e) for e in errors)
 
     def test_password_max_length(self):
         """Schema should reject passwords over 128 characters."""
@@ -152,22 +146,20 @@ class TestRegisterRequest:
         error_messages = [str(e) for e in errors]
         assert any('number' in msg.lower() for msg in error_messages)
 
-    def test_password_with_all_requirements(self):
+    @pytest.mark.parametrize('password', [
+        'ValidPass123',
+        'Abcdefg1',
+        'P@ssw0rd',
+        'MyPassword1',
+        'Test1234',
+    ])
+    def test_password_with_all_requirements(self, password):
         """Schema should accept password meeting all requirements."""
-        valid_passwords = [
-            'ValidPass123',
-            'Abcdefg1',
-            'P@ssw0rd',
-            'MyPassword1',
-            'Test1234',
-        ]
-
-        for password in valid_passwords:
-            request = RegisterRequest(
-                email='test@example.com',
-                password=password
-            )
-            assert request.password == password
+        request = RegisterRequest(
+            email='test@example.com',
+            password=password
+        )
+        assert request.password == password
 
     def test_password_with_special_characters(self):
         """Schema should accept passwords with special characters."""
@@ -276,17 +268,15 @@ class TestLoginRequest:
                 password=long_password
             )
 
-    def test_login_no_password_validation(self):
+    @pytest.mark.parametrize('password', [
+        'alllowercase12345',  # No uppercase (but 8+ chars)
+        'ALLUPPERCASE12345',  # No lowercase (but 8+ chars)
+        'NoNumbersButLongEnough',  # No numbers (but 8+ chars)
+    ])
+    def test_login_no_password_validation(self, password):
         """Login checks length and characters, but not strength."""
-        passwords_accepted_for_login = [
-            'alllowercase12345',  # No uppercase (but 8+ chars)
-            'ALLUPPERCASE12345',  # No lowercase (but 8+ chars)
-            'NoNumbersButLongEnough',  # No numbers (but 8+ chars)
-        ]
-
-        for password in passwords_accepted_for_login:
-            request = LoginRequest(email='test@example.com', password=password)
-            assert request.password == password
+        request = LoginRequest(email='test@example.com', password=password)
+        assert request.password == password
 
     def test_extra_fields_forbidden(self):
         """Schema should reject extra fields."""

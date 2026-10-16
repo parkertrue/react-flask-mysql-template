@@ -444,7 +444,7 @@ CI's Scaffold job deletes the examples and edits exactly these files (`.github/s
    - **Delete it**, and build your feature in the same shape: delete those folders and files.
 
    Either way, delete `backend/migrations/versions/0002_notes.py` (step 4 generates yours) and update the wiring points above. Then delete `.github/scripts/remove_examples.py` and the Scaffold job in `.github/workflows/ci.yml`, and drop Scaffold from the status checks required on `main` ([CI](#continuous-integration)): they only prove that the template's examples can be removed, and the import rules keep shared code off your features.
-3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/`, the `ApiStatus` import and element in `frontend/src/pages/HomePage.jsx`, and the `vi.mock` of `ApiStatus` in `frontend/src/pages/__tests__/HomePage.test.jsx`, with `vi` in its import.
+3. Remove the API-status demo, unless you want it: delete `frontend/src/features/health/` and `frontend/e2e/api-status.spec.js`, the `ApiStatus` import and element in `frontend/src/pages/HomePage.jsx`, and the `vi.mock` of `ApiStatus` in `frontend/src/pages/__tests__/HomePage.test.jsx`, with `vi` in its import.
 4. Generate a migration for your tables. From `backend/`, with `.env.dev` loaded as in [Database Schema Changes](#database-schema-changes-during-dev). If the dev backend ran after step 1 while `0002_notes.py` still existed, the database refers to a migration that is gone: reset it first (`docker compose --env-file .env.dev -f docker-compose.dev.yml down -v`, then start it again).
 
    ```bash

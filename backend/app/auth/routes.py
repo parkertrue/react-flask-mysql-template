@@ -22,9 +22,10 @@ from flask_jwt_extended.exceptions import JWTExtendedException
 from flask_limiter.util import get_remote_address
 
 from app import db, limiter
+from app.auth.errors import token_revoked
 from app.auth.models import User
 from app.auth.schemas import LoginRequest, RegisterRequest, normalize_email
-from app.utils.errors import SERVICE_UNAVAILABLE_MESSAGE, error_response
+from app.utils.errors import error_response, service_unavailable
 from app.utils.log import security_event
 from app.utils.passwords import DUMMY_PASSWORD_HASH, verify_password
 from app.utils.redis_service import get_redis_service
@@ -132,25 +133,17 @@ def _issue_tokens(user_id: int, auth_time: int, replaces: str | None = None):
         # Another request rotated this token between the blocklist check and
         # here; refuse it as the blocklist would have a moment later.
         security_event('refresh_refused', user_id=user_id)
-        return error_response(
-            code='AUTH_TOKEN_REVOKED',
-            message='Session revoked',
-            status=401
-        )
+        return token_revoked()
     if recorded is None:
         # A refresh token Redis never recorded counts as revoked, so the
         # session would end silently once the access token expires. Refuse
         # up front.
-        return error_response(
-            code='SERVICE_UNAVAILABLE',
-            message=SERVICE_UNAVAILABLE_MESSAGE,
-            status=503
-        )
+        return service_unavailable()
 
     # Only advertise a CSRF token when cookie CSRF protection is actually on;
     # IntegrationConfig turns it off for headless API tests.
     response_data = {'access_token': access_token}
-    if current_app.config.get('JWT_COOKIE_CSRF_PROTECT', True):
+    if current_app.config['JWT_COOKIE_CSRF_PROTECT']:
         response_data['refresh_csrf'] = get_csrf_token(refresh_token)
 
     response = make_response(jsonify(response_data), 200)
@@ -247,10 +240,11 @@ def refresh():
 @jwt_required(refresh=True, locations=['cookies'])
 def logout():
     user_id = current_user.id
-    jti = get_jwt().get('jti')
+    # The blocklist loader already refused a refresh token without a jti
+    jti = get_jwt()['jti']
 
     redis_service = get_redis_service()
-    if redis_service and jti:
+    if redis_service:
         redis_service.revoke_token(user_id, jti)
     security_event('logout', user_id=user_id)
 
@@ -285,11 +279,7 @@ def logout_all():
     redis_service = get_redis_service()
     count = redis_service.revoke_all_user_tokens(current_user.id) if redis_service else None
     if count is None:
-        return error_response(
-            code='SERVICE_UNAVAILABLE',
-            message='Could not log out other devices, please try again shortly',
-            status=503
-        )
+        return service_unavailable('Could not log out other devices, please try again shortly')
 
     security_event('logout_all', user_id=current_user.id, sessions=count)
     message = f'Logged out from {count} device(s)' if count > 0 else 'No active sessions found'

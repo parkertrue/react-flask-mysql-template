@@ -1,8 +1,8 @@
 import { useHealth } from './useHealth'
 import './health.css'
 
-// Demo of a polled backend call, like the notes feature: delete this folder
-// when starting a real app. The backend's /api/health stays, since the
+// An example like the notes feature (a polled backend call): delete this
+// folder when starting a real app. The backend's /api/health stays, since the
 // Docker healthchecks and Playwright use it.
 export default function ApiStatus() {
   const status = useHealth()

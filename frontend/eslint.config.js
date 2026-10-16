@@ -43,6 +43,28 @@ const restrictSyntax = (...selectors) => ({
   'no-restricted-syntax': ['error', NO_TEXT_AS_HTML, NO_TEST_IDS, NO_DISABLED, NO_MOCKED_STORAGE, ...selectors],
 })
 
+// Assertions that accept several answers, in unit and E2E tests alike
+// (backend: tests/unit/test_assertions.py)
+const NO_HEDGES = [
+  {
+    selector: "MemberExpression[property.name=/^toContain/] > CallExpression.object[callee.name='expect'][arguments.0.type='ArrayExpression']",
+    message: 'Pin the one answer the code gives.',
+  },
+  {
+    selector: "CallExpression[callee.name='expect'][arguments.0.type='LogicalExpression'][arguments.0.operator='||']",
+    message: 'Pin the one answer the code gives.',
+  },
+]
+
+// The session lives in one place, auth/storage.js
+const NO_STORAGE = {
+  'no-restricted-globals': ['error', ...['localStorage', 'sessionStorage'].map(name =>
+    ({ name, message: 'Read and write the session through @/auth/storage.' }))],
+  'no-restricted-properties': ['error', ...['localStorage', 'sessionStorage'].map(property =>
+    ({ object: 'window', property, message: 'Read and write the session through @/auth/storage.' }))],
+}
+const ALLOW_STORAGE = { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off' }
+
 // The folder a file belongs to: a feature (features/notes), a top-level
 // folder of src/ (auth, pages, ...), or src/ itself for its root files.
 // A __tests__ folder belongs to the folder it sits in.
@@ -111,8 +133,13 @@ export default defineConfig([
     rules: {
       ...restrictImports(),
       ...restrictSyntax(FORM_CONTROL),
+      ...NO_STORAGE,
       'local/relative-within-folder': 'error',
     },
+  },
+  {
+    files: ['src/auth/storage.js'],
+    rules: ALLOW_STORAGE,
   },
   {
     // Fields go through FormField, which ties the label, hint and message to
@@ -157,12 +184,14 @@ export default defineConfig([
     },
   },
   {
+    // Tests use the real localStorage, and clear it after each one
     files: ['src/**/__tests__/**', 'src/test/**', '**/*.{test,spec}.{js,jsx}'],
     languageOptions: {
       globals: globals.node,
     },
     rules: {
       'no-console': 'off',
+      ...ALLOW_STORAGE,
     },
   },
   {
@@ -173,7 +202,7 @@ export default defineConfig([
     files: ['src/**/*.{test,spec}.{js,jsx}'],
     extends: [vitest.configs.recommended],
     rules: {
-      'vitest/no-conditional-expect': 'error',
+      ...restrictSyntax(FORM_CONTROL, ...NO_HEDGES),
       'vitest/no-restricted-matchers': ['error', {
         toBeDefined: 'Assert the value itself.',
         toBeTruthy: 'Assert the value itself.',
@@ -185,13 +214,17 @@ export default defineConfig([
     },
   },
   {
+    // FormField's own tests keep its folder's raw form controls
+    files: ['src/components/forms/**/*.{test,spec}.{js,jsx}'],
+    rules: restrictSyntax(...NO_HEDGES),
+  },
+  {
     files: ['e2e/**/*.spec.js'],
     extends: [playwright.configs['flat/recommended']],
     rules: {
       // e2e/helpers.js's expect* helpers (expectNoViolations, ...) assert too
       'playwright/expect-expect': ['error', { assertFunctionPatterns: ['^expect[A-Z]'] }],
-      'playwright/no-conditional-expect': 'error',
-      'playwright/no-conditional-in-test': 'error',
+      'no-restricted-syntax': ['error', ...NO_HEDGES],
     },
   },
 ])
