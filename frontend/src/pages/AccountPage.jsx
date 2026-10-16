@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
-import { getAccount, logoutAllDevices, clearAuthCookies } from '@/auth/authService'
+import { getAccount, logoutAllDevices, clearAuthCookies, deleteAccount } from '@/auth/authService'
 import { getErrorMessage } from '@/api/errors'
+import ConfirmDialog from '@/components/dialogs/ConfirmDialog'
+import FormField from '@/components/forms/FormField'
+import { useFormFields } from '@/components/forms/useFormFields'
 import PageTitle from '@/components/layout/PageTitle'
+import { validatePasswordCharacters, PASSWORD_MAX_LENGTH } from '@/utils/validation'
 
 export default function AccountPage() {
   const { email, logout } = useAuth()
@@ -12,6 +16,10 @@ export default function AccountPage() {
   const [submitting, setSubmitting] = useState(false)
   const [account, setAccount] = useState(null)
   const [loadError, setLoadError] = useState(null)
+  const deletion = useFormFields({ 'delete-password': '' })
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   useEffect(() => {
     getAccount()
@@ -40,6 +48,38 @@ export default function AccountPage() {
     // /login (LogoutButton explains)
     await navigate('/', { flushSync: true })
     logout()
+  }
+
+  // The password is checked here first, then the dialog asks once more
+  const handleDeleteSubmit = (e) => {
+    e.preventDefault()
+    if (deleting) return
+    const password = deletion.values['delete-password']
+    const valid = deletion.validate(e.currentTarget, {
+      'delete-password': password ? validatePasswordCharacters(password) : 'Password is required',
+    })
+    if (valid) setConfirmingDelete(true)
+  }
+
+  const handleDelete = async () => {
+    setConfirmingDelete(false)
+    setDeleteError(null)
+    setDeleting(true)
+    try {
+      await deleteAccount(deletion.values['delete-password'])
+    } catch (err) {
+      // Nothing was deleted: a wrong password, or the server could not end
+      // the account's sessions. A session that has ended takes the user to
+      // the login page on its own.
+      setDeleteError(getErrorMessage(err))
+      setDeleting(false)
+      return
+    }
+    // Home first, as for logging out, then the login page, which says the
+    // account is gone; a signed-in user would be sent on from there
+    await navigate('/', { flushSync: true })
+    logout()
+    await navigate('/login', { replace: true, state: { accountDeleted: true } })
   }
 
   return (
@@ -73,6 +113,40 @@ export default function AccountPage() {
         >
           {submitting ? 'Logging out...' : 'Log out all devices'}
         </button>
+      </section>
+
+      <section aria-labelledby="delete-heading">
+        <h2 id="delete-heading">Delete account</h2>
+        <p>Delete this account and everything in it. This cannot be undone.</p>
+        <form onSubmit={handleDeleteSubmit} noValidate aria-labelledby="delete-heading">
+          <FormField
+            id="delete-password"
+            label="Password"
+            hint="Enter your password to confirm."
+            type="password"
+            autoComplete="current-password"
+            value={deletion.values['delete-password']}
+            onChange={deletion.handleChange}
+            error={deletion.errors['delete-password']}
+            readOnly={deleting}
+            required
+            maxLength={PASSWORD_MAX_LENGTH}
+          />
+          {deleteError && <div className="error-message" role="alert">{deleteError}</div>}
+          <button type="submit" aria-disabled={deleting} className="btn btn-danger">
+            {deleting ? 'Deleting...' : 'Delete account'}
+          </button>
+        </form>
+        {confirmingDelete && (
+          <ConfirmDialog
+            title="Delete your account?"
+            confirmLabel="Delete account"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmingDelete(false)}
+          >
+            <p>Your account and everything in it will be deleted. This cannot be undone.</p>
+          </ConfirmDialog>
+        )}
       </section>
     </div>
   )

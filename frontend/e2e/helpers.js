@@ -79,6 +79,18 @@ export async function logoutAllDevices(page) {
   await expectHomeReached(page)
 }
 
+/**
+ * On the account page, type the password and ask to delete the account;
+ * returns the dialog that asks to confirm
+ */
+export async function askToDeleteAccount(page, password = TEST_PASSWORD) {
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Delete account' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Delete your account?' })
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  return dialog
+}
+
 // The URL alone can pass on a home page that is replaced at once (by /login,
 // if the session ended before home rendered); its focused h1 cannot
 async function expectHomeReached(page) {

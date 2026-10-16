@@ -650,3 +650,14 @@ class TestNotesMarkup:
         response = client.get('/api/notes', headers=auth_headers)
 
         assert response.mimetype == 'application/json'
+
+
+class TestDeletingTheAccount:
+    def test_deletes_the_users_notes_and_no_one_elses(
+            self, client, db, auth_headers, sample_notes, other_user_note):
+        response = client.post('/api/account/delete', headers=auth_headers,
+                               json={'password': 'TestPassword123'})
+
+        assert response.status_code == 200
+        remaining = db.session.execute(select(Note.id)).scalars().all()
+        assert remaining == [other_user_note.id]

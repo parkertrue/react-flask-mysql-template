@@ -16,7 +16,8 @@ import {
 export default function LoginPage() {
   const { login, sessionEnded } = useAuth()
   const location = useLocation()
-  const registered = location.state?.registered
+  // Where the user came from: registering, or deleting their account
+  const { registered, accountDeleted } = location.state ?? {}
   const { values, errors, handleChange, validate } = useFormFields({ email: '', password: '' })
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -25,7 +26,8 @@ export default function LoginPage() {
   const [status, setStatus] = useState('')
   const notice = registered
     ? 'Registration successful. Please log in.'
-    : sessionEnded ? 'Your session has ended. Please log in again.' : ''
+    : accountDeleted ? 'Your account has been deleted.'
+      : sessionEnded ? 'Your session has ended. Please log in again.' : ''
 
   useEffect(() => {
     // Announcing the notice once the region exists is what this effect is for
@@ -68,7 +70,7 @@ export default function LoginPage() {
           <h1 id="login-heading">Log in</h1>
 
           {notice && (
-            <p className={registered ? 'success-message' : 'info-message'}>{notice}</p>
+            <p className={registered || accountDeleted ? 'success-message' : 'info-message'}>{notice}</p>
           )}
           <p className="visually-hidden" role="status">{status}</p>
 

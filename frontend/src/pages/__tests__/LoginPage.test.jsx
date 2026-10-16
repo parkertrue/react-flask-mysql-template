@@ -59,6 +59,8 @@ describe('LoginPage', () => {
       'Your session has ended. Please log in again.'],
     ['a registration over an ended session', () => storage.endSession(), { registered: true },
       'Registration successful. Please log in.'],
+    ['an account just deleted', () => {}, { accountDeleted: true },
+      'Your account has been deleted.'],
   ])('tells the user about %s', async (_, arrange, state, message) => {
     arrange()
     renderPage({ pathname: '/login', state })

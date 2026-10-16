@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import {
-  expectNoCspViolations, expectNoViolations, expectReflow, expectTargetSize,
+  askToDeleteAccount, expectNoCspViolations, expectNoViolations, expectReflow, expectTargetSize,
   expectVisibleFocus, expireAccessToken, fillRegistration, holdRequests, memberSince,
   register, registerAndLogin, serviceUnavailable, uniqueEmail,
 } from './helpers'
@@ -172,6 +172,35 @@ test.describe('Accessibility', () => {
 
       release()
       await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+      await expectNoViolations(page)
+    })
+
+    test('deleting the account, asking, busy and then failed, has no violations', async ({ page }) => {
+      await page.goto('/account')
+      await expect(memberSince(page)).toBeVisible()
+
+      const dialog = await askToDeleteAccount(page)
+      await expectNoViolations(page)
+
+      const release = await holdRequests(page, 'POST', '**/api/account/delete', serviceUnavailable)
+      await dialog.getByRole('button', { name: 'Delete account' }).click()
+      // The dialog hands focus back to the button, now busy
+      await expect(page.getByRole('button', { name: 'Deleting...' })).toBeFocused()
+      await expectNoViolations(page)
+
+      release()
+      await expect(page.getByRole('alert')).toHaveText(/temporarily unavailable/)
+      await expectNoViolations(page)
+    })
+
+    test('the login page after deleting the account has no violations', async ({ page }) => {
+      await page.goto('/account')
+      await expect(memberSince(page)).toBeVisible()
+      const dialog = await askToDeleteAccount(page)
+
+      await dialog.getByRole('button', { name: 'Delete account' }).click()
+
+      await expect(page.getByRole('status')).toHaveText('Your account has been deleted.')
       await expectNoViolations(page)
     })
 

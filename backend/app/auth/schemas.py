@@ -1,8 +1,10 @@
 import re
 import unicodedata
+from typing import Annotated
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import (
+    AfterValidator, BaseModel, BeforeValidator, Field, field_validator, ConfigDict)
 
 # Checked after normalizing, so the stored form always fits the users.email
 # column.
@@ -77,15 +79,22 @@ class RegisterRequest(BaseModel):
         return v
 
 
+# A password checked against the account's, at login or before a change only
+# the owner may make: normalized and limited to the same characters as
+# RegisterRequest's, but no strength rules, since tightening RegisterRequest's
+# must not lock out users whose existing passwords predate the change.
+CurrentPassword = Annotated[
+    str,
+    BeforeValidator(_normalize_password),
+    Field(min_length=1, max_length=PASSWORD_MAX_LENGTH),
+    AfterValidator(_check_password_characters),
+]
+
+
 class LoginRequest(BaseModel):
     email: str
-    # Normalized and limited to the same characters as RegisterRequest's,
-    # but no strength rules: tightening RegisterRequest's must not lock out
-    # users whose existing passwords predate the change.
-    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
+    password: CurrentPassword
 
     model_config = ConfigDict(extra='forbid')
 
     check_email = field_validator('email')(normalize_email)
-    normalize_password = field_validator('password', mode='before')(_normalize_password)
-    check_password_characters = field_validator('password')(_check_password_characters)

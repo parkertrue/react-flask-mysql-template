@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
-  fillRegistration, login, logout, memberSince, openAccount, register, submitRegistration,
-  uniqueEmail,
+  askToDeleteAccount, fillRegistration, login, logout, memberSince, openAccount, register,
+  registerAndLogin, submitRegistration, TEST_PASSWORD, uniqueEmail,
 } from './helpers'
 import { APP_NAME } from '../src/appName.js'
 
@@ -58,6 +58,37 @@ test.describe('Critical User Journey', () => {
     await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i)
 
     await expect(page).toHaveURL(/\/login/)
+  })
+
+  test('deleting the account ends the session, and its login with it', async ({ page }) => {
+    const email = await registerAndLogin(page, 'e2e-delete')
+    await openAccount(page)
+
+    const dialog = await askToDeleteAccount(page)
+    await dialog.getByRole('button', { name: 'Delete account' }).click()
+
+    await expect(page).toHaveURL(/\/login$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Log in' })).toBeFocused()
+    await expect(page.getByRole('status')).toHaveText('Your account has been deleted.')
+
+    // The account is gone, not just signed out
+    await page.getByLabel(/email/i).fill(email)
+    await page.getByLabel(/password/i).fill(TEST_PASSWORD)
+    await page.getByRole('button', { name: /^log in$/i }).click()
+    await expect(page.getByRole('alert')).toHaveText(/invalid email or password/i)
+  })
+
+  test('deleting the account with a wrong password keeps it', async ({ page }) => {
+    await registerAndLogin(page, 'e2e-delete-wrong')
+    await openAccount(page)
+
+    const dialog = await askToDeleteAccount(page, 'WrongPassword123')
+    await dialog.getByRole('button', { name: 'Delete account' }).click()
+
+    await expect(page.getByRole('alert')).toHaveText('The password is incorrect')
+    await expect(page).toHaveURL(/\/account$/)
+    await page.reload()
+    await expect(memberSince(page)).toBeVisible()
   })
 
   test('registration with existing email shows error', async ({ page }) => {
